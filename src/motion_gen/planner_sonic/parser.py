@@ -34,9 +34,22 @@ class PlannerMode(IntEnum):
 
 
 def planner_mode(motion: str) -> PlannerMode:
-    """Map the intentionally small navigation command surface to planner modes."""
     if motion == "stand":
         return PlannerMode.IDLE
     if motion == "walk":
         return PlannerMode.WALK
     raise ValueError(f"Unsupported motion {motion!r}; expected 'stand' or 'walk'")
+
+
+def planner_direction(direction: str) -> tuple[float, float]:
+    if direction == "forward":
+        return (1.0, 0.0)
+    if direction == "right":
+        return (0.0, -1.0)
+    if direction == "left":
+        return (0.0, 1.0)
+    if direction == "backward":
+        return (-1.0, 0.0)
+    raise ValueError(
+        f"Unsupported direction {direction!r}; expected forward, backward, left, or right"
+    )

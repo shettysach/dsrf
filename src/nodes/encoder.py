@@ -4,6 +4,7 @@ import time
 
 from dora import Node
 
+from encoder import TextEncoder
 from shared.config import TextEncoderConfig
 from shared.messages import (
     EncodedCommand,
@@ -12,7 +13,6 @@ from shared.messages import (
     encoded_command_to_arrow,
     pipeline_error_to_arrow,
 )
-from text_encoder import TextEncoder
 
 
 def main() -> None:
@@ -31,7 +31,9 @@ def main() -> None:
         started_at = time.perf_counter()
         try:
             if request.direction is not None:
-                raise ValueError("Directional commands are only supported by planner_sonic")
+                raise ValueError(
+                    "Directional commands are only supported by planner_sonic"
+                )
             embedding = encoder.encode(request.motion)
         except ValueError as exc:
             node.log(

@@ -4,7 +4,12 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from motion_gen.planner_sonic import PlannerMode, PlannerSonic, planner_mode
+from motion_gen.planner_sonic import (
+    PlannerMode,
+    PlannerSonic,
+    planner_direction,
+    planner_mode,
+)
 
 
 def test_navigation_modes_are_intentionally_small() -> None:
@@ -12,6 +17,13 @@ def test_navigation_modes_are_intentionally_small() -> None:
     assert planner_mode("walk") is PlannerMode.WALK
     with pytest.raises(ValueError, match="Unsupported motion"):
         planner_mode("run")
+
+
+def test_navigation_directions_map_to_local_vectors() -> None:
+    assert planner_direction("forward") == (1.0, 0.0)
+    assert planner_direction("left") == (0.0, 1.0)
+    with pytest.raises(ValueError, match="Unsupported direction"):
+        planner_direction("north")
 
 
 def test_local_lateral_target_uses_world_target_and_preserves_heading() -> None:
@@ -51,6 +63,32 @@ def test_stand_has_no_specific_target() -> None:
 
     assert captured["has_specific_target"].tolist() == [[0]]
     np.testing.assert_allclose(captured["movement_direction"], 0.0)
+
+
+def test_direction_is_robot_relative() -> None:
+    captured: dict[str, np.ndarray] = {}
+
+    def run(_outputs, inputs):
+        captured.update(inputs)
+        qpos = np.tile(_standing(), (1, 8, 1))
+        return qpos, np.array([8], dtype=np.int64)
+
+    planner = PlannerSonic.__new__(PlannerSonic)
+    planner.session = cast(Any, SimpleNamespace(run=run))
+    context_frame = _standing()
+    yaw = np.pi / 2.0
+    context_frame[3] = np.cos(yaw / 2.0)
+    context_frame[6] = np.sin(yaw / 2.0)
+    planner._context = np.tile(context_frame, (1, 4, 1))
+
+    planner.generate("walk", None, "forward")
+
+    np.testing.assert_allclose(
+        captured["movement_direction"], [[0.0, 1.0, 0.0]], atol=1e-6
+    )
+    np.testing.assert_allclose(
+        captured["facing_direction"], [[0.0, 1.0, 0.0]], atol=1e-6
+    )
 
 
 def _standing() -> np.ndarray:

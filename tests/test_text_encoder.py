@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from text_encoder.encoder import TextEncoder
+from encoder.encoder import TextEncoder
 
 
 def test_text_encoder_returns_masked_mean_float32_embedding() -> None:

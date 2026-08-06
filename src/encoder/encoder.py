@@ -24,10 +24,6 @@ class TextEncoder:
         self.model.eval()
 
     def encode(self, text: str) -> np.ndarray:
-        text = text.strip()
-        if not text:
-            raise ValueError("Command is empty")
-
         inputs = self.tokenizer(
             text,
             return_tensors="pt",

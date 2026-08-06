@@ -99,7 +99,9 @@ def _planner_motion() -> np.ndarray:
 
 
 def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
-    generated: list[tuple[str, tuple[float, float] | None]] = []
+    generated: list[
+        tuple[str, tuple[float, float] | None, str | None]
+    ] = []
 
     def generate(motion, target_xy, direction):
         generated.append((motion, target_xy, direction))
