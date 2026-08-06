@@ -11,7 +11,7 @@ type ViewerMode = Literal["none", "native", "viser"]
 @dataclass(frozen=True)
 class MotionGenConfig:
     device: str
-    backend: PlannerSonicConfig | ArdyConfig
+    backend: KinematicPlannerConfig | ArdyConfig
 
     @classmethod
     def from_env(cls) -> "MotionGenConfig":
@@ -25,14 +25,14 @@ class MotionGenConfig:
             )
         return cls(
             device=os.environ["DEVICE"],
-            backend=PlannerSonicConfig(
+            backend=KinematicPlannerConfig(
                 planner_onnx=Path(os.environ["PLANNER_ONNX"]),
             ),
         )
 
 
 @dataclass(frozen=True)
-class PlannerSonicConfig:
+class KinematicPlannerConfig:
     planner_onnx: Path
 
 
@@ -105,7 +105,7 @@ class AgentConfig:
             command_mode=(
                 "direction"
                 if os.environ.get("MOTION_GENERATOR", "").strip().lower()
-                == "planner_sonic"
+                == "kinematic_planner"
                 else "waypoint"
             ),
         )
@@ -135,10 +135,10 @@ def _viewer_mode() -> ViewerMode:
     return value
 
 
-def _motion_generator() -> Literal["planner_sonic", "ardy"]:
+def _motion_generator() -> Literal["kinematic_planner", "ardy"]:
     value = os.environ["MOTION_GENERATOR"].strip().lower()
-    if value not in {"planner_sonic", "ardy"}:
-        raise ValueError("MOTION_GENERATOR must be 'planner_sonic' or 'ardy'")
+    if value not in {"kinematic_planner", "ardy"}:
+        raise ValueError("MOTION_GENERATOR must be 'kinematic_planner' or 'ardy'")
     return value
 
 

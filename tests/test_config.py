@@ -5,8 +5,8 @@ import pytest
 from shared.config import (
     AgentConfig,
     ArdyConfig,
+    KinematicPlannerConfig,
     MotionGenConfig,
-    PlannerSonicConfig,
     SimConfig,
     TextEncoderConfig,
 )
@@ -14,12 +14,12 @@ from shared.config import (
 
 def test_motion_gen_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cuda:0")
-    monkeypatch.setenv("MOTION_GENERATOR", "planner_sonic")
+    monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
     monkeypatch.setenv("PLANNER_ONNX", "/models/planner.onnx")
 
     assert MotionGenConfig.from_env() == MotionGenConfig(
         device="cuda:0",
-        backend=PlannerSonicConfig(planner_onnx=Path("/models/planner.onnx")),
+        backend=KinematicPlannerConfig(planner_onnx=Path("/models/planner.onnx")),
     )
 
 
@@ -142,7 +142,7 @@ def test_agent_config_from_env(monkeypatch) -> None:
 
 def test_missing_runtime_value_fails(monkeypatch) -> None:
     monkeypatch.delenv("PLANNER_ONNX", raising=False)
-    monkeypatch.setenv("MOTION_GENERATOR", "planner_sonic")
+    monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
     monkeypatch.setenv("DEVICE", "cpu")
 
     with pytest.raises(KeyError, match="PLANNER_ONNX"):

@@ -5,9 +5,9 @@ from typing import Any
 
 from dora import Node
 
-from motion_gen.planner_sonic import PlannerSonic
+from motion_gen.kinematic_planner import KinematicPlanner
 from motion_gen.resample import resample_motion
-from shared.config import ArdyConfig, MotionGenConfig, PlannerSonicConfig
+from shared.config import ArdyConfig, KinematicPlannerConfig, MotionGenConfig
 from shared.messages import (
     SONIC_FPS,
     AgentCommand,
@@ -27,8 +27,8 @@ def _create_generator(cfg: MotionGenConfig) -> Any:
 
             return Ardy(cfg.backend.checkpoints_dir, device=cfg.device)
 
-        case PlannerSonicConfig():
-            return PlannerSonic(cfg.backend.planner_onnx, device=cfg.device)
+        case KinematicPlannerConfig():
+            return KinematicPlanner(cfg.backend.planner_onnx, device=cfg.device)
 
 
 def main() -> None:

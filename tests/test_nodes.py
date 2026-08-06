@@ -10,7 +10,7 @@ import torch
 
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
-from shared.config import PlannerSonicConfig
+from shared.config import KinematicPlannerConfig
 from shared.messages import (
     AgentCommand,
     EncodedCommand,
@@ -81,12 +81,12 @@ def _run_motion_gen(monkeypatch, events, generate):
     generator = SimpleNamespace(generate=generate, fps=30)
     config = motion_gen_node.MotionGenConfig(
         device="cpu",
-        backend=PlannerSonicConfig(planner_onnx=Path("planner.onnx")),
+        backend=KinematicPlannerConfig(planner_onnx=Path("planner.onnx")),
     )
     monkeypatch.setattr(motion_gen_node.MotionGenConfig, "from_env", lambda: config)
     monkeypatch.setattr(motion_gen_node, "Node", lambda: node)
     monkeypatch.setattr(
-        motion_gen_node, "PlannerSonic", lambda *args, **kwargs: generator
+        motion_gen_node, "KinematicPlanner", lambda *args, **kwargs: generator
     )
     motion_gen_node.main()
     return node

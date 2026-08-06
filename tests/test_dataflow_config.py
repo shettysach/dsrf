@@ -12,11 +12,11 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "VLM_TIMEOUT": "120",
         "VLM_SYSTEM_PROMPT": "TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
-        "MOTION_GENERATOR": "planner_sonic",
+        "MOTION_GENERATOR": "kinematic_planner",
     }
     assert nodes["motion-gen"]["env"] == {
         "DEVICE": "cuda",
-        "MOTION_GENERATOR": ("${MOTION_GENERATOR:-planner_sonic}"),
+        "MOTION_GENERATOR": ("${MOTION_GENERATOR:-kinematic_planner}"),
         "PLANNER_ONNX": ("/tmp/GEAR-SONIC/planner_sonic.onnx"),
     }
     assert nodes["sim"]["env"] == {

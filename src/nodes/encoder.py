@@ -32,7 +32,7 @@ def main() -> None:
         try:
             if request.direction is not None:
                 raise ValueError(
-                    "Directional commands are only supported by planner_sonic"
+                    "Directional commands are only supported by kinematic_planner"
                 )
             embedding = encoder.encode(request.motion)
         except ValueError as exc:

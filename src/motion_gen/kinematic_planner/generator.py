@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from motion_gen.planner_sonic.conditioning import (
+from motion_gen.kinematic_planner.conditioning import (
     PLANNER_CONTEXT_FRAMES,
     build_planner_inputs,
 )
@@ -13,7 +13,7 @@ from shared.g1 import standing_qpos
 from shared.onnx import create_onnx_session
 
 
-class PlannerSonic:
+class KinematicPlanner:
     """Text-to-motion wrapper for NVIDIA's G1 kinematic planner."""
 
     fps = 30

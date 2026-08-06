@@ -4,9 +4,9 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from motion_gen.planner_sonic import (
+from motion_gen.kinematic_planner import (
+    KinematicPlanner,
     PlannerMode,
-    PlannerSonic,
     planner_direction,
     planner_mode,
 )
@@ -34,7 +34,7 @@ def test_local_lateral_target_uses_world_target_and_preserves_heading() -> None:
         qpos = np.tile(_standing(), (1, 8, 1))
         return qpos, np.array([8], dtype=np.int64)
 
-    planner = PlannerSonic.__new__(PlannerSonic)
+    planner = KinematicPlanner.__new__(KinematicPlanner)
     planner.session = cast(Any, SimpleNamespace(run=run))
     planner._context = np.tile(_standing(), (1, 4, 1))
     planner.generate("walk", (1.0, 0.5))
@@ -56,7 +56,7 @@ def test_stand_has_no_specific_target() -> None:
         qpos = np.tile(_standing(), (1, 8, 1))
         return qpos, np.array([8], dtype=np.int64)
 
-    planner = PlannerSonic.__new__(PlannerSonic)
+    planner = KinematicPlanner.__new__(KinematicPlanner)
     planner.session = cast(Any, SimpleNamespace(run=run))
     planner._context = np.tile(_standing(), (1, 4, 1))
     planner.generate("stand", None)
@@ -73,7 +73,7 @@ def test_direction_is_robot_relative() -> None:
         qpos = np.tile(_standing(), (1, 8, 1))
         return qpos, np.array([8], dtype=np.int64)
 
-    planner = PlannerSonic.__new__(PlannerSonic)
+    planner = KinematicPlanner.__new__(KinematicPlanner)
     planner.session = cast(Any, SimpleNamespace(run=run))
     context_frame = _standing()
     yaw = np.pi / 2.0

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from motion_gen.planner_sonic.parser import (
+from motion_gen.kinematic_planner.parser import (
     planner_direction,
     planner_mode,
 )
@@ -17,7 +17,7 @@ def build_planner_inputs(
     target_xy: tuple[float, float] | None,
     direction: str | None = None,
 ) -> dict[str, np.ndarray]:
-    """Build Planner-Sonic ONNX inputs from robot-local navigation controls."""
+    """Build kinematic-planner ONNX inputs from robot-local navigation controls."""
     mode = planner_mode(motion)
     if motion == "stand" and (target_xy is not None or direction is not None):
         raise ValueError("stand requires no target")
@@ -57,7 +57,7 @@ def build_planner_inputs(
         "has_specific_target": has_target,
         "specific_target_positions": positions,
         "specific_target_headings": headings,
-        # Allow planner_sonic to select its learned 6-16 token horizon.
+        # Allow the kinematic planner to select its learned 6-16 token horizon.
         "allowed_pred_num_tokens": np.ones((1, 11), dtype=np.int64),
         "height": np.array([-1.0], dtype=np.float32),
     }
