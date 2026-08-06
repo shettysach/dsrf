@@ -38,12 +38,15 @@ class SimRuntime:
         policy: SonicPolicy,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
+        *,
+        capture_depth: bool = True,
     ) -> None:
         self.node = node
         self.simulation = simulation
         self.policy = policy
         self.renderer = renderer
         self.viewer = viewer
+        self.capture_depth = capture_depth
         self.observation_id = 0
         self._observation_published_at: float | None = None
 
@@ -166,7 +169,10 @@ class SimRuntime:
         self, *, completed_command: str | None
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
-        jpeg, projection = self.renderer.capture_rgbd()
+        if self.capture_depth:
+            jpeg, projection = self.renderer.capture_rgbd()
+        else:
+            jpeg, projection = self.renderer.capture_jpeg(), None
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,

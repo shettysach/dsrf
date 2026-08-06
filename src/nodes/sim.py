@@ -40,7 +40,14 @@ def main() -> None:
             )
         renderer = SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
         _log_init(node, cfg)
-        SimRuntime(node, simulation, policy, renderer, viewer).run()
+        SimRuntime(
+            node,
+            simulation,
+            policy,
+            renderer,
+            viewer,
+            capture_depth=cfg.capture_depth,
+        ).run()
     finally:
         if viewer is not None:
             viewer.close()
@@ -58,6 +65,7 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "device": cfg.device,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
+            "capture_depth": str(cfg.capture_depth).lower(),
         },
     )
 

@@ -78,9 +78,24 @@ def test_sim_config_from_env(monkeypatch) -> None:
         image_width=640,
         image_height=480,
         jpeg_quality=85,
+        capture_depth=True,
         viewer="native",
         reference_ghost=True,
     )
+
+
+def test_sim_config_can_disable_depth(monkeypatch) -> None:
+    monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("SONIC_DIR", "/models/sonic")
+    monkeypatch.setenv("TASK", "none")
+    monkeypatch.setenv("IMAGE_WIDTH", "640")
+    monkeypatch.setenv("IMAGE_HEIGHT", "480")
+    monkeypatch.setenv("JPEG_QUALITY", "85")
+    monkeypatch.setenv("CAPTURE_DEPTH", "false")
+    monkeypatch.setenv("VIEWER", "none")
+    monkeypatch.setenv("REFERENCE_GHOST", "false")
+
+    assert SimConfig.from_env().capture_depth is False
 
 
 def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:

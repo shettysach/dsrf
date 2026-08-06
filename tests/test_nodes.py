@@ -225,9 +225,17 @@ class _Renderer:
     def __init__(self, simulation: _Simulation) -> None:
         self.simulation = simulation
         self.capture_steps: list[int] = []
+        self.jpeg_steps: list[int] = []
+        self.rgbd_steps: list[int] = []
+
+    def capture_jpeg(self) -> bytes:
+        self.capture_steps.append(self.simulation.steps)
+        self.jpeg_steps.append(self.simulation.steps)
+        return f"jpeg-{self.simulation.steps}".encode()
 
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
         self.capture_steps.append(self.simulation.steps)
+        self.rgbd_steps.append(self.simulation.steps)
         return f"jpeg-{self.simulation.steps}".encode(), _projection()
 
 
@@ -302,6 +310,29 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     assert second.observation_id == 1
     assert second.completed_command == "walk forward"
     assert any("[OBS 0->1] motion complete" in message for _, message, _ in node.logs)
+
+
+def test_sim_can_publish_jpeg_without_depth() -> None:
+    node = _Node([{"type": "STOP"}])
+    simulation = _Simulation()
+    renderer = _Renderer(simulation)
+    runtime = sim_runtime.SimRuntime(
+        cast(Any, node),
+        cast(Any, simulation),
+        cast(Any, _Policy()),
+        cast(Any, renderer),
+        capture_depth=False,
+    )
+
+    runtime.run()
+
+    assert renderer.jpeg_steps == [0]
+    assert renderer.rgbd_steps == []
+    observation = observation_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert observation.jpeg == b"jpeg-0"
+    assert observation.projection is None
 
 
 def test_sonic_rejects_motion_for_stale_observation() -> None:

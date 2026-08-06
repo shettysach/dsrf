@@ -40,6 +40,7 @@ nodes:
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"
       JPEG_QUALITY: "85"
+      CAPTURE_DEPTH: "false"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
     inputs:

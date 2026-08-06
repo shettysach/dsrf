@@ -377,7 +377,5 @@ def _validate_navigation(
             raise ValueError("Unsupported direction")
         return
     assert target_xy is not None
-    if len(target_xy) != 2:
-        raise ValueError("Walk command requires target_xy")
     if not all(np.isfinite(value) for value in target_xy):
         raise ValueError("target_xy must be finite")
