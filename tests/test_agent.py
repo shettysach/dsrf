@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import numpy as np
 
-from agent.vlm import LlamaServerClient
+from agent.vlm import OAIChatClient
 from nodes.agent import AgentLoop
 from shared.messages import (
     PipelineError,
@@ -47,7 +47,7 @@ def test_llama_client_uses_blank_model_and_replays_history(monkeypatch) -> None:
         return _Response(next(responses))
 
     monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
-    client = LlamaServerClient(
+    client = OAIChatClient(
         base_url="http://127.0.0.1:8080/",
         timeout=12.0,
         system_prompt="System file prompt.\n",
@@ -181,8 +181,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
     assert "[OBS 0] VLM command: 'invalid three'" in vlm_messages[2]
     assert vlm_messages[2].endswith("retry=2")
     assert any(
-        "fallback command: '{\"motion\":\"stand\",\"waypoint_2d\":null}'"
-        in message
+        'fallback command: \'{"motion":"stand","waypoint_2d":null}\'' in message
         for _, message, _ in node.logs
     )
 
@@ -211,9 +210,7 @@ def test_agent_commits_exact_completed_command() -> None:
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
-    assert client.commits == [
-        (0, '{"motion":"walk","waypoint_2d":[500,500]}')
-    ]
+    assert client.commits == [(0, '{"motion":"walk","waypoint_2d":[500,500]}')]
 
 
 def test_agent_stand_bypasses_missing_projection() -> None:
