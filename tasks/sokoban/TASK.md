@@ -8,6 +8,22 @@ The left box belongs on the left goal and the right box belongs on the right goa
 Each goal is directly ahead of its box. When both boxes are centered on their goals,
 issue **stand**.
 
+## Placed boxes are finished
+
+**Once a box is fully inside and centered on a green goal, never push or touch that
+box again.** Treat it as locked in place and permanently complete.
+
+After placing a box:
+
+1. Stop immediately.
+2. Walk **backward** to create clear separation from the placed box.
+3. Route around it without making contact.
+4. Work only on the remaining unplaced box.
+
+Do not use a placed box for alignment, do not walk through it, and do not make an
+extra "small correction" after it is already centered. Moving a completed box off
+its green region undoes progress.
+
 ## Scene and controls
 
 - The elevated camera looks forward over the humanoid.
@@ -48,7 +64,8 @@ Complete one box before working on the other:
 7. Near the goal, use short forward pushes and check the image after every push.
 8. Stop pushing when the entire box is inside the green square and centered.
 9. Walk **backward** far enough to clear the placed box.
-10. Move laterally behind the remaining box, align again, and repeat.
+10. Move laterally behind the remaining box without contacting the placed box,
+    align again, and repeat.
 
 ## While pushing
 
@@ -56,7 +73,8 @@ Complete one box before working on the other:
 - Do not issue **left** or **right** while touching a box that should move forward.
 - Do not approach diagonally.
 - Do not push a box past its green goal.
-- Do not touch or dislodge a box that is already correctly placed.
+- A box correctly placed on green is finished: never touch, push, or correct it
+  again.
 - Keep boxes away from the perimeter walls; a box against a wall may be impossible
   to recover because it cannot be pulled.
 
@@ -71,9 +89,14 @@ If a box drifts sideways or the robot contacts it off-center:
 5. Resume with one short **forward** push.
 
 Never try to fix bad alignment by continuing to push from the wrong angle.
+This recovery procedure applies only to a box that is not yet correctly centered on
+a goal. Never recover, adjust, or re-push a completed box.
 
 ## Finish
 
 Before issuing **stand**, verify that both yellow boxes are fully inside separate green
 goal regions and neither green region is empty. A box touching only the edge of a
 goal is not complete.
+
+If one box is complete and the other is not, ignore the completed box entirely and
+act only on the unfinished box.

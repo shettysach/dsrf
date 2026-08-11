@@ -14,7 +14,7 @@ MJ_JOINT_SLIDE = mujoco.mjtJoint.mjJNT_SLIDE  # ty: ignore[unresolved-attribute]
 
 BOX_HALF_SIZE = 0.3
 BOX_MASS = 0.5
-BOX_SLIDE_DAMPING = 0.6
+BOX_SLIDE_DAMPING = 0.8
 BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.48
 ARENA_MIN_X = -1.5
