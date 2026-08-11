@@ -54,6 +54,10 @@ def main() -> None:
         simulation.close()
 
 
+if __name__ == "__main__":
+    main()
+
+
 def _log_init(node: Node, cfg: SimConfig) -> None:
     node.log(
         "info",
@@ -68,7 +72,3 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "capture_depth": str(cfg.capture_depth).lower(),
         },
     )
-
-
-if __name__ == "__main__":
-    main()
