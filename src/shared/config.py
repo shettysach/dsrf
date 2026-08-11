@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from tasks import TaskSpec, get_task
+
 type ViewerMode = Literal["none", "native", "viser"]
 
 
@@ -49,7 +51,7 @@ class ArdyConfig:
 class SimConfig:
     sonic_dir: Path
     device: str
-    task: str | None
+    task: TaskSpec | None
     image_width: int
     image_height: int
     jpeg_quality: int
@@ -62,7 +64,7 @@ class SimConfig:
         return cls(
             sonic_dir=Path(os.environ["SONIC_DIR"]),
             device=os.environ["DEVICE"],
-            task=_optional_name("TASK"),
+            task=_optional_task(),
             image_width=_positive_int("IMAGE_WIDTH"),
             image_height=_positive_int("IMAGE_HEIGHT"),
             jpeg_quality=_bounded_int("JPEG_QUALITY", minimum=1, maximum=100),
@@ -76,7 +78,7 @@ class SimConfig:
 class AgentConfig:
     vlm_url: str
     vlm_timeout: float
-    system_prompt: Path
+    task: TaskSpec
     user_prompt: Path
     waypoint_debug: bool
     command_mode: Literal["waypoint", "direction"]
@@ -92,7 +94,7 @@ class AgentConfig:
         return cls(
             vlm_url=url,
             vlm_timeout=timeout,
-            system_prompt=Path(os.environ["VLM_SYSTEM_PROMPT"]),
+            task=get_task(os.environ["TASK"].strip()),
             user_prompt=Path(os.environ["VLM_USER_PROMPT"]),
             waypoint_debug=_optional_boolean("WAYPOINT_DEBUG", default=False),
             command_mode=(
@@ -119,6 +121,11 @@ def _bounded_int(name: str, *, minimum: int, maximum: int | None = None) -> int:
 def _optional_name(name: str) -> str | None:
     value = os.environ[name].strip()
     return None if value.lower() == "none" or not value else value
+
+
+def _optional_task() -> TaskSpec | None:
+    name = _optional_name("TASK")
+    return get_task(name) if name is not None else None
 
 
 def _viewer_mode() -> ViewerMode:

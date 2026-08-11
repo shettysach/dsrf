@@ -15,4 +15,5 @@ out/
 
 PLAN.md
 TASK.md
+!tasks/**/TASK.md
 LOGS.md

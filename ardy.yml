@@ -8,7 +8,7 @@ nodes:
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
-      VLM_SYSTEM_PROMPT: TASK.md
+      TASK: portrait-corridors
       VLM_USER_PROMPT: prompt/USER.md
       MOTION_GENERATOR: ardy
     inputs:

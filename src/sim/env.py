@@ -8,6 +8,7 @@ import mujoco
 import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv
+from tasks import TaskSpec
 
 from shared.messages import ProjectionContext
 from sim.config import make_sim_env_cfg
@@ -34,7 +35,7 @@ class MjlabEnv:
         device: str = "cpu",
         image_width: int = 640,
         image_height: int = 480,
-        task: str | None = None,
+        task: TaskSpec | None = None,
     ) -> None:
         torch_device = torch.device(device)
         self._env = ManagerBasedRlEnv(

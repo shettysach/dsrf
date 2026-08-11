@@ -1,7 +1,7 @@
 import mujoco
 import pytest
-from tasks.catalog import TASKS, get_task
-from tasks.portrait_corridors import make_portrait_corridors_spec_fn
+from tasks import TASKS, get_task
+from tasks.portrait_corridors.scene import make_portrait_corridors_spec_fn
 
 from sim.config import make_sim_env_cfg
 
@@ -13,8 +13,10 @@ def test_catalog_contains_portrait_corridors() -> None:
     assert definition.objective == (
         "Stand in front of the image of the creator of Linux."
     )
-    assert definition.camera_distance == 3.5
-    assert definition.camera_elevation == -30.0
+    assert definition.viewer.distance == 3.5
+    assert definition.viewer.elevation == -30.0
+    assert definition.instructions_path.name == "TASK.md"
+    assert "creator of Linux" in definition.read_instructions()
 
 
 def test_catalog_rejects_unknown_task() -> None:
@@ -23,7 +25,7 @@ def test_catalog_rejects_unknown_task() -> None:
 
 
 def test_sonic_config_applies_task_scene_and_camera_distance() -> None:
-    task_cfg = make_sim_env_cfg(task="portrait-corridors")
+    task_cfg = make_sim_env_cfg(task=get_task("portrait-corridors"))
     plain_cfg = make_sim_env_cfg(task=None)
 
     assert task_cfg.scene.spec_fn is not None

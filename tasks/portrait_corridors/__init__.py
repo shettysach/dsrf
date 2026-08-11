@@ -1,5 +1,5 @@
-"""Portrait-corridors task scene."""
+"""Portrait-corridors task specification."""
 
-from tasks.portrait_corridors.scene import make_portrait_corridors_spec_fn
+from tasks.portrait_corridors.task import TASK
 
-__all__ = ["make_portrait_corridors_spec_fn"]
+__all__ = ["TASK"]

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from tasks import get_task
 
 from shared.config import (
     AgentConfig,
@@ -73,7 +74,7 @@ def test_sim_config_from_env(monkeypatch) -> None:
     assert SimConfig.from_env() == SimConfig(
         sonic_dir=Path("/models/sonic"),
         device="cpu",
-        task="portrait-corridors",
+        task=get_task("portrait-corridors"),
         image_width=640,
         image_height=480,
         jpeg_quality=85,
@@ -141,13 +142,13 @@ def test_sim_config_rejects_invalid_reference_ghost(monkeypatch) -> None:
 def test_agent_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("VLM_URL", "http://127.0.0.1:8080/")
     monkeypatch.setenv("VLM_TIMEOUT", "12.5")
-    monkeypatch.setenv("VLM_SYSTEM_PROMPT", "/prompts/system.md")
+    monkeypatch.setenv("TASK", "portrait-corridors")
     monkeypatch.setenv("VLM_USER_PROMPT", "/prompts/user.md")
 
     assert AgentConfig.from_env() == AgentConfig(
         vlm_url="http://127.0.0.1:8080",
         vlm_timeout=12.5,
-        system_prompt=Path("/prompts/system.md"),
+        task=get_task("portrait-corridors"),
         user_prompt=Path("/prompts/user.md"),
         waypoint_debug=False,
         command_mode="waypoint",

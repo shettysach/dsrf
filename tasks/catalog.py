@@ -1,38 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from tasks.portrait_corridors import TASK as PORTRAIT_CORRIDORS
+from tasks.spec import TaskSpec
 
-from tasks.portrait_corridors import make_portrait_corridors_spec_fn
+_TASK_SPECS = (PORTRAIT_CORRIDORS,)
 
-if TYPE_CHECKING:
-    from mujoco import MjSpec  # ty: ignore[unresolved-import]
+TASKS: dict[str, TaskSpec] = {task.name: task for task in _TASK_SPECS}
 
-type TaskName = Literal["portrait-corridors"]
-type SpecFn = Callable[["MjSpec"], None]
+if len(TASKS) != len(_TASK_SPECS):
+    raise RuntimeError("Task names must be unique")
 
 
-@dataclass(frozen=True)
-class TaskDefinition:
-    objective: str
-    make_spec_fn: Callable[[], SpecFn]
-    camera_distance: float | None = None
-    camera_elevation: float | None = None
-
-
-TASKS: dict[TaskName, TaskDefinition] = {
-    "portrait-corridors": TaskDefinition(
-        objective="Stand in front of the image of the creator of Linux.",
-        make_spec_fn=make_portrait_corridors_spec_fn,
-        camera_distance=3.5,
-        camera_elevation=-30.0,
-    ),
-}
-
-
-def get_task(name: str) -> TaskDefinition:
-    if name not in TASKS:
+def get_task(name: str) -> TaskSpec:
+    try:
+        return TASKS[name]
+    except KeyError:
         available = ", ".join(TASKS)
         raise ValueError(f"Unknown task {name!r}. Available: {available}") from None
-    return TASKS[name]

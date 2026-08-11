@@ -65,7 +65,7 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
         target="dsrf.sim",
         fields={
             "event": "sim_initialized",
-            "task": cfg.task or "none",
+            "task": cfg.task.name if cfg.task is not None else "none",
             "device": cfg.device,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
