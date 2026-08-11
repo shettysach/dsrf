@@ -69,11 +69,7 @@ def make_sim_env_cfg(
         entities={"robot": robot_cfg},
     )
     if task is not None:
-        scene.spec_fn = (
-            task.make_scene(goal_index=goal_index)
-            if goal_index is not None
-            else task.make_scene()
-        )
+        scene.spec_fn = task.make_scene(goal_index=goal_index)
 
     viewer_spec = task.viewer if task is not None else ViewerSpec()
 

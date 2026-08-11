@@ -3,7 +3,8 @@ from __future__ import annotations
 from tasks.spec import SceneSpecFn, TaskSpec, ViewerSpec
 
 
-def _make_scene() -> SceneSpecFn:
+def _make_scene(*, goal_index: int | None = None) -> SceneSpecFn:
+    del goal_index  # Only portrait-corridors uses deterministic goal selection.
     from tasks.sokoban.scene import make_sokoban_spec_fn
 
     return make_sokoban_spec_fn()

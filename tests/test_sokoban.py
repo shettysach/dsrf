@@ -23,7 +23,7 @@ def test_catalog_contains_sokoban() -> None:
 
 
 def test_sokoban_uses_elevated_viewer_framing() -> None:
-    cfg = make_sim_env_cfg(task=get_task("sokoban"))
+    cfg = make_sim_env_cfg(task=get_task("sokoban"), goal_index=1)
 
     assert cfg.scene.spec_fn is not None
     assert cfg.viewer.distance == 5.0

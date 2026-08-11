@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 type SceneSpecFn = Callable[["MjSpec"], None]
-type SceneFactory = Callable[..., SceneSpecFn]
+
+
+class SceneFactory(Protocol):
+    def __call__(self, *, goal_index: int | None = None) -> SceneSpecFn: ...
 
 
 @dataclass(frozen=True)
