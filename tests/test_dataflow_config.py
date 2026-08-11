@@ -49,6 +49,16 @@ def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
     assert "encoding_error" not in nodes["agent"]["inputs"]
 
 
+def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
+    descriptor = yaml.safe_load(Path("sokoban.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert set(nodes) == {"agent", "motion-gen", "sim"}
+    assert nodes["agent"]["env"]["TASK"] == "sokoban"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
+    assert nodes["sim"]["env"]["TASK"] == "sokoban"
+
+
 def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:
     project = tomllib.loads(Path("pyproject.toml").read_text())
 

@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dora-rs/dora/v1.0.0-rc.4/dora-schema.json
+
+nodes:
+  - id: agent
+    path: uv
+    args: run dsrf-agent
+    min_log_level: warn
+    env:
+      VLM_URL: http://127.0.0.1:8080
+      VLM_TIMEOUT: "120"
+      TASK: sokoban
+      VLM_USER_PROMPT: prompt/PLANNER_USER.md
+      MOTION_GENERATOR: kinematic_planner
+    inputs:
+      observation: sim/observation
+      planning_error: motion-gen/error
+      sim_error: sim/error
+    outputs:
+      - command
+
+  - id: motion-gen
+    path: uv
+    args: run dsrf-motion-gen
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      MOTION_GENERATOR: kinematic_planner
+      PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
+    inputs:
+      command: agent/command
+    outputs:
+      - motion
+      - error
+
+  - id: sim
+    path: uv
+    args: run dsrf-sim
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      SONIC_DIR: /tmp/GEAR-SONIC
+      TASK: sokoban
+      IMAGE_WIDTH: "640"
+      IMAGE_HEIGHT: "480"
+      JPEG_QUALITY: "85"
+      CAPTURE_DEPTH: "false"
+      VIEWER: native
+      REFERENCE_GHOST: "false"
+    inputs:
+      motion: motion-gen/motion
+    outputs:
+      - observation
+      - error
