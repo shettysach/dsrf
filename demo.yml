@@ -4,6 +4,7 @@ nodes:
   - id: agent
     path: uv
     args: run dsrf-agent
+    min_log_level: warn
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
@@ -20,6 +21,7 @@ nodes:
   - id: motion-gen
     path: uv
     args: run dsrf-motion-gen
+    min_log_level: warn
     env:
       DEVICE: cuda
       MOTION_GENERATOR: kinematic_planner
@@ -33,6 +35,7 @@ nodes:
   - id: sim
     path: uv
     args: run dsrf-sim
+    min_log_level: warn
     env:
       DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
