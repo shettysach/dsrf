@@ -18,14 +18,14 @@ from mjlab.scene import SceneCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
-from tasks.catalog import get_task
+from tasks import TaskSpec, ViewerSpec
 
 
 def make_sim_env_cfg(
     *,
     image_width: int = 640,
     image_height: int = 480,
-    task: str | None = None,
+    task: TaskSpec | None = None,
     goal_index: int | None = None,
 ) -> ManagerBasedRlEnvCfg:
     """Build the minimal 50 Hz MJLab environment for the simulated G1."""
@@ -63,25 +63,19 @@ def make_sim_env_cfg(
                 0.25 * float(actuator.effort_limit) / actuator.stiffness
             )
 
-    task_definition = get_task(task) if task is not None else None
     scene = SceneCfg(
         num_envs=1,
         terrain=TerrainEntityCfg(terrain_type="plane"),
         entities={"robot": robot_cfg},
     )
-    if task_definition is not None:
-        scene.spec_fn = task_definition.make_spec_fn(goal_index=goal_index)
+    if task is not None:
+        scene.spec_fn = (
+            task.make_scene(goal_index=goal_index)
+            if goal_index is not None
+            else task.make_scene()
+        )
 
-    camera_distance = (
-        task_definition.camera_distance
-        if task_definition is not None and task_definition.camera_distance is not None
-        else 2.0
-    )
-    camera_elevation = (
-        task_definition.camera_elevation
-        if task_definition is not None and task_definition.camera_elevation is not None
-        else -15.0
-    )
+    viewer_spec = task.viewer if task is not None else ViewerSpec()
 
     return ManagerBasedRlEnvCfg(
         decimation=4,
@@ -99,8 +93,8 @@ def make_sim_env_cfg(
             origin_type=ViewerConfig.OriginType.ASSET_BODY,
             entity_name="robot",
             body_name="torso_link",
-            distance=camera_distance,
-            elevation=camera_elevation,
+            distance=viewer_spec.distance,
+            elevation=viewer_spec.elevation,
             azimuth=0.0,
             width=image_width,
             height=image_height,

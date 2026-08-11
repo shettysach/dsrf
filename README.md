@@ -33,11 +33,14 @@ Also an OpenAI compatible VLM inference server.
 Run OpenAI compatible VLM inference server.
 
 ```bash
-dora run demo.yml
+dora run corridors.yml
+# or
+dora run sokoban.yml
 ```
 
-- Set `VIEWER: none` in `demo.yml` to disable the window for headless runs.
-- Set `REFERENCE_GHOST: "true"` in `demo.yml` to show the active motion
+- Set `VIEWER: none` in the selected dataflow to disable the window for headless
+  runs.
+- Set `REFERENCE_GHOST: "true"` to show the active motion
   reference in the native viewer.
 
 ## ARDY closed loop

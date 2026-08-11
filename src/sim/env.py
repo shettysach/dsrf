@@ -8,6 +8,7 @@ import mujoco
 import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv
+from tasks import TaskSpec
 
 from shared.messages import ProjectionContext
 from sim.config import make_sim_env_cfg
@@ -34,7 +35,7 @@ class MjlabEnv:
         device: str = "cpu",
         image_width: int = 640,
         image_height: int = 480,
-        task: str | None = None,
+        task: TaskSpec | None = None,
         goal_index: int | None = None,
     ) -> None:
         torch_device = torch.device(device)
@@ -100,7 +101,7 @@ class MjlabEnv:
             geom_pairs = data.contact.geom[:active_contacts].detach().cpu().tolist()
             for geom1, geom2 in geom_pairs:
                 for geom_id in (geom1, geom2):
-                    name = mujoco.mj_id2name(
+                    name = mujoco.mj_id2name(  # ty: ignore[unresolved-attribute]
                         model,
                         mujoco.mjtObj.mjOBJ_GEOM,  # ty: ignore[unresolved-attribute]
                         int(geom_id),

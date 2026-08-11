@@ -16,6 +16,9 @@ from sim.viewer import NativeSimViewer, SimViewer, ViserSimViewer
 
 def main() -> None:
     cfg = SimConfig.from_env()
+    is_portrait_corridors = (
+        cfg.task is not None and cfg.task.name == "portrait-corridors"
+    )
 
     node = Node()
     simulation = MjlabEnv(
@@ -57,11 +60,11 @@ def main() -> None:
             renderer,
             viewer,
             recorder,
-            stop_recording_at_corridor=cfg.task == "portrait-corridors",
+            stop_recording_at_corridor=is_portrait_corridors,
             motion_timeout_seconds=cfg.motion_timeout_seconds,
             demo_runs=(
                 portrait_corridor_demo_runs(cfg.demo_runs)
-                if cfg.task == "portrait-corridors" and recorder is not None
+                if is_portrait_corridors and recorder is not None
                 else ()
             ),
             capture_depth=cfg.capture_depth,
@@ -85,7 +88,7 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
         target="dsrf.sim",
         fields={
             "event": "sim_initialized",
-            "task": cfg.task or "none",
+            "task": cfg.task.name if cfg.task is not None else "none",
             "device": cfg.device,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),

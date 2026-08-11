@@ -8,7 +8,7 @@ nodes:
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
-      TASK: portrait-corridors
+      VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       MOTION_GENERATOR: kinematic_planner
     inputs:
@@ -39,17 +39,13 @@ nodes:
     env:
       DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
-      TASK: portrait-corridors
-      GOAL_INDEX: "${GOAL_INDEX:-1}"
+      TASK: sokoban
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
       CAPTURE_DEPTH: "false"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
-      DEMO_VIDEO_DIR: "${DEMO_VIDEO_DIR:-}"
-      DEMO_RUNS: "${DEMO_RUNS:-10}"
-      MOTION_TIMEOUT_SECONDS: "${MOTION_TIMEOUT_SECONDS:-20}"
     inputs:
       motion: motion-gen/motion
     outputs:

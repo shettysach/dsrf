@@ -15,7 +15,8 @@ import imageio.v3 as iio
 from mjlab.scene import Scene
 from mjlab.sim import Simulation
 from mjlab.viewer import OffscreenRenderer, ViewerConfig
-from tasks.catalog import TASKS, TaskDefinition, get_task
+from tasks.catalog import TASKS, get_task
+from tasks.spec import TaskSpec
 
 from mjlab_scout.config import ScoutConfig
 from mjlab_scout.schemas import CapturedView, ScoutView, TaskInfo
@@ -29,7 +30,7 @@ ResultT = TypeVar("ResultT")
 @dataclass
 class _LoadedTask:
     name: str
-    definition: TaskDefinition
+    definition: TaskSpec
     scene: Scene
     sim: Simulation
     agent_camera: ViewerConfig
@@ -85,7 +86,7 @@ class ScoutRuntime:
             env_cfg = make_sim_env_cfg(
                 image_width=self.config.image_width,
                 image_height=self.config.image_height,
-                task=task,
+                task=definition,
             )
             env_cfg.scene.num_envs = 1
             scene = Scene(env_cfg.scene, device=self.config.device)

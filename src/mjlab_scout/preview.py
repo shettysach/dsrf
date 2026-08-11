@@ -22,7 +22,7 @@ def main() -> None:
         window.title(f"MJLab Scout — VLM view: {args.view}")
         photo = ImageTk.PhotoImage(image)
         label = tk.Label(window, image=photo, borderwidth=0)
-        label.image = photo
+        label.image = photo  # ty: ignore[unresolved-attribute]
         label.pack()
         window.after(max(1, round(args.duration * 1000)), window.destroy)
         window.mainloop()

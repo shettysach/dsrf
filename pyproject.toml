@@ -98,6 +98,9 @@ packages = [
     "tasks",
 ]
 
+[tool.hatch.build]
+artifacts = ["tasks/**/*.md"]
+
 [tool.ruff]
 line-length = 88
 src = ["src", "tasks", "tests"]

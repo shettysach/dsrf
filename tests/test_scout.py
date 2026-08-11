@@ -7,7 +7,8 @@ from types import SimpleNamespace
 import numpy as np
 from mcp.types import ImageContent, TextContent
 from mjlab.viewer import ViewerConfig
-from tasks.catalog import TASKS, TaskDefinition
+from tasks.catalog import TASKS
+from tasks.spec import TaskSpec
 
 from mjlab_scout.config import ScoutConfig
 from mjlab_scout.runtime import ScoutRuntime
@@ -30,7 +31,7 @@ class _FakeModel:
 
 
 def test_scout_catalog_exposes_dsrf_task_objective() -> None:
-    assert set(TASKS) == {"portrait-corridors"}
+    assert set(TASKS) == {"portrait-corridors", "sokoban"}
     assert TASKS["portrait-corridors"].objective == (
         "Stand in front of the image of the creator of Linux."
     )
@@ -99,9 +100,10 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
         sim=SimpleNamespace(),
         viewer=agent_camera,
     )
-    definition = TaskDefinition(
+    definition = TaskSpec(
+        name="portrait-corridors",
         objective="Reach the goal.",
-        make_spec_fn=lambda **kwargs: lambda spec: None,
+        make_scene=lambda **kwargs: lambda spec: None,
     )
     monkeypatch.setattr("mjlab_scout.runtime.get_task", lambda task: definition)
     monkeypatch.setattr(

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from tasks import get_task
 
 from shared.config import (
     AgentConfig,
@@ -73,7 +74,7 @@ def test_sim_config_from_env(monkeypatch) -> None:
     assert SimConfig.from_env() == SimConfig(
         sonic_dir=Path("/models/sonic"),
         device="cpu",
-        task="portrait-corridors",
+        task=get_task("portrait-corridors"),
         image_width=640,
         image_height=480,
         jpeg_quality=85,
