@@ -10,7 +10,9 @@ def test_catalog_contains_portrait_corridors() -> None:
     definition = get_task("portrait-corridors")
 
     assert definition is TASKS["portrait-corridors"]
-    assert definition.objective == "Stand in front of the image of the cartoon."
+    assert definition.objective == (
+        "Stand in front of the image of the creator of Linux."
+    )
     assert definition.camera_distance == 3.5
     assert definition.camera_elevation == -30.0
 
@@ -49,12 +51,12 @@ def test_portrait_corridors_spec_adds_portraits_walls_and_cameras() -> None:
     assert {body.name for body in spec.bodies if body.name.endswith("_portrait")} == {
         "portrait_corridors_linus_portrait",
         "portrait_corridors_karpathy_portrait",
-        "portrait_corridors_bugs_portrait",
+        "portrait_corridors_nolan_portrait",
     }
     assert {texture.name for texture in spec.textures} == {
         "portrait_corridors_linus_texture",
         "portrait_corridors_karpathy_texture",
-        "portrait_corridors_bugs_texture",
+        "portrait_corridors_nolan_texture",
     }
     assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 5
 

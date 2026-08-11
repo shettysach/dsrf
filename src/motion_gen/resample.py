@@ -28,9 +28,7 @@ def _quat_slerp_batch(
     denominator = torch.where(same_rotation, torch.ones_like(angle), torch.sin(angle))
     q1_weight = torch.sin((1.0 - blend) * angle) / denominator
     q2_weight = torch.sin(blend * angle) / denominator
-    interpolated = q1 * q1_weight.unsqueeze(-1) + shortest_q2 * q2_weight.unsqueeze(
-        -1
-    )
+    interpolated = q1 * q1_weight.unsqueeze(-1) + shortest_q2 * q2_weight.unsqueeze(-1)
     interpolated = torch.where(same_rotation.unsqueeze(-1), q1, interpolated)
 
     # Match the scalar MJLab helper: exact endpoints return the original inputs,
@@ -41,16 +39,6 @@ def _quat_slerp_batch(
 
 def resample_qpos(source_qpos: torch.Tensor, *, source_fps: float) -> torch.Tensor:
     """Resample qpos on its current Torch device without host transfers."""
-
-    if not math.isfinite(source_fps) or source_fps <= 0.0:
-        raise ValueError("Source FPS must be positive and finite")
-    if source_qpos.ndim != 2 or source_qpos.shape[1] < 7:
-        raise ValueError(
-            "Source qpos must have shape [T, C] with at least 7 columns, "
-            f"got {tuple(source_qpos.shape)}"
-        )
-    if not source_qpos.is_floating_point():
-        raise TypeError("Source qpos must be a floating-point tensor")
 
     output_frames = math.floor(source_qpos.shape[0] * SONIC_FPS / source_fps)
     source_positions = (

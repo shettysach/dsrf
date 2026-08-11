@@ -23,7 +23,7 @@ nodes:
     args: run --extra cu128 --extra ardy dsrf-text-encoder
     env:
       DEVICE: cuda
-      TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/tmp/model}"
+      TEXT_ENCODER_MODEL: /tmp/model
     inputs:
       command: agent/command
     outputs:
@@ -36,7 +36,7 @@ nodes:
     env:
       DEVICE: cuda
       MOTION_GENERATOR: ardy
-      CHECKPOINTS_DIR: "${CHECKPOINTS_DIR:-/tmp/ardy/checkpoints}"
+      CHECKPOINTS_DIR: /tmp/ardy/checkpoints
     inputs:
       encoded_command: text-encoder/encoded_command
     outputs:
@@ -55,7 +55,7 @@ nodes:
       JPEG_QUALITY: "85"
       CAPTURE_DEPTH: "true"
       VIEWER: native
-      REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
+      REFERENCE_GHOST: "false"
     inputs:
       motion: motion-gen/motion
     outputs:

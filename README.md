@@ -26,13 +26,6 @@ uvx --from huggingface_hub hf download nvidia/GEAR-SONIC \
   --local-dir /tmp/GEAR-SONIC
 ```
 
-```bash
-cp .env.example .env
-set -a
-source .env
-set +a
-```
-
 Also an OpenAI compatible VLM inference server.
 
 ## Run
@@ -43,9 +36,9 @@ Run OpenAI compatible VLM inference server.
 dora run demo.yml
 ```
 
-- Set `VIEWER=none` to disable the window for headless runs.
-- Set `REFERENCE_GHOST=true` to show the active motion reference in the
-  native viewer.
+- Set `VIEWER: none` in `demo.yml` to disable the window for headless runs.
+- Set `REFERENCE_GHOST: "true"` in `demo.yml` to show the active motion
+  reference in the native viewer.
 
 ## ARDY closed loop
 
@@ -54,9 +47,9 @@ model and converts the resolved local waypoint into a root-position constraint.
 It generates a five-second reference and carries ARDY's generated
 history into the next request:
 
+Set `TEXT_ENCODER_MODEL` and `CHECKPOINTS_DIR` in `ardy.yml`, then run:
+
 ```bash
-export TEXT_ENCODER_MODEL=~/Desktop/encoding/model/
-export CHECKPOINTS_DIR=/tmp/checkpoints/
 dora run ardy.yml
 ```
 

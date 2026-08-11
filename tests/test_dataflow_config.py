@@ -1,3 +1,4 @@
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -16,7 +17,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     }
     assert nodes["motion-gen"]["env"] == {
         "DEVICE": "cuda",
-        "MOTION_GENERATOR": ("${MOTION_GENERATOR:-kinematic_planner}"),
+        "MOTION_GENERATOR": "kinematic_planner",
         "PLANNER_ONNX": ("/tmp/GEAR-SONIC/planner_sonic.onnx"),
     }
     assert nodes["sim"]["env"] == {
@@ -28,7 +29,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "JPEG_QUALITY": "85",
         "CAPTURE_DEPTH": "false",
         "VIEWER": "native",
-        "REFERENCE_GHOST": "${REFERENCE_GHOST:-false}",
+        "REFERENCE_GHOST": "false",
     }
 
 
@@ -39,9 +40,7 @@ def test_ardy_dataflow_wires_encoder_between_agent_and_motion_gen() -> None:
     assert set(nodes) == {"agent", "text-encoder", "motion-gen", "sim"}
     assert nodes["text-encoder"]["inputs"] == {"command": "agent/command"}
     assert nodes["text-encoder"]["outputs"] == ["encoded_command", "error"]
-    assert nodes["text-encoder"]["env"]["TEXT_ENCODER_MODEL"] == (
-        "${TEXT_ENCODER_MODEL:-/tmp/model}"
-    )
+    assert nodes["text-encoder"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
     assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER.md"
     assert nodes["motion-gen"]["inputs"] == {
         "encoded_command": "text-encoder/encoded_command"
@@ -51,3 +50,14 @@ def test_ardy_dataflow_wires_encoder_between_agent_and_motion_gen() -> None:
     assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
     assert nodes["agent"]["inputs"]["encoding_error"] == "text-encoder/error"
+
+
+def test_text_encoder_entry_point_matches_package_layout() -> None:
+    project = tomllib.loads(Path("pyproject.toml").read_text())
+
+    assert project["project"]["scripts"]["dsrf-text-encoder"] == (
+        "nodes.encoder:main"
+    )
+    packages = project["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
+    assert "src/encoder" in packages
+    assert all(Path(package).is_dir() for package in packages)

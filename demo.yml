@@ -22,7 +22,7 @@ nodes:
     args: run dsrf-motion-gen
     env:
       DEVICE: cuda
-      MOTION_GENERATOR: "${MOTION_GENERATOR:-kinematic_planner}"
+      MOTION_GENERATOR: kinematic_planner
       PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
     inputs:
       command: agent/command
@@ -42,7 +42,7 @@ nodes:
       JPEG_QUALITY: "85"
       CAPTURE_DEPTH: "false"
       VIEWER: native
-      REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
+      REFERENCE_GHOST: "false"
     inputs:
       motion: motion-gen/motion
     outputs:
