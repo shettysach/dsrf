@@ -14,6 +14,8 @@ MJ_JOINT_SLIDE = mujoco.mjtJoint.mjJNT_SLIDE  # ty: ignore[unresolved-attribute]
 
 BOX_HALF_SIZE = 0.3
 BOX_MASS = 0.5
+BOX_SLIDE_DAMPING = 0.6
+BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.48
 ARENA_MIN_X = -1.5
 ARENA_MAX_X = 5.5
@@ -114,20 +116,20 @@ def _add_box(
         name=f"{name}_x",
         type=MJ_JOINT_SLIDE,
         axis=(1.0, 0.0, 0.0),
-        damping=0.1,
+        damping=BOX_SLIDE_DAMPING,
     )
     body.add_joint(
         name=f"{name}_y",
         type=MJ_JOINT_SLIDE,
         axis=(0.0, 1.0, 0.0),
-        damping=0.1,
+        damping=BOX_SLIDE_DAMPING,
     )
     body.add_geom(
         name=f"{name}_collision",
         type=MJGEOM_BOX,
         size=(BOX_HALF_SIZE, BOX_HALF_SIZE, BOX_HALF_SIZE),
         mass=BOX_MASS,
-        friction=(0.25, 0.005, 0.0001),
+        friction=BOX_FRICTION,
         rgba=_BOX_RGBA,
         contype=1,
         conaffinity=1,
