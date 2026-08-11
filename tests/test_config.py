@@ -142,13 +142,13 @@ def test_sim_config_rejects_invalid_reference_ghost(monkeypatch) -> None:
 def test_agent_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("VLM_URL", "http://127.0.0.1:8080/")
     monkeypatch.setenv("VLM_TIMEOUT", "12.5")
-    monkeypatch.setenv("TASK", "portrait-corridors")
+    monkeypatch.setenv("VLM_SYSTEM_PROMPT", "/prompts/system.md")
     monkeypatch.setenv("VLM_USER_PROMPT", "/prompts/user.md")
 
     assert AgentConfig.from_env() == AgentConfig(
         vlm_url="http://127.0.0.1:8080",
         vlm_timeout=12.5,
-        task=get_task("portrait-corridors"),
+        system_prompt=Path("/prompts/system.md"),
         user_prompt=Path("/prompts/user.md"),
         waypoint_debug=False,
         command_mode="waypoint",

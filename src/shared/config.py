@@ -78,7 +78,7 @@ class SimConfig:
 class AgentConfig:
     vlm_url: str
     vlm_timeout: float
-    task: TaskSpec
+    system_prompt: Path
     user_prompt: Path
     waypoint_debug: bool
     command_mode: Literal["waypoint", "direction"]
@@ -94,7 +94,7 @@ class AgentConfig:
         return cls(
             vlm_url=url,
             vlm_timeout=timeout,
-            task=get_task(os.environ["TASK"].strip()),
+            system_prompt=Path(os.environ["VLM_SYSTEM_PROMPT"]),
             user_prompt=Path(os.environ["VLM_USER_PROMPT"]),
             waypoint_debug=_optional_boolean("WAYPOINT_DEBUG", default=False),
             command_mode=(

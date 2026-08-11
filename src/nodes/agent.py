@@ -293,7 +293,7 @@ def main() -> None:
     client = OAIChatClient(
         base_url=cfg.vlm_url,
         timeout=cfg.vlm_timeout,
-        system_prompt=cfg.task.read_instructions(),
+        system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
     )
     AgentLoop(

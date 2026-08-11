@@ -3,14 +3,14 @@
 nodes:
   - id: agent
     path: uv
-    args: run --extra cu128 --extra ardy dsrf-agent
+    args: run dsrf-agent
     min_log_level: warn
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
       VLM_SYSTEM_PROMPT: tasks/portrait_corridors/TASK.md
-      VLM_USER_PROMPT: prompt/USER.md
-      MOTION_GENERATOR: ardy
+      VLM_USER_PROMPT: prompt/PLANNER_USER.md
+      MOTION_GENERATOR: kinematic_planner
     inputs:
       observation: sim/observation
       planning_error: motion-gen/error
@@ -20,14 +20,12 @@ nodes:
 
   - id: motion-gen
     path: uv
-    args: run --extra cu128 --extra ardy dsrf-motion-gen
+    args: run dsrf-motion-gen
     min_log_level: warn
     env:
       DEVICE: cuda
-      MOTION_GENERATOR: ardy
-      CHECKPOINTS_DIR: /tmp/ardy/checkpoints
-      TEXT_ENCODER_MODEL: /tmp/model
-      TEXT_ENCODER_DEVICE: cuda
+      MOTION_GENERATOR: kinematic_planner
+      PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
     inputs:
       command: agent/command
     outputs:
@@ -36,7 +34,7 @@ nodes:
 
   - id: sim
     path: uv
-    args: run --extra cu128 --extra ardy dsrf-sim
+    args: run dsrf-sim
     min_log_level: warn
     env:
       DEVICE: cuda
@@ -45,7 +43,7 @@ nodes:
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"
       JPEG_QUALITY: "85"
-      CAPTURE_DEPTH: "true"
+      CAPTURE_DEPTH: "false"
       VIEWER: native
       REFERENCE_GHOST: "false"
     inputs:

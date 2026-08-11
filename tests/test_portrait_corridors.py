@@ -15,8 +15,6 @@ def test_catalog_contains_portrait_corridors() -> None:
     )
     assert definition.viewer.distance == 3.5
     assert definition.viewer.elevation == -30.0
-    assert definition.instructions_path.name == "TASK.md"
-    assert "creator of Linux" in definition.read_instructions()
 
 
 def test_catalog_rejects_unknown_task() -> None:

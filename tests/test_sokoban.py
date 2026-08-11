@@ -20,7 +20,6 @@ def test_catalog_contains_sokoban() -> None:
     assert task.objective == "Push both boxes onto the two marked goal regions."
     assert task.viewer.distance == 5.0
     assert task.viewer.elevation == -50.0
-    assert "walking directly into it" in task.read_instructions()
 
 
 def test_sokoban_uses_elevated_viewer_framing() -> None:

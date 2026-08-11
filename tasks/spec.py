@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,7 +21,6 @@ class ViewerSpec:
 class TaskSpec:
     name: str
     objective: str
-    instructions_path: Path
     make_scene: SceneFactory
     viewer: ViewerSpec = ViewerSpec()
 
@@ -31,6 +29,3 @@ class TaskSpec:
             raise ValueError("Task name must be non-empty and trimmed")
         if not self.objective.strip():
             raise ValueError("Task objective must be non-empty")
-
-    def read_instructions(self) -> str:
-        return self.instructions_path.read_text(encoding="utf-8")

@@ -5,13 +5,13 @@ import yaml
 
 
 def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
-    descriptor = yaml.safe_load(Path("demo.yml").read_text())
+    descriptor = yaml.safe_load(Path("corridors.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"] == {
         "VLM_URL": "http://127.0.0.1:8080",
         "VLM_TIMEOUT": "120",
-        "TASK": "portrait-corridors",
+        "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
         "MOTION_GENERATOR": "kinematic_planner",
     }
@@ -39,6 +39,9 @@ def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER.md"
+    assert (
+        nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/portrait_corridors/TASK.md"
+    )
     assert nodes["motion-gen"]["inputs"] == {"command": "agent/command"}
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["motion-gen"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
@@ -54,9 +57,17 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["TASK"] == "sokoban"
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
+
+
+def test_dataflow_system_prompts_exist() -> None:
+    for path in (
+        "tasks/portrait_corridors/TASK.md",
+        "tasks/sokoban/TASK.md",
+    ):
+        assert Path(path).is_file()
 
 
 def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:
