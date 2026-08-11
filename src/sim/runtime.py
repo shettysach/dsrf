@@ -12,13 +12,15 @@ import torch
 import yaml
 from dora import Node
 
+from shared.arrow import (
+    motion_from_arrow,
+    observation_to_arrow,
+    pipeline_error_to_arrow,
+)
 from shared.messages import (
     SONIC_FPS,
     PipelineError,
     VisualObservation,
-    motion_from_arrow,
-    observation_to_arrow,
-    pipeline_error_to_arrow,
 )
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
@@ -82,6 +84,8 @@ class SimRuntime:
         stop_recording_at_corridor: bool = False,
         motion_timeout_seconds: float = 20.0,
         demo_runs: tuple[DemoRun, ...] = (),
+        *,
+        capture_depth: bool = True,
     ) -> None:
         self.node = node
         self.simulation = simulation
@@ -97,7 +101,9 @@ class SimRuntime:
         )
         self.motion_timeout_seconds = motion_timeout_seconds
         self.demo_runs = demo_runs or (DemoRun("Center start", (0.0, 0.0)),)
+        self.reset_for_demo_run = bool(demo_runs)
         self.run_index = 0
+        self.capture_depth = capture_depth
         self.observation_id = 0
         self._observation_published_at: float | None = None
         self.demo_vlm_state = DemoVlmState()
@@ -118,8 +124,9 @@ class SimRuntime:
 
     def _start_run(self) -> None:
         run = self.demo_runs[self.run_index]
-        self.simulation.reset_at(*run.start_xy)
-        self.policy.reset()
+        if self.reset_for_demo_run:
+            self.simulation.reset_at(*run.start_xy)
+            self.policy.reset()
         self.observation_id = 0
         self._observation_published_at = None
         self.demo_vlm_state = DemoVlmState()
@@ -407,7 +414,10 @@ class SimRuntime:
         collision_detected: bool = False,
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
-        jpeg, projection = self.renderer.capture_rgbd()
+        if self.capture_depth:
+            jpeg, projection = self.renderer.capture_rgbd()
+        else:
+            jpeg, projection = self.renderer.capture_jpeg(), None
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,

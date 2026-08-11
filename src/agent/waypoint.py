@@ -7,6 +7,7 @@ from typing import cast
 
 import numpy as np
 
+from shared.geometry import world_xy_to_local, yaw_from_quat_wxyz
 from shared.messages import ProjectionContext
 
 MAX_TARGET_DISTANCE_M = 1.5
@@ -114,15 +115,9 @@ def resolve_waypoint(
         )
 
     delta = world_point - projection.root_pos_w
-    yaw = _yaw_from_quat(projection.root_quat_w)
-    cosine = math.cos(yaw)
-    sine = math.sin(yaw)
-    target = np.array(
-        [
-            cosine * delta[0] + sine * delta[1],
-            -sine * delta[0] + cosine * delta[1],
-        ],
-        dtype=np.float64,
+    target = world_xy_to_local(
+        delta[:2],
+        yaw_from_quat_wxyz(projection.root_quat_w),
     )
     distance = float(np.linalg.norm(target))
     if not math.isfinite(distance):
@@ -150,8 +145,3 @@ def _unit(value: np.ndarray, name: str) -> np.ndarray:
     if not math.isfinite(norm) or norm <= 1e-8:
         raise ValueError(f"Invalid {name} vector")
     return np.asarray(value, dtype=np.float64) / norm
-
-
-def _yaw_from_quat(quat_w: np.ndarray) -> float:
-    w, x, y, z = (float(value) for value in quat_w)
-    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))

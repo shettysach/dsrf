@@ -54,7 +54,7 @@ class Ardy:
 
     def generate(
         self,
-        embedding: np.ndarray,
+        embedding: torch.Tensor,
         target_xy: tuple[float, float] | None,
     ) -> np.ndarray:
         text_feat, text_pad_mask = prepare_conditioning(

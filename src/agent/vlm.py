@@ -30,7 +30,7 @@ class _ConversationTurn:
     assistant: str
 
 
-class LlamaServerClient:
+class OAIChatClient:
     def __init__(
         self,
         *,

@@ -26,13 +26,6 @@ uvx --from huggingface_hub hf download nvidia/GEAR-SONIC \
   --local-dir /tmp/GEAR-SONIC
 ```
 
-```bash
-cp .env.example .env
-set -a
-source .env
-set +a
-```
-
 Also an OpenAI compatible VLM inference server.
 
 ## Run
@@ -43,23 +36,24 @@ Run OpenAI compatible VLM inference server.
 dora run demo.yml
 ```
 
-- Set `VIEWER=none` to disable the window for headless runs.
-- Set `REFERENCE_GHOST=true` to show the active motion reference in the
-  native viewer.
+- Set `VIEWER: none` in `demo.yml` to disable the window for headless runs.
+- Set `REFERENCE_GHOST: "true"` in `demo.yml` to show the active motion
+  reference in the native viewer.
 
 ## ARDY closed loop
 
-The ARDY graph encodes each command's `motion` field with a local Transformers
-model and converts the resolved local waypoint into a root-position constraint.
-It generates a five-second reference and carries ARDY's generated
-history into the next request:
+The ARDY motion generator encodes each command's `motion` field with a local
+Transformers model and converts the resolved local waypoint into a root-position
+constraint. It generates a five-second reference and carries ARDY's generated
+history into the next request.
+
+Set `TEXT_ENCODER_MODEL`, `TEXT_ENCODER_DEVICE`, `DEVICE`, and `CHECKPOINTS_DIR`
+in `ardy.yml`, then run:
 
 ```bash
-export TEXT_ENCODER_MODEL=~/Desktop/encoding/model/
-export CHECKPOINTS_DIR=/tmp/checkpoints/
 dora run ardy.yml
 ```
 
 The text model must expose `last_hidden_state` with hidden size 4096. The
-encoder applies attention-mask-aware mean pooling and sends a float32 vector to
-ARDY.
+encoder applies attention-mask-aware mean pooling and transfers the resulting
+float32 tensor directly to ARDY's device.

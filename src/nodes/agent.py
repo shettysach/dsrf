@@ -8,16 +8,18 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
-from agent.vlm import LlamaServerClient
+from agent.vlm import OAIChatClient
 from agent.waypoint import ResolvedWaypoint, parse_waypoint_command, resolve_waypoint
+from shared.arrow import (
+    agent_command_to_arrow,
+    observation_from_arrow,
+    pipeline_error_from_arrow,
+)
 from shared.config import AgentConfig
 from shared.messages import (
     AgentCommand,
     PipelineError,
     VisualObservation,
-    agent_command_to_arrow,
-    observation_from_arrow,
-    pipeline_error_from_arrow,
 )
 
 MAX_INVALID_RESPONSES = 3
@@ -29,7 +31,7 @@ class AgentLoop:
     def __init__(
         self,
         node: Node,
-        client: LlamaServerClient,
+        client: OAIChatClient,
         *,
         waypoint_debug: bool = False,
         command_mode: str = "waypoint",
@@ -55,7 +57,7 @@ class AgentLoop:
                         event["value"], dict(event.get("metadata") or {})
                     )
                 )
-            elif event["id"] in {"planning_error", "encoding_error", "sim_error"}:
+            elif event["id"] in {"planning_error", "sim_error"}:
                 self._accept_error(pipeline_error_from_arrow(event["value"]))
 
     def _accept_observation(self, observation: VisualObservation) -> None:
@@ -100,7 +102,7 @@ class AgentLoop:
             raise RuntimeError(
                 f"Stale {error.source} error for observation {error.observation_id}"
             )
-        if error.source not in {"motion-gen", "text-encoder"}:
+        if error.source != "motion-gen":
             self.node.log(
                 "error",
                 f"[OBS {error.observation_id}] {error.source} error: {error.detail}",
@@ -123,8 +125,7 @@ class AgentLoop:
         observation_id = self.observation.observation_id
         self.node.log(
             "warn",
-            f"[OBS {observation_id}] invalid command: "
-            f"{previous!r} error={detail!r}",
+            f"[OBS {observation_id}] invalid command: {previous!r} error={detail!r}",
             target="dsrf.agent",
             fields={
                 "event": "invalid_command",
@@ -270,7 +271,11 @@ class AgentLoop:
 
     @property
     def _fallback_command(self) -> str:
-        return PLANNER_FALLBACK_COMMAND if self.command_mode == "direction" else FALLBACK_COMMAND
+        return (
+            PLANNER_FALLBACK_COMMAND
+            if self.command_mode == "direction"
+            else FALLBACK_COMMAND
+        )
 
     def _log_waypoint(self, waypoint: ResolvedWaypoint) -> None:
         assert self.observation is not None
@@ -305,7 +310,7 @@ def _write_debug_image(
 def main() -> None:
     cfg = AgentConfig.from_env()
     node = Node()
-    client = LlamaServerClient(
+    client = OAIChatClient(
         base_url=cfg.vlm_url,
         timeout=cfg.vlm_timeout,
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),

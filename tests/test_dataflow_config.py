@@ -1,3 +1,4 @@
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -12,40 +13,50 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "VLM_TIMEOUT": "120",
         "VLM_SYSTEM_PROMPT": "TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
-        "MOTION_GENERATOR": "planner_sonic",
+        "MOTION_GENERATOR": "kinematic_planner",
     }
     assert nodes["motion-gen"]["env"] == {
         "DEVICE": "cuda",
-        "MOTION_GENERATOR": ("${MOTION_GENERATOR:-planner_sonic}"),
+        "MOTION_GENERATOR": "kinematic_planner",
         "PLANNER_ONNX": ("/tmp/GEAR-SONIC/planner_sonic.onnx"),
     }
     assert nodes["sim"]["env"] == {
         "DEVICE": "cuda",
         "SONIC_DIR": "/tmp/GEAR-SONIC",
         "TASK": "portrait-corridors",
-        "IMAGE_WIDTH": "640",
-        "IMAGE_HEIGHT": "480",
+        "GOAL_INDEX": "${GOAL_INDEX:-1}",
+        "IMAGE_WIDTH": "1280",
+        "IMAGE_HEIGHT": "720",
         "JPEG_QUALITY": "85",
+        "CAPTURE_DEPTH": "false",
         "VIEWER": "native",
         "REFERENCE_GHOST": "${REFERENCE_GHOST:-false}",
+        "DEMO_VIDEO_DIR": "${DEMO_VIDEO_DIR:-}",
+        "DEMO_RUNS": "${DEMO_RUNS:-10}",
+        "MOTION_TIMEOUT_SECONDS": "${MOTION_TIMEOUT_SECONDS:-20}",
     }
 
 
-def test_ardy_dataflow_wires_encoder_between_agent_and_motion_gen() -> None:
+def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
     descriptor = yaml.safe_load(Path("ardy.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
-    assert set(nodes) == {"agent", "text-encoder", "motion-gen", "sim"}
-    assert nodes["text-encoder"]["inputs"] == {"command": "agent/command"}
-    assert nodes["text-encoder"]["outputs"] == ["encoded_command", "error"]
-    assert nodes["text-encoder"]["env"]["TEXT_ENCODER_MODEL"] == (
-        "${TEXT_ENCODER_MODEL:-/tmp/model}"
-    )
+    assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER.md"
-    assert nodes["motion-gen"]["inputs"] == {
-        "encoded_command": "text-encoder/encoded_command"
-    }
+    assert nodes["motion-gen"]["inputs"] == {"command": "agent/command"}
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["motion-gen"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
+    assert nodes["motion-gen"]["env"]["TEXT_ENCODER_DEVICE"] == "cuda"
     assert nodes["sim"]["inputs"] == {"motion": "motion-gen/motion"}
+    assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
-    assert nodes["agent"]["inputs"]["encoding_error"] == "text-encoder/error"
+    assert "encoding_error" not in nodes["agent"]["inputs"]
+
+
+def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:
+    project = tomllib.loads(Path("pyproject.toml").read_text())
+
+    assert "dsrf-text-encoder" not in project["project"]["scripts"]
+    packages = project["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
+    assert "src/encoder" not in packages
+    assert all(Path(package).is_dir() for package in packages)

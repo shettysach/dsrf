@@ -4,8 +4,6 @@ Your entire response must be one line in this exact shape:
 {"motion":"walk","direction":"forward"}
 
 The motion value must be stand or walk.
-Directions are global world directions, not relative to the robot's heading:
-forward is +X, backward is -X, left is +Y, and right is -Y.
 The direction value must be forward, backward, left, or right.
 If motion is stand, direction must be forward.
 

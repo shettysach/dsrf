@@ -94,7 +94,7 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     generator.root_history = torch.zeros((2, 3))
     initial_history = generator.initial_history
 
-    embedding = np.arange(4096, dtype=np.float32)
+    embedding = torch.arange(4096, dtype=torch.float32)
     qpos = generator.generate(embedding, (0.0, 0.5))
 
     assert qpos.shape == (125, 36)
@@ -106,15 +106,13 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     assert model.call_args.kwargs["motion_mask"] is not None
     assert model.call_args.kwargs["observed_motion"] is not None
     assert model.call_args.kwargs["text_feat"].shape == (1, 1, 4096)
-    np.testing.assert_array_equal(
-        model.call_args.kwargs["text_feat"][0, 0].numpy(), embedding
-    )
+    torch.testing.assert_close(model.call_args.kwargs["text_feat"][0, 0], embedding)
     torch.testing.assert_close(generator.initial_history, returned_motion[:, -4:])
     torch.testing.assert_close(generator.root_history, torch.zeros((2, 3)))
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:
-    embedding = np.arange(4096, dtype=np.float32)
+    embedding = torch.arange(4096, dtype=torch.float64)
     text_feat, text_pad_mask = prepare_conditioning(
         embedding,
         device=torch.device("cpu"),
@@ -122,5 +120,5 @@ def test_prepare_conditioning_accepts_per_request_embedding() -> None:
 
     assert text_feat.shape == (1, 1, 4096)
     assert text_feat.dtype is torch.float32
-    np.testing.assert_array_equal(text_feat[0, 0].numpy(), embedding)
+    torch.testing.assert_close(text_feat[0, 0], embedding.float())
     assert text_pad_mask.tolist() == [[True]]

@@ -9,3 +9,7 @@
 [ ] Integrate text_encoder node functionality into motion_gen
 
 [ ] ALT_PATH - camera details could be sent via agent node than directly to the motion_gen node. `n_envs` cost goes high.
+
+[ ] Fix robot relative forward
+
+[ ] Collision detection, hooks.

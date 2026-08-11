@@ -10,9 +10,11 @@ def test_catalog_contains_portrait_corridors() -> None:
     definition = get_task("portrait-corridors")
 
     assert definition is TASKS["portrait-corridors"]
-    assert definition.objective == "Stand in front of the image of the cartoon."
-    assert definition.camera_distance == 3.5
-    assert definition.camera_elevation == -30.0
+    assert definition.objective == (
+        "Stand in front of the image of the creator of Linux."
+    )
+    assert definition.camera_distance == 5.0
+    assert definition.camera_elevation == -20.0
 
 
 def test_catalog_rejects_unknown_task() -> None:
@@ -25,8 +27,8 @@ def test_sonic_config_applies_task_scene_and_camera_distance() -> None:
     plain_cfg = make_sim_env_cfg(task=None)
 
     assert task_cfg.scene.spec_fn is not None
-    assert task_cfg.viewer.distance == 3.5
-    assert task_cfg.viewer.elevation == -30.0
+    assert task_cfg.viewer.distance == 5.0
+    assert task_cfg.viewer.elevation == -20.0
     assert plain_cfg.scene.spec_fn is None
     assert plain_cfg.viewer.distance == 2.0
     assert plain_cfg.viewer.elevation == -15.0
@@ -48,13 +50,13 @@ def test_portrait_corridors_spec_adds_portraits_walls_and_cameras() -> None:
 
     assert {body.name for body in spec.bodies if body.name.endswith("_portrait")} == {
         "portrait_corridors_linus_portrait",
-        "portrait_corridors_karpathy_portrait",
-        "portrait_corridors_bugs_portrait",
+        "portrait_corridors_jobs_portrait",
+        "portrait_corridors_nolan_portrait",
     }
     assert {texture.name for texture in spec.textures} == {
         "portrait_corridors_linus_texture",
-        "portrait_corridors_karpathy_texture",
-        "portrait_corridors_bugs_texture",
+        "portrait_corridors_jobs_texture",
+        "portrait_corridors_nolan_texture",
     }
     assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 5
 
@@ -115,13 +117,13 @@ def test_portrait_assignment_is_reproducible_with_a_seed() -> None:
     ("goal_index", "goal_y"),
     [(0, 2.0), (1, 0.0), (2, -2.0)],
 )
-def test_goal_index_places_bugs_in_requested_corridor(
+def test_goal_index_places_linux_creator_in_requested_corridor(
     goal_index: int, goal_y: float
 ) -> None:
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
     make_portrait_corridors_spec_fn(goal_index=goal_index, seed=1234)(spec)
 
-    bugs = next(
-        body for body in spec.bodies if body.name == "portrait_corridors_bugs_portrait"
+    linus = next(
+        body for body in spec.bodies if body.name == "portrait_corridors_linus_portrait"
     )
-    assert tuple(bugs.pos)[1] == pytest.approx(goal_y)
+    assert tuple(linus.pos)[1] == pytest.approx(goal_y)

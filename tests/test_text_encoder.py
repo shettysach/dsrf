@@ -1,9 +1,29 @@
 from types import SimpleNamespace
 
-import numpy as np
 import torch
 
-from text_encoder.encoder import TextEncoder
+import motion_gen.ardy.text_encoder as encoder_module
+from motion_gen.ardy.text_encoder import TextEncoder
+
+
+def test_text_encoder_loads_model_on_selected_device(monkeypatch, tmp_path) -> None:
+    received: dict[str, object] = {}
+    model = SimpleNamespace(eval=lambda: None)
+    monkeypatch.setattr(
+        encoder_module.AutoTokenizer,
+        "from_pretrained",
+        lambda path: object(),
+    )
+    monkeypatch.setattr(
+        encoder_module.AutoModel,
+        "from_pretrained",
+        lambda path, **kwargs: received.update(kwargs) or model,
+    )
+
+    encoder = TextEncoder(tmp_path, device="cuda:1")
+
+    assert encoder.device == torch.device("cuda:1")
+    assert received["device_map"] == "cuda:1"
 
 
 def test_text_encoder_returns_masked_mean_float32_embedding() -> None:
@@ -22,5 +42,6 @@ def test_text_encoder_returns_masked_mean_float32_embedding() -> None:
     embedding = encoder.encode("walk forward")
 
     assert embedding.shape == (4096,)
-    assert embedding.dtype == np.float32
-    np.testing.assert_array_equal(embedding, np.full(4096, 3.0, dtype=np.float32))
+    assert embedding.dtype is torch.float32
+    assert embedding.device == torch.device("cpu")
+    torch.testing.assert_close(embedding, torch.full((4096,), 3.0))

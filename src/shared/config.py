@@ -11,7 +11,7 @@ type ViewerMode = Literal["none", "native", "viser"]
 @dataclass(frozen=True)
 class MotionGenConfig:
     device: str
-    backend: PlannerSonicConfig | ArdyConfig
+    backend: KinematicPlannerConfig | ArdyConfig
 
     @classmethod
     def from_env(cls) -> "MotionGenConfig":
@@ -21,37 +21,28 @@ class MotionGenConfig:
                 device=os.environ["DEVICE"],
                 backend=ArdyConfig(
                     checkpoints_dir=Path(os.environ["CHECKPOINTS_DIR"]),
+                    text_encoder_model=Path(os.environ["TEXT_ENCODER_MODEL"]),
+                    text_encoder_device=os.environ["TEXT_ENCODER_DEVICE"],
                 ),
             )
         return cls(
             device=os.environ["DEVICE"],
-            backend=PlannerSonicConfig(
+            backend=KinematicPlannerConfig(
                 planner_onnx=Path(os.environ["PLANNER_ONNX"]),
             ),
         )
 
 
 @dataclass(frozen=True)
-class PlannerSonicConfig:
+class KinematicPlannerConfig:
     planner_onnx: Path
 
 
 @dataclass(frozen=True)
 class ArdyConfig:
     checkpoints_dir: Path
-
-
-@dataclass(frozen=True)
-class TextEncoderConfig:
-    model: Path
-    device: str
-
-    @classmethod
-    def from_env(cls) -> "TextEncoderConfig":
-        return cls(
-            model=Path(os.environ["TEXT_ENCODER_MODEL"]),
-            device=os.environ["DEVICE"],
-        )
+    text_encoder_model: Path
+    text_encoder_device: str
 
 
 @dataclass(frozen=True)
@@ -62,6 +53,7 @@ class SimConfig:
     image_width: int
     image_height: int
     jpeg_quality: int
+    capture_depth: bool
     viewer: ViewerMode
     reference_ghost: bool
     demo_video_path: Path | None = None
@@ -79,6 +71,7 @@ class SimConfig:
             image_width=_positive_int("IMAGE_WIDTH"),
             image_height=_positive_int("IMAGE_HEIGHT"),
             jpeg_quality=_bounded_int("JPEG_QUALITY", minimum=1, maximum=100),
+            capture_depth=_optional_boolean("CAPTURE_DEPTH", default=True),
             viewer=_viewer_mode(),
             reference_ghost=_boolean("REFERENCE_GHOST"),
             demo_video_path=(
@@ -125,7 +118,7 @@ class AgentConfig:
             command_mode=(
                 "direction"
                 if os.environ.get("MOTION_GENERATOR", "").strip().lower()
-                == "planner_sonic"
+                == "kinematic_planner"
                 else "waypoint"
             ),
         )
@@ -178,10 +171,10 @@ def _viewer_mode() -> ViewerMode:
     return value
 
 
-def _motion_generator() -> Literal["planner_sonic", "ardy"]:
+def _motion_generator() -> Literal["kinematic_planner", "ardy"]:
     value = os.environ["MOTION_GENERATOR"].strip().lower()
-    if value not in {"planner_sonic", "ardy"}:
-        raise ValueError("MOTION_GENERATOR must be 'planner_sonic' or 'ardy'")
+    if value not in {"kinematic_planner", "ardy"}:
+        raise ValueError("MOTION_GENERATOR must be 'kinematic_planner' or 'ardy'")
     return value
 
 

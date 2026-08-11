@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
 from transformers import AutoModel, AutoTokenizer
 
@@ -23,11 +22,7 @@ class TextEncoder:
         )
         self.model.eval()
 
-    def encode(self, text: str) -> np.ndarray:
-        text = text.strip()
-        if not text:
-            raise ValueError("Command is empty")
-
+    def encode(self, text: str) -> torch.Tensor:
         inputs = self.tokenizer(
             text,
             return_tensors="pt",
@@ -49,4 +44,4 @@ class TextEncoder:
             )
         if not bool(torch.isfinite(embedding).all()):
             raise ValueError("Text encoder produced NaN or infinite values")
-        return np.ascontiguousarray(embedding[0].float().cpu().numpy())
+        return embedding[0].float().contiguous()

@@ -41,7 +41,6 @@ scout = ["mcp>=1.28,<2"]
 dsrf-agent = "nodes.agent:main"
 dsrf-motion-gen = "nodes.motion_gen:main"
 dsrf-sim = "nodes.sim:main"
-dsrf-text-encoder = "nodes.text_encoder:main"
 mjlab-scout = "mjlab_scout.server:main"
 
 [dependency-groups]
@@ -96,7 +95,6 @@ packages = [
     "src/nodes",
     "src/shared",
     "src/sim",
-    "src/text_encoder",
     "tasks",
 ]
 

@@ -4,9 +4,66 @@ import math
 
 import numpy as np
 import torch
-from mjlab.utils.lab_api.math import quat_slerp
 
 from shared.messages import SONIC_FPS, MotionChunk
+
+
+def _quat_slerp_batch(
+    q1: torch.Tensor,
+    q2: torch.Tensor,
+    blend: torch.Tensor,
+) -> torch.Tensor:
+    """Batched shortest-path SLERP for quaternions in (w, x, y, z) order."""
+
+    dot = torch.sum(q1 * q2, dim=-1)
+    epsilon = torch.finfo(q1.dtype).eps * 4.0
+    same_rotation = torch.abs(torch.abs(dot) - 1.0) < epsilon
+
+    shortest_q2 = torch.where((dot < 0.0).unsqueeze(-1), -q2, q2)
+    angle = torch.acos(torch.clamp(torch.abs(dot), -1.0, 1.0))
+    same_rotation |= torch.abs(angle) < epsilon
+
+    # The denominator is ignored for same-rotation rows, but keeping it non-zero
+    # prevents NaNs before torch.where selects q1 for those rows.
+    denominator = torch.where(same_rotation, torch.ones_like(angle), torch.sin(angle))
+    q1_weight = torch.sin((1.0 - blend) * angle) / denominator
+    q2_weight = torch.sin(blend * angle) / denominator
+    interpolated = q1 * q1_weight.unsqueeze(-1) + shortest_q2 * q2_weight.unsqueeze(-1)
+    interpolated = torch.where(same_rotation.unsqueeze(-1), q1, interpolated)
+
+    # Match the scalar MJLab helper: exact endpoints return the original inputs,
+    # including q2's sign at blend == 1.
+    interpolated = torch.where((blend == 0.0).unsqueeze(-1), q1, interpolated)
+    return torch.where((blend == 1.0).unsqueeze(-1), q2, interpolated)
+
+
+def resample_qpos(source_qpos: torch.Tensor, *, source_fps: float) -> torch.Tensor:
+    """Resample qpos on its current Torch device without host transfers."""
+
+    output_frames = math.floor(source_qpos.shape[0] * SONIC_FPS / source_fps)
+    source_positions = (
+        torch.arange(
+            output_frames,
+            device=source_qpos.device,
+            dtype=torch.float64,
+        )
+        * source_fps
+        / SONIC_FPS
+    )
+    index_0 = torch.floor(source_positions).to(torch.long)
+    index_0.clamp_(max=source_qpos.shape[0] - 1)
+    index_1 = torch.clamp(index_0 + 1, max=source_qpos.shape[0] - 1)
+    blend = (source_positions - index_0).to(dtype=source_qpos.dtype)
+
+    qpos_0 = source_qpos.index_select(0, index_0)
+    qpos_1 = source_qpos.index_select(0, index_1)
+    output = torch.lerp(qpos_0, qpos_1, blend.unsqueeze(-1))
+    output[:, 3:7] = _quat_slerp_batch(
+        qpos_0[:, 3:7],
+        qpos_1[:, 3:7],
+        blend,
+    )
+    return output.contiguous()
 
 
 def resample_motion(
@@ -17,27 +74,13 @@ def resample_motion(
     command: str,
     reasoning: str | None = None,
 ) -> MotionChunk:
-    """Resample backend qpos output to SONIC's control frequency."""
+    """Convert NumPy backend output to a CPU MotionChunk at SONIC's frequency.
 
-    if not math.isfinite(source_fps) or source_fps <= 0.0:
-        raise ValueError("Source FPS must be positive and finite")
+    Torch backends should call ``resample_qpos`` directly to remain on-device.
+    """
 
     qpos = torch.as_tensor(source_qpos, dtype=torch.float32)
-    output_frames = math.floor(qpos.shape[0] * SONIC_FPS / source_fps)
-    output = torch.empty((output_frames, qpos.shape[1]), dtype=torch.float32)
-
-    for output_index in range(output_frames):
-        source_position = output_index * source_fps / SONIC_FPS
-        index_0 = min(math.floor(source_position), qpos.shape[0] - 1)
-        index_1 = min(index_0 + 1, qpos.shape[0] - 1)
-        blend = float(source_position - index_0)
-        output[output_index] = torch.lerp(qpos[index_0], qpos[index_1], blend)
-        # NOTE: MJLab's quat_slerp may negate q2 in place for the shortest path.
-        output[output_index, 3:7] = quat_slerp(
-            qpos[index_0, 3:7],
-            qpos[index_1, 3:7].clone(),
-            blend,
-        )
+    output = resample_qpos(qpos, source_fps=source_fps)
 
     return MotionChunk(
         observation_id=observation_id,

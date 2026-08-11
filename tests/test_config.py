@@ -5,21 +5,20 @@ import pytest
 from shared.config import (
     AgentConfig,
     ArdyConfig,
+    KinematicPlannerConfig,
     MotionGenConfig,
-    PlannerSonicConfig,
     SimConfig,
-    TextEncoderConfig,
 )
 
 
 def test_motion_gen_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cuda:0")
-    monkeypatch.setenv("MOTION_GENERATOR", "planner_sonic")
+    monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
     monkeypatch.setenv("PLANNER_ONNX", "/models/planner.onnx")
 
     assert MotionGenConfig.from_env() == MotionGenConfig(
         device="cuda:0",
-        backend=PlannerSonicConfig(planner_onnx=Path("/models/planner.onnx")),
+        backend=KinematicPlannerConfig(planner_onnx=Path("/models/planner.onnx")),
     )
 
 
@@ -27,11 +26,15 @@ def test_ardy_motion_gen_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
     monkeypatch.setenv("MOTION_GENERATOR", "ardy")
     monkeypatch.setenv("CHECKPOINTS_DIR", "/models/ardy")
+    monkeypatch.setenv("TEXT_ENCODER_MODEL", "/models/text-encoder")
+    monkeypatch.setenv("TEXT_ENCODER_DEVICE", "cuda:1")
 
     assert MotionGenConfig.from_env() == MotionGenConfig(
         device="cpu",
         backend=ArdyConfig(
             checkpoints_dir=Path("/models/ardy"),
+            text_encoder_model=Path("/models/text-encoder"),
+            text_encoder_device="cuda:1",
         ),
     )
 
@@ -40,16 +43,12 @@ def test_ardy_motion_gen_config_requires_no_fixed_conditioning(monkeypatch) -> N
     monkeypatch.setenv("DEVICE", "cuda:0")
     monkeypatch.setenv("MOTION_GENERATOR", "ardy")
     monkeypatch.setenv("CHECKPOINTS_DIR", "/models/ardy")
-    assert MotionGenConfig.from_env().backend == ArdyConfig(Path("/models/ardy"))
-
-
-def test_text_encoder_config_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("DEVICE", "cuda:0")
     monkeypatch.setenv("TEXT_ENCODER_MODEL", "/models/text-encoder")
-
-    assert TextEncoderConfig.from_env() == TextEncoderConfig(
-        model=Path("/models/text-encoder"),
-        device="cuda:0",
+    monkeypatch.setenv("TEXT_ENCODER_DEVICE", "cpu")
+    assert MotionGenConfig.from_env().backend == ArdyConfig(
+        checkpoints_dir=Path("/models/ardy"),
+        text_encoder_model=Path("/models/text-encoder"),
+        text_encoder_device="cpu",
     )
 
 
@@ -78,9 +77,24 @@ def test_sim_config_from_env(monkeypatch) -> None:
         image_width=640,
         image_height=480,
         jpeg_quality=85,
+        capture_depth=True,
         viewer="native",
         reference_ghost=True,
     )
+
+
+def test_sim_config_can_disable_depth(monkeypatch) -> None:
+    monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("SONIC_DIR", "/models/sonic")
+    monkeypatch.setenv("TASK", "none")
+    monkeypatch.setenv("IMAGE_WIDTH", "640")
+    monkeypatch.setenv("IMAGE_HEIGHT", "480")
+    monkeypatch.setenv("JPEG_QUALITY", "85")
+    monkeypatch.setenv("CAPTURE_DEPTH", "false")
+    monkeypatch.setenv("VIEWER", "none")
+    monkeypatch.setenv("REFERENCE_GHOST", "false")
+
+    assert SimConfig.from_env().capture_depth is False
 
 
 def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
@@ -142,7 +156,7 @@ def test_agent_config_from_env(monkeypatch) -> None:
 
 def test_missing_runtime_value_fails(monkeypatch) -> None:
     monkeypatch.delenv("PLANNER_ONNX", raising=False)
-    monkeypatch.setenv("MOTION_GENERATOR", "planner_sonic")
+    monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
     monkeypatch.setenv("DEVICE", "cpu")
 
     with pytest.raises(KeyError, match="PLANNER_ONNX"):

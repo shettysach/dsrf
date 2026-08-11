@@ -64,6 +64,7 @@ def main() -> None:
                 if cfg.task == "portrait-corridors" and recorder is not None
                 else ()
             ),
+            capture_depth=cfg.capture_depth,
         ).run()
     finally:
         if "recorder" in locals() and recorder is not None:
@@ -71,6 +72,10 @@ def main() -> None:
         if viewer is not None:
             viewer.close()
         simulation.close()
+
+
+if __name__ == "__main__":
+    main()
 
 
 def _log_init(node: Node, cfg: SimConfig) -> None:
@@ -84,9 +89,6 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "device": cfg.device,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
+            "capture_depth": str(cfg.capture_depth).lower(),
         },
     )
-
-
-if __name__ == "__main__":
-    main()

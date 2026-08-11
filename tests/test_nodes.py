@@ -10,18 +10,18 @@ import torch
 
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
-from shared.config import PlannerSonicConfig
-from shared.messages import (
-    AgentCommand,
-    EncodedCommand,
-    MotionChunk,
-    ProjectionContext,
+from shared.arrow import (
     agent_command_to_arrow,
-    encoded_command_to_arrow,
     motion_from_arrow,
     motion_to_arrow,
     observation_from_arrow,
     pipeline_error_from_arrow,
+)
+from shared.config import KinematicPlannerConfig
+from shared.messages import (
+    AgentCommand,
+    MotionChunk,
+    ProjectionContext,
 )
 
 
@@ -58,36 +58,19 @@ def _command_event(
     }
 
 
-def _encoded_command_event(observation_id: int, text: str) -> dict[str, object]:
-    value, metadata = encoded_command_to_arrow(
-        EncodedCommand(
-            observation_id,
-            text,
-            "walk",
-            (0.2, -0.7),
-            np.ones(4096, dtype=np.float32),
-        )
-    )
-    return {
-        "type": "INPUT",
-        "id": "encoded_command",
-        "value": value,
-        "metadata": metadata,
-    }
-
-
 def _run_motion_gen(monkeypatch, events, generate):
     node = _Node(events)
     generator = SimpleNamespace(generate=generate, fps=30)
     config = motion_gen_node.MotionGenConfig(
         device="cpu",
-        backend=PlannerSonicConfig(planner_onnx=Path("planner.onnx")),
+        backend=KinematicPlannerConfig(planner_onnx=Path("planner.onnx")),
     )
     monkeypatch.setattr(motion_gen_node.MotionGenConfig, "from_env", lambda: config)
     monkeypatch.setattr(motion_gen_node, "Node", lambda: node)
     monkeypatch.setattr(
-        motion_gen_node, "PlannerSonic", lambda *args, **kwargs: generator
+        motion_gen_node, "KinematicPlanner", lambda *args, **kwargs: generator
     )
+    monkeypatch.setattr(motion_gen_node, "_create_text_encoder", lambda cfg: None)
     motion_gen_node.main()
     return node
 
@@ -99,7 +82,9 @@ def _planner_motion() -> np.ndarray:
 
 
 def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
-    generated: list[tuple[str, tuple[float, float] | None]] = []
+    generated: list[
+        tuple[str, tuple[float, float] | None, str | None]
+    ] = []
 
     def generate(motion, target_xy, direction):
         generated.append((motion, target_xy, direction))
@@ -153,29 +138,40 @@ def test_motion_gen_does_not_swallow_planner_errors(monkeypatch) -> None:
         )
 
 
-def test_ardy_motion_gen_consumes_encoded_commands(monkeypatch) -> None:
+def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     from shared.config import ArdyConfig
 
     command_text = '{"motion":"walk","waypoint_2d":[700,500]}'
-    node = _Node([_encoded_command_event(7, command_text)])
-    generated: list[tuple[np.ndarray, tuple[float, float]]] = []
+    node = _Node([_command_event(7, command_text, target_xy=(0.2, -0.7))])
+    embedding = torch.ones(4096)
+    encoded: list[str] = []
+    generated: list[tuple[torch.Tensor, tuple[float, float]]] = []
     generator = SimpleNamespace(
         fps=25,
         generate=lambda embedding, target: generated.append((embedding, target))
         or _planner_motion(),
     )
+    encoder = SimpleNamespace(
+        encode=lambda text: encoded.append(text) or embedding,
+    )
     config = motion_gen_node.MotionGenConfig(
         device="cpu",
-        backend=ArdyConfig(Path("checkpoints")),
+        backend=ArdyConfig(
+            checkpoints_dir=Path("checkpoints"),
+            text_encoder_model=Path("text-encoder"),
+            text_encoder_device="cuda:1",
+        ),
     )
     monkeypatch.setattr(motion_gen_node.MotionGenConfig, "from_env", lambda: config)
     monkeypatch.setattr(motion_gen_node, "Node", lambda: node)
     monkeypatch.setattr(motion_gen_node, "_create_generator", lambda cfg: generator)
+    monkeypatch.setattr(motion_gen_node, "_create_text_encoder", lambda cfg: encoder)
 
     motion_gen_node.main()
 
+    assert encoded == ["walk"]
     assert len(generated) == 1
-    assert generated[0][0].shape == (4096,)
+    assert generated[0][0] is embedding
     assert generated[0][1] == (0.2, -0.7)
     chunk = motion_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
@@ -228,9 +224,17 @@ class _Renderer:
     def __init__(self, simulation: _Simulation) -> None:
         self.simulation = simulation
         self.capture_steps: list[int] = []
+        self.jpeg_steps: list[int] = []
+        self.rgbd_steps: list[int] = []
+
+    def capture_jpeg(self) -> bytes:
+        self.capture_steps.append(self.simulation.steps)
+        self.jpeg_steps.append(self.simulation.steps)
+        return f"jpeg-{self.simulation.steps}".encode()
 
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
         self.capture_steps.append(self.simulation.steps)
+        self.rgbd_steps.append(self.simulation.steps)
         return f"jpeg-{self.simulation.steps}".encode(), _projection()
 
     def capture_demo_rgb(self) -> np.ndarray:
@@ -307,7 +311,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     runtime.run()
 
     assert simulation.steps == 2
-    assert viewer.sync_steps == [1, 2]
+    assert viewer.sync_steps == [0, 1, 2]
     assert renderer.capture_steps == [0, 2]
     observations = [output for output in node.outputs if output[0] == "observation"]
     first = observation_from_arrow(
@@ -343,6 +347,29 @@ def test_sonic_includes_task_contact_in_next_observation(monkeypatch) -> None:
         observations[1][1], cast(Any, observations[1][2]["metadata"])
     )
     assert observation.collision_detected
+
+
+def test_sim_can_publish_jpeg_without_depth() -> None:
+    node = _Node([{"type": "STOP"}])
+    simulation = _Simulation()
+    renderer = _Renderer(simulation)
+    runtime = sim_runtime.SimRuntime(
+        cast(Any, node),
+        cast(Any, simulation),
+        cast(Any, _Policy()),
+        cast(Any, renderer),
+        capture_depth=False,
+    )
+
+    runtime.run()
+
+    assert renderer.jpeg_steps == [0]
+    assert renderer.rgbd_steps == []
+    observation = observation_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert observation.jpeg == b"jpeg-0"
+    assert observation.projection is None
 
 
 def test_sonic_rejects_motion_for_stale_observation() -> None:
