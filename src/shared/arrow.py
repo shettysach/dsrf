@@ -10,7 +10,6 @@ import pyarrow as pa
 from shared.messages import (
     MOTION_COLUMNS,
     AgentCommand,
-    EncodedCommand,
     MotionChunk,
     PipelineError,
     ProjectionContext,
@@ -59,35 +58,6 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         text=_string_from_arrow(value),
         motion=str(metadata["motion"]),
         target_xy=_target_xy(metadata),
-        direction=_direction(metadata),
-    )
-
-
-def encoded_command_to_arrow(
-    command: EncodedCommand,
-) -> tuple[pa.Array, dict[str, str]]:
-    return pa.array(command.embedding, type=pa.float32()), {
-        "observation_id": str(command.observation_id),
-        "text": command.text,
-        "motion": command.motion,
-        **(
-            {"target_xy": json.dumps(command.target_xy, separators=(",", ":"))}
-            if command.target_xy is not None
-            else {}
-        ),
-        **({"direction": command.direction} if command.direction is not None else {}),
-    }
-
-
-def encoded_command_from_arrow(
-    value: pa.Array, metadata: dict[str, Any]
-) -> EncodedCommand:
-    return EncodedCommand(
-        observation_id=_observation_id(metadata),
-        text=str(metadata["text"]),
-        motion=str(metadata["motion"]),
-        target_xy=_target_xy(metadata),
-        embedding=np.asarray(value.to_numpy(zero_copy_only=False), dtype=np.float32),
         direction=_direction(metadata),
     )
 

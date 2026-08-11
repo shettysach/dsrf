@@ -139,16 +139,6 @@ def _error_event(observation_id: int) -> dict[str, object]:
     }
 
 
-def _encoding_error_event(observation_id: int) -> dict[str, object]:
-    return {
-        "type": "INPUT",
-        "id": "encoding_error",
-        "value": pipeline_error_to_arrow(
-            PipelineError("text-encoder", observation_id, "bad JSON command")
-        ),
-    }
-
-
 def test_agent_retries_three_invalid_responses_then_stands() -> None:
     node = _Node(
         [
@@ -229,11 +219,11 @@ def test_agent_stand_bypasses_missing_projection() -> None:
     assert command.target_xy is None
 
 
-def test_agent_retries_text_encoder_errors() -> None:
+def test_agent_retries_motion_gen_errors() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg", _projection())),
-            _encoding_error_event(0),
+            _error_event(0),
             {"type": "STOP"},
         ]
     )

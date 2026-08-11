@@ -42,17 +42,18 @@ dora run demo.yml
 
 ## ARDY closed loop
 
-The ARDY graph encodes each command's `motion` field with a local Transformers
-model and converts the resolved local waypoint into a root-position constraint.
-It generates a five-second reference and carries ARDY's generated
-history into the next request:
+The ARDY motion generator encodes each command's `motion` field with a local
+Transformers model and converts the resolved local waypoint into a root-position
+constraint. It generates a five-second reference and carries ARDY's generated
+history into the next request.
 
-Set `TEXT_ENCODER_MODEL` and `CHECKPOINTS_DIR` in `ardy.yml`, then run:
+Set `TEXT_ENCODER_MODEL`, `TEXT_ENCODER_DEVICE`, `DEVICE`, and `CHECKPOINTS_DIR`
+in `ardy.yml`, then run:
 
 ```bash
 dora run ardy.yml
 ```
 
 The text model must expose `last_hidden_state` with hidden size 4096. The
-encoder applies attention-mask-aware mean pooling and sends a float32 vector to
-ARDY.
+encoder applies attention-mask-aware mean pooling and transfers the resulting
+float32 tensor directly to ARDY's device.

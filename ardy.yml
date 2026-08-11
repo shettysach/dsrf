@@ -12,23 +12,10 @@ nodes:
       MOTION_GENERATOR: ardy
     inputs:
       observation: sim/observation
-      encoding_error: text-encoder/error
       planning_error: motion-gen/error
       sim_error: sim/error
     outputs:
       - command
-
-  - id: text-encoder
-    path: uv
-    args: run --extra cu128 --extra ardy dsrf-text-encoder
-    env:
-      DEVICE: cuda
-      TEXT_ENCODER_MODEL: /tmp/model
-    inputs:
-      command: agent/command
-    outputs:
-      - encoded_command
-      - error
 
   - id: motion-gen
     path: uv
@@ -37,8 +24,10 @@ nodes:
       DEVICE: cuda
       MOTION_GENERATOR: ardy
       CHECKPOINTS_DIR: /tmp/ardy/checkpoints
+      TEXT_ENCODER_MODEL: /tmp/model
+      TEXT_ENCODER_DEVICE: cuda
     inputs:
-      encoded_command: text-encoder/encoded_command
+      command: agent/command
     outputs:
       - motion
       - error

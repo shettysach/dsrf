@@ -88,34 +88,6 @@ class AgentCommand:
 
 
 @dataclass(frozen=True)
-class EncodedCommand:
-    observation_id: int
-    text: str
-    motion: str
-    target_xy: tuple[float, float] | None
-    embedding: np.ndarray
-    direction: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
-        normalized = self.text.strip()
-        if not normalized:
-            raise ValueError("Command is empty")
-        _validate_navigation(self.motion, self.target_xy, self.direction)
-        embedding = np.asarray(self.embedding, dtype=np.float32)
-        if embedding.shape != (ARDY_EMBEDDING_SIZE,):
-            raise ValueError(
-                "Command embedding must have shape "
-                f"[{ARDY_EMBEDDING_SIZE}], got {embedding.shape}"
-            )
-        if not np.isfinite(embedding).all():
-            raise ValueError("Command embedding contains NaN or infinite values")
-        object.__setattr__(self, "text", normalized)
-        object.__setattr__(self, "embedding", np.ascontiguousarray(embedding))
-
-
-@dataclass(frozen=True)
 class VisualObservation:
     observation_id: int
     completed_command: str | None

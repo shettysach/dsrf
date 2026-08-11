@@ -12,7 +12,6 @@ import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
 from shared.arrow import (
     agent_command_to_arrow,
-    encoded_command_to_arrow,
     motion_from_arrow,
     motion_to_arrow,
     observation_from_arrow,
@@ -21,7 +20,6 @@ from shared.arrow import (
 from shared.config import KinematicPlannerConfig
 from shared.messages import (
     AgentCommand,
-    EncodedCommand,
     MotionChunk,
     ProjectionContext,
 )
@@ -60,24 +58,6 @@ def _command_event(
     }
 
 
-def _encoded_command_event(observation_id: int, text: str) -> dict[str, object]:
-    value, metadata = encoded_command_to_arrow(
-        EncodedCommand(
-            observation_id,
-            text,
-            "walk",
-            (0.2, -0.7),
-            np.ones(4096, dtype=np.float32),
-        )
-    )
-    return {
-        "type": "INPUT",
-        "id": "encoded_command",
-        "value": value,
-        "metadata": metadata,
-    }
-
-
 def _run_motion_gen(monkeypatch, events, generate):
     node = _Node(events)
     generator = SimpleNamespace(generate=generate, fps=30)
@@ -90,6 +70,7 @@ def _run_motion_gen(monkeypatch, events, generate):
     monkeypatch.setattr(
         motion_gen_node, "KinematicPlanner", lambda *args, **kwargs: generator
     )
+    monkeypatch.setattr(motion_gen_node, "_create_text_encoder", lambda cfg: None)
     motion_gen_node.main()
     return node
 
@@ -157,29 +138,40 @@ def test_motion_gen_does_not_swallow_planner_errors(monkeypatch) -> None:
         )
 
 
-def test_ardy_motion_gen_consumes_encoded_commands(monkeypatch) -> None:
+def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     from shared.config import ArdyConfig
 
     command_text = '{"motion":"walk","waypoint_2d":[700,500]}'
-    node = _Node([_encoded_command_event(7, command_text)])
-    generated: list[tuple[np.ndarray, tuple[float, float]]] = []
+    node = _Node([_command_event(7, command_text, target_xy=(0.2, -0.7))])
+    embedding = torch.ones(4096)
+    encoded: list[str] = []
+    generated: list[tuple[torch.Tensor, tuple[float, float]]] = []
     generator = SimpleNamespace(
         fps=25,
         generate=lambda embedding, target: generated.append((embedding, target))
         or _planner_motion(),
     )
+    encoder = SimpleNamespace(
+        encode=lambda text: encoded.append(text) or embedding,
+    )
     config = motion_gen_node.MotionGenConfig(
         device="cpu",
-        backend=ArdyConfig(Path("checkpoints")),
+        backend=ArdyConfig(
+            checkpoints_dir=Path("checkpoints"),
+            text_encoder_model=Path("text-encoder"),
+            text_encoder_device="cuda:1",
+        ),
     )
     monkeypatch.setattr(motion_gen_node.MotionGenConfig, "from_env", lambda: config)
     monkeypatch.setattr(motion_gen_node, "Node", lambda: node)
     monkeypatch.setattr(motion_gen_node, "_create_generator", lambda cfg: generator)
+    monkeypatch.setattr(motion_gen_node, "_create_text_encoder", lambda cfg: encoder)
 
     motion_gen_node.main()
 
+    assert encoded == ["walk"]
     assert len(generated) == 1
-    assert generated[0][0].shape == (4096,)
+    assert generated[0][0] is embedding
     assert generated[0][1] == (0.2, -0.7)
     chunk = motion_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])

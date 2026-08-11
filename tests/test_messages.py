@@ -3,8 +3,6 @@ import numpy as np
 from shared.arrow import (
     agent_command_from_arrow,
     agent_command_to_arrow,
-    encoded_command_from_arrow,
-    encoded_command_to_arrow,
     motion_from_arrow,
     motion_to_arrow,
     observation_from_arrow,
@@ -14,7 +12,6 @@ from shared.arrow import (
 )
 from shared.messages import (
     AgentCommand,
-    EncodedCommand,
     MotionChunk,
     PipelineError,
     ProjectionContext,
@@ -39,25 +36,6 @@ def test_agent_command_arrow_round_trip() -> None:
     command = AgentCommand(3, "waypoint", "walk", (0.4, 0.2))
     value, metadata = agent_command_to_arrow(command)
     assert agent_command_from_arrow(value, metadata) == command
-
-
-def test_encoded_command_arrow_round_trip() -> None:
-    command = EncodedCommand(
-        5,
-        "waypoint",
-        "walk",
-        (0.4, -0.2),
-        np.arange(4096, dtype=np.float32),
-    )
-    value, metadata = encoded_command_to_arrow(command)
-    restored = encoded_command_from_arrow(value, metadata)
-
-    assert restored.observation_id == 5
-    assert restored.text == "waypoint"
-    assert restored.motion == "walk"
-    assert restored.target_xy == (0.4, -0.2)
-    assert restored.embedding.dtype == np.float32
-    np.testing.assert_array_equal(restored.embedding, command.embedding)
 
 
 def test_observation_arrow_round_trip() -> None:

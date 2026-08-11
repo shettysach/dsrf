@@ -8,7 +8,6 @@ from shared.config import (
     KinematicPlannerConfig,
     MotionGenConfig,
     SimConfig,
-    TextEncoderConfig,
 )
 
 
@@ -27,11 +26,15 @@ def test_ardy_motion_gen_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
     monkeypatch.setenv("MOTION_GENERATOR", "ardy")
     monkeypatch.setenv("CHECKPOINTS_DIR", "/models/ardy")
+    monkeypatch.setenv("TEXT_ENCODER_MODEL", "/models/text-encoder")
+    monkeypatch.setenv("TEXT_ENCODER_DEVICE", "cuda:1")
 
     assert MotionGenConfig.from_env() == MotionGenConfig(
         device="cpu",
         backend=ArdyConfig(
             checkpoints_dir=Path("/models/ardy"),
+            text_encoder_model=Path("/models/text-encoder"),
+            text_encoder_device="cuda:1",
         ),
     )
 
@@ -40,16 +43,12 @@ def test_ardy_motion_gen_config_requires_no_fixed_conditioning(monkeypatch) -> N
     monkeypatch.setenv("DEVICE", "cuda:0")
     monkeypatch.setenv("MOTION_GENERATOR", "ardy")
     monkeypatch.setenv("CHECKPOINTS_DIR", "/models/ardy")
-    assert MotionGenConfig.from_env().backend == ArdyConfig(Path("/models/ardy"))
-
-
-def test_text_encoder_config_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("DEVICE", "cuda:0")
     monkeypatch.setenv("TEXT_ENCODER_MODEL", "/models/text-encoder")
-
-    assert TextEncoderConfig.from_env() == TextEncoderConfig(
-        model=Path("/models/text-encoder"),
-        device="cuda:0",
+    monkeypatch.setenv("TEXT_ENCODER_DEVICE", "cpu")
+    assert MotionGenConfig.from_env().backend == ArdyConfig(
+        checkpoints_dir=Path("/models/ardy"),
+        text_encoder_model=Path("/models/text-encoder"),
+        text_encoder_device="cpu",
     )
 
 

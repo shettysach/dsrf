@@ -40,7 +40,6 @@ cu128 = [
 dsrf-agent = "nodes.agent:main"
 dsrf-motion-gen = "nodes.motion_gen:main"
 dsrf-sim = "nodes.sim:main"
-dsrf-text-encoder = "nodes.encoder:main"
 
 [dependency-groups]
 dev = [
@@ -92,7 +91,6 @@ packages = [
     "src/nodes",
     "src/shared",
     "src/sim",
-    "src/encoder",
     "tasks",
 ]
 

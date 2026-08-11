@@ -9,15 +9,12 @@ from motion_gen.kinematic_planner import KinematicPlanner
 from motion_gen.resample import resample_motion
 from shared.arrow import (
     agent_command_from_arrow,
-    encoded_command_from_arrow,
     motion_to_arrow,
     pipeline_error_to_arrow,
 )
 from shared.config import ArdyConfig, KinematicPlannerConfig, MotionGenConfig
 from shared.messages import (
     SONIC_FPS,
-    AgentCommand,
-    EncodedCommand,
     PipelineError,
 )
 
@@ -33,33 +30,49 @@ def _create_generator(cfg: MotionGenConfig) -> Any:
             return KinematicPlanner(cfg.backend.planner_onnx, device=cfg.device)
 
 
+def _create_text_encoder(cfg: MotionGenConfig) -> Any | None:
+    if not isinstance(cfg.backend, ArdyConfig):
+        return None
+
+    from motion_gen.ardy.text_encoder import TextEncoder
+
+    return TextEncoder(
+        cfg.backend.text_encoder_model,
+        device=cfg.backend.text_encoder_device,
+    )
+
+
 def main() -> None:
     cfg = MotionGenConfig.from_env()
     node = Node()
     generator = _create_generator(cfg)
-    ardy_backend = isinstance(cfg.backend, ArdyConfig)
-    input_id = "encoded_command" if ardy_backend else "command"
+    text_encoder = _create_text_encoder(cfg)
 
     for event in node:
         if event["type"] == "STOP":
             break
         if event["type"] != "INPUT":
             continue
-        if event["id"] != input_id:
+        if event["id"] != "command":
             continue
 
         metadata = dict(event.get("metadata") or {})
-        request: AgentCommand | EncodedCommand
-        if ardy_backend:
-            request = encoded_command_from_arrow(event["value"], metadata)
-        else:
-            request = agent_command_from_arrow(event["value"], metadata)
+        request = agent_command_from_arrow(event["value"], metadata)
         started_at = time.perf_counter()
+        encode_ms: float | None = None
         try:
             try:
-                if isinstance(request, EncodedCommand):
+                if text_encoder is not None:
+                    if request.direction is not None:
+                        raise ValueError(
+                            "Directional commands are only supported by "
+                            "kinematic_planner"
+                        )
+                    encode_started_at = time.perf_counter()
+                    embedding = text_encoder.encode(request.motion)
+                    encode_ms = (time.perf_counter() - encode_started_at) * 1000.0
                     source_qpos = generator.generate(
-                        request.embedding,
+                        embedding,
                         request.target_xy,
                     )
                 else:
@@ -125,6 +138,7 @@ def main() -> None:
                 "source_frames": str(len(source_qpos)),
                 "output_frames": str(output_frames),
                 "duration_s": f"{duration_s:.2f}",
+                **({"encode_ms": f"{encode_ms:.1f}"} if encode_ms is not None else {}),
             },
         )
         data, motion_metadata = motion_to_arrow(chunk)

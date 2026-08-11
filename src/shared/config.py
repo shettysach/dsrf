@@ -21,6 +21,8 @@ class MotionGenConfig:
                 device=os.environ["DEVICE"],
                 backend=ArdyConfig(
                     checkpoints_dir=Path(os.environ["CHECKPOINTS_DIR"]),
+                    text_encoder_model=Path(os.environ["TEXT_ENCODER_MODEL"]),
+                    text_encoder_device=os.environ["TEXT_ENCODER_DEVICE"],
                 ),
             )
         return cls(
@@ -39,19 +41,8 @@ class KinematicPlannerConfig:
 @dataclass(frozen=True)
 class ArdyConfig:
     checkpoints_dir: Path
-
-
-@dataclass(frozen=True)
-class TextEncoderConfig:
-    model: Path
-    device: str
-
-    @classmethod
-    def from_env(cls) -> "TextEncoderConfig":
-        return cls(
-            model=Path(os.environ["TEXT_ENCODER_MODEL"]),
-            device=os.environ["DEVICE"],
-        )
+    text_encoder_model: Path
+    text_encoder_device: str
 
 
 @dataclass(frozen=True)

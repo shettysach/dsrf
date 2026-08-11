@@ -56,7 +56,7 @@ class AgentLoop:
                         event["value"], dict(event.get("metadata") or {})
                     )
                 )
-            elif event["id"] in {"planning_error", "encoding_error", "sim_error"}:
+            elif event["id"] in {"planning_error", "sim_error"}:
                 self._accept_error(pipeline_error_from_arrow(event["value"]))
 
     def _accept_observation(self, observation: VisualObservation) -> None:
@@ -94,7 +94,7 @@ class AgentLoop:
             raise RuntimeError(
                 f"Stale {error.source} error for observation {error.observation_id}"
             )
-        if error.source not in {"motion-gen", "text-encoder"}:
+        if error.source != "motion-gen":
             self.node.log(
                 "error",
                 f"[OBS {error.observation_id}] {error.source} error: {error.detail}",

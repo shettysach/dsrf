@@ -33,31 +33,26 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     }
 
 
-def test_ardy_dataflow_wires_encoder_between_agent_and_motion_gen() -> None:
+def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
     descriptor = yaml.safe_load(Path("ardy.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
-    assert set(nodes) == {"agent", "text-encoder", "motion-gen", "sim"}
-    assert nodes["text-encoder"]["inputs"] == {"command": "agent/command"}
-    assert nodes["text-encoder"]["outputs"] == ["encoded_command", "error"]
-    assert nodes["text-encoder"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
+    assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER.md"
-    assert nodes["motion-gen"]["inputs"] == {
-        "encoded_command": "text-encoder/encoded_command"
-    }
+    assert nodes["motion-gen"]["inputs"] == {"command": "agent/command"}
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["motion-gen"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
+    assert nodes["motion-gen"]["env"]["TEXT_ENCODER_DEVICE"] == "cuda"
     assert nodes["sim"]["inputs"] == {"motion": "motion-gen/motion"}
     assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
-    assert nodes["agent"]["inputs"]["encoding_error"] == "text-encoder/error"
+    assert "encoding_error" not in nodes["agent"]["inputs"]
 
 
-def test_text_encoder_entry_point_matches_package_layout() -> None:
+def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:
     project = tomllib.loads(Path("pyproject.toml").read_text())
 
-    assert project["project"]["scripts"]["dsrf-text-encoder"] == (
-        "nodes.encoder:main"
-    )
+    assert "dsrf-text-encoder" not in project["project"]["scripts"]
     packages = project["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
-    assert "src/encoder" in packages
+    assert "src/encoder" not in packages
     assert all(Path(package).is_dir() for package in packages)
