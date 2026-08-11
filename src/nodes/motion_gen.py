@@ -49,9 +49,7 @@ def main() -> None:
     for event in node:
         if event["type"] == "STOP":
             break
-        if event["type"] != "INPUT":
-            continue
-        if event["id"] != "command":
+        if event["type"] != "INPUT" or event["id"] != "command":
             continue
 
         metadata = dict(event.get("metadata") or {})
@@ -100,6 +98,10 @@ def main() -> None:
         )
         data, motion_metadata = motion_to_arrow(chunk)
         node.send_output("motion", data, metadata=motion_metadata)
+
+
+if __name__ == "__main__":
+    main()
 
 
 def _report_invalid_command(
@@ -174,7 +176,3 @@ def _log_motion_generated(
             **({"encode_ms": f"{encode_ms:.1f}"} if encode_ms is not None else {}),
         },
     )
-
-
-if __name__ == "__main__":
-    main()
