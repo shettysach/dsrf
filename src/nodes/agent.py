@@ -10,14 +10,16 @@ from dora import Node
 
 from agent.vlm import OAIChatClient
 from agent.waypoint import ResolvedWaypoint, parse_waypoint_command, resolve_waypoint
+from shared.arrow import (
+    agent_command_to_arrow,
+    observation_from_arrow,
+    pipeline_error_from_arrow,
+)
 from shared.config import AgentConfig
 from shared.messages import (
     AgentCommand,
     PipelineError,
     VisualObservation,
-    agent_command_to_arrow,
-    observation_from_arrow,
-    pipeline_error_from_arrow,
 )
 
 MAX_INVALID_RESPONSES = 3

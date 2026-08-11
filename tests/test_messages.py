@@ -1,12 +1,6 @@
 import numpy as np
 
-from shared.messages import (
-    AgentCommand,
-    EncodedCommand,
-    MotionChunk,
-    PipelineError,
-    ProjectionContext,
-    VisualObservation,
+from shared.arrow import (
     agent_command_from_arrow,
     agent_command_to_arrow,
     encoded_command_from_arrow,
@@ -17,6 +11,14 @@ from shared.messages import (
     observation_to_arrow,
     pipeline_error_from_arrow,
     pipeline_error_to_arrow,
+)
+from shared.messages import (
+    AgentCommand,
+    EncodedCommand,
+    MotionChunk,
+    PipelineError,
+    ProjectionContext,
+    VisualObservation,
 )
 
 

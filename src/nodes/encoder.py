@@ -5,13 +5,15 @@ import time
 from dora import Node
 
 from encoder import TextEncoder
+from shared.arrow import (
+    agent_command_from_arrow,
+    encoded_command_to_arrow,
+    pipeline_error_to_arrow,
+)
 from shared.config import TextEncoderConfig
 from shared.messages import (
     EncodedCommand,
     PipelineError,
-    agent_command_from_arrow,
-    encoded_command_to_arrow,
-    pipeline_error_to_arrow,
 )
 
 

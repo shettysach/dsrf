@@ -7,13 +7,15 @@ from typing import Any
 import torch
 from dora import Node
 
+from shared.arrow import (
+    motion_from_arrow,
+    observation_to_arrow,
+    pipeline_error_to_arrow,
+)
 from shared.messages import (
     SONIC_FPS,
     PipelineError,
     VisualObservation,
-    motion_from_arrow,
-    observation_to_arrow,
-    pipeline_error_to_arrow,
 )
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer

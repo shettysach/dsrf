@@ -10,18 +10,20 @@ import torch
 
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
-from shared.config import KinematicPlannerConfig
-from shared.messages import (
-    AgentCommand,
-    EncodedCommand,
-    MotionChunk,
-    ProjectionContext,
+from shared.arrow import (
     agent_command_to_arrow,
     encoded_command_to_arrow,
     motion_from_arrow,
     motion_to_arrow,
     observation_from_arrow,
     pipeline_error_from_arrow,
+)
+from shared.config import KinematicPlannerConfig
+from shared.messages import (
+    AgentCommand,
+    EncodedCommand,
+    MotionChunk,
+    ProjectionContext,
 )
 
 

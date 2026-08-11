@@ -7,16 +7,18 @@ from dora import Node
 
 from motion_gen.kinematic_planner import KinematicPlanner
 from motion_gen.resample import resample_motion
+from shared.arrow import (
+    agent_command_from_arrow,
+    encoded_command_from_arrow,
+    motion_to_arrow,
+    pipeline_error_to_arrow,
+)
 from shared.config import ArdyConfig, KinematicPlannerConfig, MotionGenConfig
 from shared.messages import (
     SONIC_FPS,
     AgentCommand,
     EncodedCommand,
     PipelineError,
-    agent_command_from_arrow,
-    encoded_command_from_arrow,
-    motion_to_arrow,
-    pipeline_error_to_arrow,
 )
 
 

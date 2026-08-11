@@ -6,14 +6,12 @@ import numpy as np
 
 from agent.vlm import OAIChatClient
 from nodes.agent import AgentLoop
-from shared.messages import (
-    PipelineError,
-    ProjectionContext,
-    VisualObservation,
+from shared.arrow import (
     agent_command_from_arrow,
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
+from shared.messages import PipelineError, ProjectionContext, VisualObservation
 
 
 class _Response:
