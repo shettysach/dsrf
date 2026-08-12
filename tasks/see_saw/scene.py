@@ -22,8 +22,9 @@ WALL_HEIGHT = 1.0
 PIVOT = (3.0, 0.0, 0.42)
 PLANK_HALF_SIZE = (0.55, 1.5, 0.06)
 PLANK_MASS = 8.0
-HINGE_LIMIT_DEGREES = 5.0
-INITIAL_TILT_DEGREES = -HINGE_LIMIT_DEGREES
+HINGE_LIMIT_DEGREES = 12.0
+# Begin level so the red counterweight visibly drives the initial imbalance.
+INITIAL_TILT_DEGREES = 0.0
 HINGE_DAMPING = 8.0
 HINGE_FRICTION_LOSS = 0.5
 
@@ -98,8 +99,10 @@ def _add_fulcrum(spec: "MjSpec") -> None:
         type=MJGEOM_BOX,
         size=(PLANK_HALF_SIZE[0] + 0.14, 0.24, half_height),
         rgba=_FULCRUM_RGBA,
-        contype=1,
-        conaffinity=1,
+        # The hinge carries the plank. Keeping this visual pedestal out of the
+        # contact solver prevents it from pinning the see-saw level.
+        contype=0,
+        conaffinity=0,
     )
 
 

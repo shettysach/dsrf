@@ -45,12 +45,15 @@ def test_see_saw_scene_has_walls_hinged_plank_and_counterweight() -> None:
     wall_bodies = [body for body in spec.bodies if body.name.endswith("_wall")]
     plank = model.body("see_saw_plank")
     plank_geom = model.geom("see_saw_plank_surface")
+    fulcrum = model.geom("see_saw_fulcrum_base")
     hinge = model.joint("see_saw_hinge")
     counterweight = model.geom("see_saw_counterweight")
 
     assert len(wall_bodies) == 4
     assert tuple(model.body_pos[plank.id]) == pytest.approx(PIVOT)
     assert tuple(model.geom_size[plank_geom.id]) == pytest.approx(PLANK_HALF_SIZE)
+    assert model.geom_contype[fulcrum.id] == 0
+    assert model.geom_conaffinity[fulcrum.id] == 0
     assert model.jnt_type[hinge.id] == MJ_JOINT_HINGE
     np.testing.assert_array_equal(model.jnt_axis[hinge.id], (1.0, 0.0, 0.0))
     assert tuple(model.jnt_range[hinge.id]) == pytest.approx(
