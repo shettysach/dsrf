@@ -36,6 +36,8 @@ Run OpenAI compatible VLM inference server.
 dora run corridors.yml
 # or
 dora run sokoban.yml
+# or
+dora run stack_steps.yml
 ```
 
 - Set `VIEWER: none` in the selected dataflow to disable the window for headless
