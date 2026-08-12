@@ -61,6 +61,7 @@ def test_llama_client_uses_blank_model_and_replays_history(monkeypatch) -> None:
     assert posted[0]["url"] == "http://127.0.0.1:8080/v1/chat/completions"
     assert posted[0]["timeout"] == 12.0
     assert posted[0]["payload"]["model"] == ""
+    assert posted[0]["payload"]["cache_prompt"] is True
     messages = posted[1]["payload"]["messages"]
     assert [message["role"] for message in messages] == [
         "system",
@@ -78,6 +79,41 @@ def test_llama_client_uses_blank_model_and_replays_history(monkeypatch) -> None:
         in messages[1]["content"][0]["text"]
     )
     assert "Collision happened" not in messages[3]["content"][0]["text"]
+
+
+def test_llama_client_rebases_bounded_history_in_epochs(monkeypatch) -> None:
+    posted: list[dict[str, Any]] = []
+
+    def urlopen(request, timeout):
+        posted.append(json.loads(request.data))
+        return _Response("stand")
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="System prompt.",
+        user_prompt="User prompt.",
+        history_turns=4,
+        history_retain_turns=1,
+    )
+    for observation_id in range(5):
+        client.commit(
+            VisualObservation(observation_id, "walk", f"image-{observation_id}".encode()),
+            "walk",
+        )
+
+    client.complete(VisualObservation(5, "walk", b"current"))
+
+    messages = posted[0]["messages"]
+    assert [message["role"] for message in messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    retained_image = messages[1]["content"][1]["image_url"]["url"]
+    assert retained_image.endswith("aW1hZ2UtNA==")
 
 
 class _Node:

@@ -315,6 +315,8 @@ def main() -> None:
         timeout=cfg.vlm_timeout,
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
+        history_turns=cfg.history_turns,
+        history_retain_turns=cfg.history_retain_turns,
     )
     AgentLoop(
         node,

@@ -38,15 +38,23 @@ class OAIChatClient:
         timeout: float,
         system_prompt: str,
         user_prompt: str,
+        history_turns: int = 8,
+        history_retain_turns: int = 2,
     ) -> None:
         if not system_prompt.strip():
             raise ValueError("System prompt must not be empty")
         if not user_prompt.strip():
             raise ValueError("User prompt must not be empty")
+        if history_turns < 2:
+            raise ValueError("History limit must be at least 2 turns")
+        if not 1 <= history_retain_turns < history_turns:
+            raise ValueError("Retained history must be in 1..history_turns-1")
         self.endpoint = f"{base_url.rstrip('/')}/v1/chat/completions"
         self.timeout = timeout
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
+        self.history_turns = history_turns
+        self.history_retain_turns = history_retain_turns
         self._history: list[_ConversationTurn] = []
 
     def complete(
@@ -72,7 +80,12 @@ class OAIChatClient:
         request = urllib.request.Request(
             self.endpoint,
             data=json.dumps(
-                {"model": "", "messages": messages, "temperature": 0},
+                {
+                    "model": "",
+                    "messages": messages,
+                    "temperature": 0,
+                    "cache_prompt": True,
+                },
                 separators=(",", ":"),
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -103,6 +116,10 @@ class OAIChatClient:
             collision_detected=observation.collision_detected,
         )
         self._history.append(_ConversationTurn(history_observation, command))
+        if len(self._history) > self.history_turns:
+            # Rebase occasionally instead of sliding by one turn on every request.
+            # Prompts remain append-only between rebases, maximizing KV-prefix reuse.
+            self._history = self._history[-self.history_retain_turns :]
 
     def reset(self) -> None:
         """Start a fresh VLM conversation for the next demo run."""

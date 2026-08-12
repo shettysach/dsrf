@@ -102,6 +102,8 @@ class AgentConfig:
     user_prompt: Path
     waypoint_debug: bool
     command_mode: Literal["waypoint", "direction"]
+    history_turns: int = 8
+    history_retain_turns: int = 2
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -111,6 +113,16 @@ class AgentConfig:
         timeout = float(os.environ["VLM_TIMEOUT"])
         if timeout <= 0.0:
             raise ValueError("VLM_TIMEOUT must be positive")
+        history_turns = _positive_int_default("VLM_HISTORY_TURNS", default=8)
+        history_retain_turns = _positive_int_default(
+            "VLM_HISTORY_RETAIN_TURNS", default=2
+        )
+        if history_turns < 2:
+            raise ValueError("VLM_HISTORY_TURNS must be at least 2")
+        if history_retain_turns >= history_turns:
+            raise ValueError(
+                "VLM_HISTORY_RETAIN_TURNS must be smaller than VLM_HISTORY_TURNS"
+            )
         return cls(
             vlm_url=url,
             vlm_timeout=timeout,
@@ -123,6 +135,8 @@ class AgentConfig:
                 == "kinematic_planner"
                 else "waypoint"
             ),
+            history_turns=history_turns,
+            history_retain_turns=history_retain_turns,
         )
 
 

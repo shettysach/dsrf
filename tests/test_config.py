@@ -155,6 +155,32 @@ def test_agent_config_from_env(monkeypatch) -> None:
     )
 
 
+def test_agent_config_reads_bounded_history(monkeypatch) -> None:
+    monkeypatch.setenv("VLM_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("VLM_TIMEOUT", "120")
+    monkeypatch.setenv("VLM_SYSTEM_PROMPT", "/prompts/system.md")
+    monkeypatch.setenv("VLM_USER_PROMPT", "/prompts/user.md")
+    monkeypatch.setenv("VLM_HISTORY_TURNS", "12")
+    monkeypatch.setenv("VLM_HISTORY_RETAIN_TURNS", "3")
+
+    config = AgentConfig.from_env()
+
+    assert config.history_turns == 12
+    assert config.history_retain_turns == 3
+
+
+def test_agent_config_rejects_invalid_history_retain(monkeypatch) -> None:
+    monkeypatch.setenv("VLM_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("VLM_TIMEOUT", "120")
+    monkeypatch.setenv("VLM_SYSTEM_PROMPT", "/prompts/system.md")
+    monkeypatch.setenv("VLM_USER_PROMPT", "/prompts/user.md")
+    monkeypatch.setenv("VLM_HISTORY_TURNS", "4")
+    monkeypatch.setenv("VLM_HISTORY_RETAIN_TURNS", "4")
+
+    with pytest.raises(ValueError, match="smaller"):
+        AgentConfig.from_env()
+
+
 def test_missing_runtime_value_fails(monkeypatch) -> None:
     monkeypatch.delenv("PLANNER_ONNX", raising=False)
     monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
