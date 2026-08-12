@@ -49,6 +49,7 @@ nodes:
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
       DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-/tmp/see-saw.mp4}"
+      DEMO_RECORDING_SECONDS: "${DEMO_RECORDING_SECONDS:-8}"
       MOTION_TIMEOUT_SECONDS: "${MOTION_TIMEOUT_SECONDS:-10}"
     inputs:
       motion: motion-gen/motion

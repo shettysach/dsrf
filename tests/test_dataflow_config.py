@@ -90,6 +90,19 @@ def test_see_saw_dataflow_uses_see_saw_task() -> None:
     assert nodes["sim"]["env"]["TASK"] == "see-saw"
 
 
+def test_seesaw_video_dataflow_has_finite_recording_duration() -> None:
+    descriptor = yaml.safe_load(Path("seesaw.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["sim"]["env"]["TASK"] == "see-saw"
+    assert nodes["sim"]["env"]["DEMO_VIDEO_PATH"] == (
+        "${DEMO_VIDEO_PATH:-/tmp/see-saw.mp4}"
+    )
+    assert nodes["sim"]["env"]["DEMO_RECORDING_SECONDS"] == (
+        "${DEMO_RECORDING_SECONDS:-8}"
+    )
+
+
 def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
     descriptor = yaml.safe_load(Path("sokoban_2d.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}

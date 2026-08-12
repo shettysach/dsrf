@@ -62,6 +62,7 @@ def main() -> None:
             recorder,
             stop_recording_at_corridor=is_portrait_corridors,
             motion_timeout_seconds=cfg.motion_timeout_seconds,
+            recording_duration_seconds=cfg.demo_recording_seconds,
             demo_runs=(
                 portrait_corridor_demo_runs(cfg.demo_runs)
                 if is_portrait_corridors and recorder is not None
