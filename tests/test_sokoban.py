@@ -36,6 +36,9 @@ def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
     model = spec.compile()
 
     box_bodies = [model.body(name) for name in ("sokoban_box_1", "sokoban_box_2")]
+    box_geoms = [
+        model.geom(name) for name in ("sokoban_box_1_pushable", "sokoban_box_2_pushable")
+    ]
     goal_geoms = [model.geom(name) for name in ("sokoban_goal_1", "sokoban_goal_2")]
 
     assert len(BOX_STARTS) == 2
@@ -43,6 +46,7 @@ def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
     assert [model.body_mass[body.id] for body in box_bodies] == pytest.approx(
         [BOX_MASS, BOX_MASS]
     )
+    assert all(not box.name.endswith("_collision") for box in box_geoms)
     assert all(model.geom_contype[goal.id] == 0 for goal in goal_geoms)
     assert all(model.geom_conaffinity[goal.id] == 0 for goal in goal_geoms)
     assert model.ncam == 0

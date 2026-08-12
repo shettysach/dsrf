@@ -125,7 +125,7 @@ def _add_box(
         damping=BOX_SLIDE_DAMPING,
     )
     body.add_geom(
-        name=f"{name}_collision",
+        name=f"{name}_pushable",
         type=MJGEOM_BOX,
         size=(BOX_HALF_SIZE, BOX_HALF_SIZE, BOX_HALF_SIZE),
         mass=BOX_MASS,
