@@ -60,7 +60,6 @@ class SimConfig:
     reference_ghost: bool
     demo_video_path: Path | None = None
     demo_video_dir: Path | None = None
-    demo_recording_seconds: float | None = None
     demo_runs: int = 1
     motion_timeout_seconds: float = 20.0
     goal_index: int | None = None
@@ -85,11 +84,6 @@ class SimConfig:
             demo_video_dir=(
                 Path(value)
                 if (value := os.environ.get("DEMO_VIDEO_DIR", "").strip())
-                else None
-            ),
-            demo_recording_seconds=(
-                _positive_float("DEMO_RECORDING_SECONDS")
-                if "DEMO_RECORDING_SECONDS" in os.environ
                 else None
             ),
             demo_runs=_positive_int_default("DEMO_RUNS", default=1),

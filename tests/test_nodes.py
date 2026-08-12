@@ -469,34 +469,6 @@ def test_sonic_stops_demo_recording_after_standing_at_corridor_approach(
     ]
 
 
-def test_sonic_stops_recording_after_total_recorded_duration(monkeypatch) -> None:
-    simulation = _Simulation()
-    recorder = _Recorder()
-    stopped: list[tuple[list[str], dict[str, object]]] = []
-    monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
-    monkeypatch.setattr(
-        sim_runtime.subprocess,
-        "Popen",
-        lambda args, **kwargs: stopped.append((args, kwargs)),
-    )
-
-    runtime = sim_runtime.SimRuntime(
-        cast(Any, _Node([])),
-        cast(Any, simulation),
-        cast(Any, _Policy()),
-        cast(Any, _Renderer(simulation)),
-        recorder=cast(Any, recorder),
-        recording_duration_seconds=1.0 / sim_runtime.SONIC_FPS,
-    )
-    runtime._execute()
-
-    assert simulation.steps == 1
-    assert recorder.frames == 1
-    assert recorder.closed
-    assert runtime._demo_complete
-    assert stopped[0][0][:2] == ["dora", "stop"]
-
-
 def test_sonic_motion_execution_has_simulation_frame_timeout() -> None:
     class _StuckPolicy(_Policy):
         def infer(self, state):

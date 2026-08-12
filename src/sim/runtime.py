@@ -83,7 +83,6 @@ class SimRuntime:
         recorder: DemoVideoRecorder | None = None,
         stop_recording_at_corridor: bool = False,
         motion_timeout_seconds: float = 20.0,
-        recording_duration_seconds: float | None = None,
         demo_runs: tuple[DemoRun, ...] = (),
         *,
         capture_depth: bool = True,
@@ -101,14 +100,6 @@ class SimRuntime:
             1, math.ceil(motion_timeout_seconds * SONIC_FPS)
         )
         self.motion_timeout_seconds = motion_timeout_seconds
-        if recording_duration_seconds is not None and recording_duration_seconds <= 0.0:
-            raise ValueError("Recording duration must be positive")
-        self.max_recording_frames = (
-            None
-            if recording_duration_seconds is None
-            else max(1, math.ceil(recording_duration_seconds * SONIC_FPS))
-        )
-        self.recorded_frames = 0
         self.demo_runs = demo_runs or (DemoRun("Center start", (0.0, 0.0)),)
         self.reset_for_demo_run = bool(demo_runs)
         self.run_index = 0
@@ -274,21 +265,7 @@ class SimRuntime:
                     self.recorder.write_frame(
                         self.renderer.capture_demo_rgb(), self.demo_vlm_state
                     )
-                    self.recorded_frames += 1
                 frames += 1
-
-                if (
-                    self.recorder is not None
-                    and self.max_recording_frames is not None
-                    and self.recorded_frames >= self.max_recording_frames
-                ):
-                    self._advance_or_stop("recording duration reached")
-                    return ExecutionStats(
-                        frames=frames,
-                        elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
-                        overrun_steps=overrun_steps,
-                        collision_detected=collision_detected,
-                    )
 
                 # Completion is detected while producing the last reference
                 # action. Capture only after that action's physics step.

@@ -94,12 +94,13 @@ def test_seesaw_video_dataflow_has_finite_recording_duration() -> None:
     descriptor = yaml.safe_load(Path("seesaw.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
-    assert nodes["sim"]["env"]["TASK"] == "see-saw"
-    assert nodes["sim"]["env"]["DEMO_VIDEO_PATH"] == (
-        "${DEMO_VIDEO_PATH:-/tmp/see-saw.mp4}"
+    assert set(nodes) == {"capture"}
+    assert nodes["capture"]["args"] == "run python scripts/record_seesaw_gif.py"
+    assert nodes["capture"]["env"]["SEESAW_GIF_PATH"] == (
+        "${SEESAW_GIF_PATH:-/tmp/see-saw.gif}"
     )
-    assert nodes["sim"]["env"]["DEMO_RECORDING_SECONDS"] == (
-        "${DEMO_RECORDING_SECONDS:-8}"
+    assert nodes["capture"]["env"]["SEESAW_GIF_SECONDS"] == (
+        "${SEESAW_GIF_SECONDS:-3}"
     )
 
 
