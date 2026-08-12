@@ -68,6 +68,18 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
 
 
+def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
+    descriptor = yaml.safe_load(Path("sokoban_2d.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert set(nodes) == {"agent", "motion-gen", "sim"}
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
+    assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER_2D.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
+    assert nodes["sim"]["env"]["TASK"] == "sokoban"
+    assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
+
+
 def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
