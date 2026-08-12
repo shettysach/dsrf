@@ -10,7 +10,7 @@ nodes:
       VLM_TIMEOUT: "120"
       VLM_HISTORY_TURNS: "${VLM_HISTORY_TURNS:-8}"
       VLM_HISTORY_RETAIN_TURNS: "${VLM_HISTORY_RETAIN_TURNS:-2}"
-      VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
+      VLM_SYSTEM_PROMPT: tasks/sokoban/SYSTEM_2D.md
       VLM_USER_PROMPT: prompt/USER_2D.md
       MOTION_GENERATOR: kinematic_planner
     inputs:
