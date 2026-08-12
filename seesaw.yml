@@ -6,6 +6,7 @@ nodes:
     args: run python scripts/record_seesaw_gif.py
     env:
       DEVICE: "${DEVICE:-cuda:0}"
+      MUJOCO_GL: "${MUJOCO_GL:-egl}"
       SEESAW_GIF_PATH: "${SEESAW_GIF_PATH:-/tmp/see-saw.gif}"
       SEESAW_GIF_SECONDS: "${SEESAW_GIF_SECONDS:-3}"
       SEESAW_GIF_FPS: "${SEESAW_GIF_FPS:-20}"

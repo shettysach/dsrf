@@ -32,9 +32,13 @@ def main() -> None:
     )
     frames = []
     try:
-        joint_count = int(simulation.robot_state().joint_pos.numel())
+        with simulation.compute_context():
+            robot = simulation._env.scene["robot"]
+            frozen_root = robot.data.default_root_state.clone()
+            frozen_joint_pos = robot.data.default_joint_pos.clone()
+            frozen_joint_vel = torch.zeros_like(robot.data.default_joint_vel)
         action = torch.zeros(
-            (simulation.num_envs, joint_count),
+            (simulation.num_envs, frozen_joint_pos.shape[1]),
             dtype=torch.float32,
             device=simulation.device,
         )
@@ -44,6 +48,12 @@ def main() -> None:
             target_step = round(frame_index * SONIC_FPS / fps)
             while simulated_steps < target_step:
                 simulation.step(action)
+                with simulation.compute_context():
+                    robot.write_root_state_to_sim(frozen_root)
+                    robot.write_joint_state_to_sim(
+                        frozen_joint_pos, frozen_joint_vel
+                    )
+                    simulation._env.sim.forward()
                 simulated_steps += 1
             frames.append(simulation.render_demo_rgb())
     finally:
