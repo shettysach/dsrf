@@ -17,7 +17,7 @@ def test_demo_overlay_stays_compact_at_640_by_480() -> None:
     ys, xs = np.where(changed)
     assert composed.shape == frame.shape
     assert xs.max() - xs.min() + 1 <= round(640 * 0.28)
-    assert ys.max() - ys.min() + 1 <= round(480 * 0.32)
+    assert round(480 * 0.32) < ys.max() - ys.min() + 1 <= round(480 * 0.55)
     assert ys.min() >= 0
 
 
@@ -33,4 +33,4 @@ def test_demo_overlay_scales_up_without_dominating_720p() -> None:
     ys, xs = np.where(changed)
     assert composed.shape == frame.shape
     assert xs.max() - xs.min() + 1 <= round(1280 * 0.28)
-    assert ys.max() - ys.min() + 1 <= round(720 * 0.32)
+    assert ys.max() - ys.min() + 1 <= round(720 * 0.55)

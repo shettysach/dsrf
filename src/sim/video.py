@@ -68,7 +68,7 @@ def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
 
     # Four lines are reserved for labels and the command. Reasoning receives only
     # the remaining vertical budget, so it can never push the panel off-frame.
-    max_panel_height = round(image.height * 0.32)
+    max_panel_height = round(image.height * 0.55)
     max_entry_lines = max(5, (max_panel_height - 2 * padding - 4) // line_height)
     max_reasoning_lines = max(1, max_entry_lines - 4)
     reasoning = " ".join(
