@@ -14,5 +14,5 @@ TASK = TaskSpec(
     name="sokoban",
     objective="Push both boxes onto the two marked goal regions.",
     make_scene=_make_scene,
-    viewer=ViewerSpec(distance=5.0, elevation=-50.0),
+    viewer=ViewerSpec(distance=6.5, elevation=-50.0),
 )

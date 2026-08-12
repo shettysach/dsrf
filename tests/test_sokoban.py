@@ -3,10 +3,14 @@ import numpy as np
 import pytest
 from tasks import TASKS, get_task
 from tasks.sokoban.scene import (
+    ARENA_HALF_WIDTH,
+    ARENA_MAX_X,
     BOX_MASS,
     BOX_STARTS,
     GOAL_CENTERS,
+    GOAL_HALF_SIZE,
     MJ_JOINT_SLIDE,
+    WALL_HALF_THICKNESS,
     make_sokoban_spec_fn,
 )
 
@@ -18,7 +22,7 @@ def test_catalog_contains_sokoban() -> None:
 
     assert task is TASKS["sokoban"]
     assert task.objective == "Push both boxes onto the two marked goal regions."
-    assert task.viewer.distance == 5.0
+    assert task.viewer.distance == 6.5
     assert task.viewer.elevation == -50.0
 
 
@@ -26,7 +30,7 @@ def test_sokoban_uses_elevated_viewer_framing() -> None:
     cfg = make_sim_env_cfg(task=get_task("sokoban"), goal_index=1)
 
     assert cfg.scene.spec_fn is not None
-    assert cfg.viewer.distance == 5.0
+    assert cfg.viewer.distance == 6.5
     assert cfg.viewer.elevation == -50.0
 
 
@@ -43,6 +47,13 @@ def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
 
     assert len(BOX_STARTS) == 2
     assert len(GOAL_CENTERS) == 2
+    assert ARENA_HALF_WIDTH == 3.5
+    assert GOAL_CENTERS[0][0] + GOAL_HALF_SIZE == pytest.approx(
+        ARENA_MAX_X - WALL_HALF_THICKNESS
+    )
+    assert GOAL_CENTERS[1][1] - GOAL_HALF_SIZE == pytest.approx(
+        -ARENA_HALF_WIDTH + WALL_HALF_THICKNESS
+    )
     assert [model.body_mass[body.id] for body in box_bodies] == pytest.approx(
         [BOX_MASS, BOX_MASS]
     )

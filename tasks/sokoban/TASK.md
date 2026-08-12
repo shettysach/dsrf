@@ -4,9 +4,12 @@
 
 Push both yellow boxes completely onto the two green goal regions.
 
-The left box belongs on the left goal and the right box belongs on the right goal.
-Each goal is directly ahead of its box. When both boxes are centered on their goals,
-issue **stand**.
+The goals are against different walls and require different push directions:
+
+- Push the lower-left box **forward** onto the green region at the far wall.
+- Push the upper-right box **right** onto the green region at the right wall.
+
+When both boxes are centered on their goals, issue **stand**.
 
 ## Placed boxes are finished
 
@@ -16,7 +19,8 @@ box again.** Treat it as locked in place and permanently complete.
 After placing a box:
 
 1. Stop immediately.
-2. Walk **backward** to create clear separation from the placed box.
+2. Move opposite the completed push to create clear separation: **backward** from
+   the far-wall box or **left** from the right-wall box.
 3. Route around it without making contact.
 4. Work only on the remaining unplaced box.
 
@@ -29,64 +33,70 @@ its green region undoes progress.
 - The elevated camera looks forward over the humanoid.
 - Yellow cubes are movable boxes.
 - Green floor squares are goal regions.
-- Dark walls bound the arena.
+- Dark walls bound the wide arena.
+- One green goal touches the far wall; the other touches the right wall at
+  approximately the middle depth of the arena.
 - Boxes are very light. Walking into a box pushes it in your direction of travel.
 - You can push boxes, but you cannot pull them.
 - **forward** and **backward** move along the robot's facing direction.
-- **left** and **right** move laterally; they do not turn the robot around.
+- **left** and **right** move laterally; they do not turn the robot around and can
+  be used to push a box sideways.
 
 ## Critical alignment rule
 
 **Align the robot before touching a box.**
 
-For a correct forward push, the center of the robot, the center of the chosen box,
-and the center of that box's green goal must form one straight line in the image.
-The robot must be directly behind the box, not behind one of its corners.
+For any push, the center of the robot, the center of the chosen box, and the center
+of that box's green goal must form one straight line in the intended push direction.
 
-Do not begin pushing merely because the robot is close to a box. First use **left**
-or **right** while still behind the boxes until the robot is centered in the chosen
-box's lane. Only then use **forward**.
+- For the far-wall box, stand directly behind it and push **forward**.
+- For the right-wall box, stand directly to its left at the same depth and push
+  **right**.
+
+Never push through a corner.
+
+Do not begin pushing merely because the robot is close to a box. First move through
+open floor until the robot is on the side opposite that box's goal and centered on
+the box-goal line. Only then move toward the box.
 
 ## Procedure
 
-Complete one box before working on the other:
+Complete one box before working on the other. Prefer the far-wall box first:
 
-1. Choose either the left or right box.
-2. Stay behind the boxes and move laterally into the chosen box's lane.
-3. Check alignment before contact:
-   - the robot is centered behind the box;
-   - the robot is facing squarely toward the box;
-   - the goal is centered directly beyond the box;
-   - the intended path is clear.
-4. If any part is misaligned, keep repositioning. Do not push yet.
-5. Once aligned, walk **forward** into the center of the box.
-6. Continue with straight forward pushes while the box remains centered on its goal.
-7. Near the goal, use short forward pushes and check the image after every push.
-8. Stop pushing when the entire box is inside the green square and centered.
-9. Walk **backward** far enough to clear the placed box.
-10. Move laterally behind the remaining box without contacting the placed box,
-    align again, and repeat.
+1. Stay behind both boxes and move **left** into the lower-left box's lane.
+2. Verify that the robot, box, and far-wall goal form a straight forward line.
+3. Push only **forward**, checking the image after each command near the goal.
+4. Stop when the entire box is centered inside the far-wall green region.
+5. Walk **backward** until clearly separated, then return through the open center.
+6. Approach the upper-right box without touching it and move to its left side.
+7. Match the box's forward depth so the robot, box, and right-wall goal form a
+   straight horizontal line in the image.
+8. Push only **right**, checking the image after each command near the goal.
+9. Stop when the entire box is centered inside the right-wall green region.
 
 ## While pushing
 
 - Push through the center of the box, never through a corner.
-- Do not issue **left** or **right** while touching a box that should move forward.
-- Do not approach diagonally.
+- Use **forward** only for the far-wall box and **right** only for the right-wall box
+  once contact begins.
+- Do not approach or push diagonally.
 - Do not push a box past its green goal.
 - A box correctly placed on green is finished: never touch, push, or correct it
   again.
-- Keep boxes away from the perimeter walls; a box against a wall may be impossible
-  to recover because it cannot be pulled.
+- Keep boxes away from every wall except their intended wall-touching goal. A box
+  against the wrong wall may be impossible to recover because it cannot be pulled.
 
 ## Recovery
 
-If a box drifts sideways or the robot contacts it off-center:
+If a box drifts off its box-goal line or the robot contacts it off-center:
 
-1. Stop the forward push immediately.
-2. Walk **backward** until there is clear space between the robot and box.
-3. Use **left** or **right** to center the robot behind the box again.
+1. Stop pushing immediately.
+2. Move opposite the failed push until there is clear space: **backward** after a
+   forward push or **left** after a right push.
+3. Return to the side opposite the goal: behind the far-wall box or left of the
+   right-wall box.
 4. Verify the robot–box–goal centerline.
-5. Resume with one short **forward** push.
+5. Resume with one short push in the correct direction: **forward** or **right**.
 
 Never try to fix bad alignment by continuing to push from the wrong angle.
 This recovery procedure applies only to a box that is not yet correctly centered on

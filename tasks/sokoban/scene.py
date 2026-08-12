@@ -19,10 +19,13 @@ BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.48
 ARENA_MIN_X = -1.5
 ARENA_MAX_X = 5.5
-ARENA_HALF_WIDTH = 2.5
+ARENA_HALF_WIDTH = 3.5
+WALL_HALF_THICKNESS = 0.1
 
-BOX_STARTS = ((1.25, -0.8), (1.25, 0.8))
-GOAL_CENTERS = ((4.25, -0.8), (4.25, 0.8))
+_GOAL_X_AT_FRONT_WALL = ARENA_MAX_X - WALL_HALF_THICKNESS - GOAL_HALF_SIZE
+_GOAL_Y_AT_RIGHT_WALL = -ARENA_HALF_WIDTH + WALL_HALF_THICKNESS + GOAL_HALF_SIZE
+BOX_STARTS = ((1.25, 2.1), (2.0, -1.0))
+GOAL_CENTERS = ((_GOAL_X_AT_FRONT_WALL, 2.1), (2.0, _GOAL_Y_AT_RIGHT_WALL))
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
 _GOAL_RGBA = (0.15, 0.8, 0.3, 0.55)
@@ -44,7 +47,6 @@ def make_sokoban_spec_fn() -> SceneSpecFn:
 
 def _add_arena_walls(spec: "MjSpec") -> None:
     wall_height = 0.6
-    wall_thickness = 0.1
     center_x = (ARENA_MIN_X + ARENA_MAX_X) * 0.5
     half_length = (ARENA_MAX_X - ARENA_MIN_X) * 0.5
 
@@ -53,14 +55,14 @@ def _add_arena_walls(spec: "MjSpec") -> None:
             spec,
             name=f"sokoban_{side}_wall",
             pos=(center_x, y, wall_height),
-            size=(half_length, wall_thickness, wall_height),
+            size=(half_length, WALL_HALF_THICKNESS, wall_height),
         )
     for side, x in (("back", ARENA_MIN_X), ("front", ARENA_MAX_X)):
         _add_wall(
             spec,
             name=f"sokoban_{side}_wall",
             pos=(x, 0.0, wall_height),
-            size=(wall_thickness, ARENA_HALF_WIDTH, wall_height),
+            size=(WALL_HALF_THICKNESS, ARENA_HALF_WIDTH, wall_height),
         )
 
 
