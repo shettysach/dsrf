@@ -3,7 +3,20 @@ from typing import Any, cast
 
 import numpy as np
 
-from sim.env import MjlabEnv
+from sim.env import MjlabEnv, _is_robot_task_collision
+
+
+def test_collision_notification_requires_robot_and_task_obstacle() -> None:
+    assert _is_robot_task_collision(
+        "robot/left_foot1_collision", "sokoban_left_wall_collision"
+    )
+    assert not _is_robot_task_collision("terrain", "robot/left_foot1_collision")
+    assert not _is_robot_task_collision(
+        "sokoban_box_1_pushable", "sokoban_left_wall_collision"
+    )
+    assert not _is_robot_task_collision(
+        "robot/left_foot1_collision", "sokoban_box_1_pushable"
+    )
 
 
 def test_render_keeps_camera_azimuth_fixed() -> None:

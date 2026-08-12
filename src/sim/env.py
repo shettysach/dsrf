@@ -100,14 +100,16 @@ class MjlabEnv:
             model = sim._mj_model
             geom_pairs = data.contact.geom[:active_contacts].detach().cpu().tolist()
             for geom1, geom2 in geom_pairs:
-                for geom_id in (geom1, geom2):
-                    name = mujoco.mj_id2name(  # ty: ignore[unresolved-attribute]
+                names = tuple(
+                    mujoco.mj_id2name(  # ty: ignore[unresolved-attribute]
                         model,
                         mujoco.mjtObj.mjOBJ_GEOM,  # ty: ignore[unresolved-attribute]
                         int(geom_id),
                     )
-                    if name is not None and name.endswith("_collision"):
-                        return True
+                    for geom_id in (geom1, geom2)
+                )
+                if _is_robot_task_collision(*names):
+                    return True
             return False
 
     def reset(self) -> tuple[VecEnvObs, dict[str, object]]:
@@ -211,3 +213,23 @@ def connect_torch_to_mjlab(
 
 def stream_context(stream: torch.cuda.Stream | None) -> AbstractContextManager[None]:
     return torch.cuda.stream(stream) if stream is not None else nullcontext()
+
+
+def _is_robot_task_collision(name1: str | None, name2: str | None) -> bool:
+    """Whether a contact is between the robot and a notification obstacle."""
+
+    return (_is_robot_geom(name1) and _is_task_collision_geom(name2)) or (
+        _is_robot_geom(name2) and _is_task_collision_geom(name1)
+    )
+
+
+def _is_robot_geom(name: str | None) -> bool:
+    return name is not None and name.startswith("robot/")
+
+
+def _is_task_collision_geom(name: str | None) -> bool:
+    return (
+        name is not None
+        and not name.startswith("robot/")
+        and name.endswith("_collision")
+    )
