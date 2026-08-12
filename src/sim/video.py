@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import textwrap
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import imageio.v2 as iio
@@ -31,60 +31,11 @@ class DemoVideoRecorder:
             codec="libx264",
             macro_block_size=1,
         )
-        self._font = ImageFont.load_default(size=20)
-        try:
-            self._bold_font = ImageFont.truetype(
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20
-            )
-        except OSError:
-            self._bold_font = self._font
         self.frames = 0
         self._closed = False
 
     def write_frame(self, rgb: np.ndarray, state: DemoVlmState) -> None:
-        image = Image.fromarray(np.asarray(rgb, dtype=np.uint8), mode="RGB").convert(
-            "RGBA"
-        )
-        overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-
-        reasoning = state.reasoning.strip() or "No reasoning returned."
-        reasoning = " ".join(reasoning.split())
-        if len(reasoning) > 800:
-            reasoning = reasoning[:797].rstrip() + "..."
-        reasoning_lines = textwrap.wrap(reasoning, width=36) or [""]
-        entries = [
-            (f"Observation #{state.observation_id}", self._font),
-            ("VLM output", self._bold_font),
-            ("Reasoning", self._bold_font),
-            *[(line, self._font) for line in reasoning_lines],
-            ("Command", self._bold_font),
-            (_decision_label(state.command), self._font),
-        ]
-
-        line_height = 24
-        padding = 16
-        panel_width = min(image.width - 24, max(220, int(image.width * 0.32)))
-        panel_height = padding * 2 + line_height * len(entries) + 4
-        panel_x = image.width - panel_width - 12
-        panel_y = image.height - panel_height - 12
-        draw.rounded_rectangle(
-            (panel_x, panel_y, panel_x + panel_width, panel_y + panel_height),
-            radius=7,
-            fill=(0, 0, 0, 200),
-        )
-        y = panel_y + padding
-        for line, font in entries:
-            draw.text(
-                (panel_x + padding, y),
-                line,
-                fill=(255, 255, 255, 255),
-                font=font,
-            )
-            y += line_height
-
-        image = Image.alpha_composite(image, overlay).convert("RGB")
-        self._writer.append_data(np.asarray(image))
+        self._writer.append_data(compose_demo_frame(rgb, state))
         self.frames += 1
 
     def close(self) -> None:
@@ -92,6 +43,134 @@ class DemoVideoRecorder:
             return
         self._writer.close()
         self._closed = True
+
+
+def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
+    """Burn a compact, resolution-aware VLM panel into one RGB frame."""
+
+    image = Image.fromarray(np.asarray(rgb, dtype=np.uint8), mode="RGB").convert(
+        "RGBA"
+    )
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    shortest_side = min(image.size)
+    font_size = max(12, min(18, round(shortest_side / 40)))
+    font, bold_font = _load_fonts(font_size)
+    line_height = font_size + max(4, round(font_size * 0.28))
+    padding = max(9, round(font_size * 0.75))
+    margin = max(7, round(shortest_side * 0.015))
+    panel_width = min(
+        image.width - 2 * margin,
+        max(160, min(380, round(image.width * 0.28))),
+    )
+    text_width = panel_width - 2 * padding
+
+    # Four lines are reserved for labels and the command. Reasoning receives only
+    # the remaining vertical budget, so it can never push the panel off-frame.
+    max_panel_height = round(image.height * 0.32)
+    max_entry_lines = max(5, (max_panel_height - 2 * padding - 4) // line_height)
+    max_reasoning_lines = max(1, max_entry_lines - 4)
+    reasoning = " ".join(
+        (state.reasoning.strip() or "No reasoning returned.").split()
+    )
+    reasoning_lines = _wrap_pixels(
+        draw,
+        reasoning,
+        font,
+        max_width=text_width,
+        max_lines=max_reasoning_lines,
+    )
+    entries = [
+        (f"Observation #{state.observation_id}", font),
+        ("Reasoning", bold_font),
+        *[(line, font) for line in reasoning_lines],
+        ("Command", bold_font),
+        (_decision_label(state.command), font),
+    ]
+
+    panel_height = 2 * padding + line_height * len(entries) + 4
+    panel_x = image.width - panel_width - margin
+    panel_y = image.height - panel_height - margin
+    draw.rounded_rectangle(
+        (
+            panel_x,
+            panel_y,
+            panel_x + panel_width - 1,
+            panel_y + panel_height - 1,
+        ),
+        radius=max(5, round(font_size * 0.4)),
+        fill=(0, 0, 0, 190),
+    )
+    y = panel_y + padding
+    for line, entry_font in entries:
+        draw.text(
+            (panel_x + padding, y),
+            line,
+            fill=(255, 255, 255, 255),
+            font=entry_font,
+        )
+        y += line_height
+
+    return np.asarray(Image.alpha_composite(image, overlay).convert("RGB"))
+
+
+@lru_cache(maxsize=8)
+def _load_fonts(
+    size: int,
+) -> tuple[
+    ImageFont.ImageFont | ImageFont.FreeTypeFont,
+    ImageFont.ImageFont | ImageFont.FreeTypeFont,
+]:
+    font = ImageFont.load_default(size=size)
+    try:
+        bold = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size
+        )
+    except OSError:
+        bold = font
+    return font, bold
+
+
+def _wrap_pixels(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont | ImageFont.FreeTypeFont,
+    *,
+    max_width: int,
+    max_lines: int,
+) -> list[str]:
+    words = text.split() or [""]
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or draw.textlength(candidate, font=font) <= max_width:
+            current = candidate
+            continue
+        lines.append(current)
+        current = word
+    if current:
+        lines.append(current)
+    if len(lines) <= max_lines:
+        return lines
+
+    visible = lines[:max_lines]
+    visible[-1] = _fit_ellipsis(draw, visible[-1], font, max_width)
+    return visible
+
+
+def _fit_ellipsis(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont | ImageFont.FreeTypeFont,
+    max_width: int,
+) -> str:
+    suffix = "…"
+    clipped = text.rstrip()
+    while clipped and draw.textlength(clipped + suffix, font=font) > max_width:
+        clipped = clipped[:-1].rstrip()
+    return clipped + suffix
 
 
 def _decision_label(command: str) -> str:
