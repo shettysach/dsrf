@@ -38,6 +38,8 @@ dora run corridors.yml
 dora run sokoban.yml
 # or
 dora run stack_steps.yml
+# or
+dora run see_saw.yml
 ```
 
 - Set `VIEWER: none` in the selected dataflow to disable the window for headless

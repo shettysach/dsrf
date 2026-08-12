@@ -31,7 +31,12 @@ class _FakeModel:
 
 
 def test_scout_catalog_exposes_dsrf_task_objective() -> None:
-    assert set(TASKS) == {"portrait-corridors", "sokoban", "stack-steps"}
+    assert set(TASKS) == {
+        "portrait-corridors",
+        "see-saw",
+        "sokoban",
+        "stack-steps",
+    }
     assert TASKS["portrait-corridors"].objective == (
         "Stand in front of the image of the creator of Linux."
     )

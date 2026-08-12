@@ -80,6 +80,16 @@ def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
     assert nodes["sim"]["env"]["TASK"] == "stack-steps"
 
 
+def test_see_saw_dataflow_uses_see_saw_task() -> None:
+    descriptor = yaml.safe_load(Path("see_saw.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert set(nodes) == {"agent", "motion-gen", "sim"}
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/see_saw/TASK.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
+    assert nodes["sim"]["env"]["TASK"] == "see-saw"
+
+
 def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
     descriptor = yaml.safe_load(Path("sokoban_2d.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
@@ -101,6 +111,7 @@ def test_dataflow_system_prompts_exist() -> None:
         "tasks/sokoban/TASK.md",
         "tasks/sokoban/SYSTEM_2D.md",
         "tasks/stack_steps/TASK.md",
+        "tasks/see_saw/TASK.md",
     ):
         assert Path(path).is_file()
 
