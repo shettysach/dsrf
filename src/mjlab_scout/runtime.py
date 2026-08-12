@@ -172,7 +172,7 @@ class ScoutRuntime:
                 origin_type=ViewerConfig.OriginType.WORLD,
                 lookat=(center[0], center[1], 0.75),
                 distance=distance,
-                azimuth=0.0,
+                azimuth=45.0,
                 elevation=-38.0,
                 width=self.config.image_width,
                 height=self.config.image_height,
@@ -264,7 +264,7 @@ def _scene_frame(model: Any) -> tuple[tuple[float, float], float]:
     ys = [position[1] for position in positions]
     center = ((min(xs) + max(xs)) * 0.5, (min(ys) + max(ys)) * 0.5)
     span = max(max(xs) - min(xs), max(ys) - min(ys))
-    return center, max(8.0, span * 1.35)
+    return center, max(5.0, span * 0.9)
 
 
 def _corridor_views(model: Any) -> tuple[ScoutView, ...]:

@@ -2,29 +2,27 @@
 
 ## Objective
 
-Reach the green top of the elevated gray platform. Two yellow blocks begin at
-random floor positions. The broader block forms the lower step and the smaller
-block forms the upper step.
+Reach the green top of the elevated gray landing. Two dark-yellow movable stair
+modules begin at random floor positions: a 10 cm lower step and a 20 cm upper
+step.
 
 ## Procedure
 
-1. Find the broader block, move behind it, and align its center with the center
-   of the platform's near edge.
-2. Push the broader block straight toward the platform until it is flush and
-   square to the edge.
-3. Move to the smaller block and align it with the broader block.
-4. Place the smaller block securely on top of the broader block to form two
-   ascending steps.
-5. Approach the centerline of the stacked blocks, climb onto the lower block,
-   then the upper block, and continue onto the green platform.
+1. Find the 10 cm lower step, move behind it, and push it toward the landing.
+2. Place it square to the landing's centerline, leaving room in front for the
+   taller module.
+3. Push the 20 cm upper step into the gap between the lower step and landing.
+4. Align the modules into a continuous 10 cm → 20 cm → 50 cm staircase.
+5. Climb the lower module, the upper module, and then the landing to reach the
+   green platform.
 
 ## Safety
 
-- Keep both blocks centered and away from the side walls.
-- Correct alignment before contact; a block cannot be pulled away from a bad
-  position at the platform or a wall.
-- Use short movements near the block and platform edge.
-- If alignment drifts, back away, move sideways in open floor, and approach again.
+- Keep both modules centered and away from the side walls.
+- Do not attempt to lift or stack either module; this is a pushing task.
+- Use short movements near module and landing edges.
+- If alignment drifts, back away, move sideways in open floor, and approach
+  again.
 
 ## Finish
 

@@ -13,54 +13,56 @@ if TYPE_CHECKING:
 MJGEOM_BOX = mujoco.mjtGeom.mjGEOM_BOX  # ty: ignore[unresolved-attribute]
 MJ_JOINT_FREE = mujoco.mjtJoint.mjJNT_FREE  # ty: ignore[unresolved-attribute]
 
-ARENA_MIN_X = -4.0
-ARENA_MAX_X = 6.0
+ARENA_MIN_X = -2.5
+ARENA_MAX_X = 5.5
 ARENA_HALF_WIDTH = 2.5
 WALL_HALF_THICKNESS = 0.1
 WALL_HEIGHT = 1.2
 
-PLATFORM_HEIGHT = 0.75
+PLATFORM_HEIGHT = 0.5
 PLATFORM_CAP_THICKNESS = 0.025
-PLATFORM_BACK_X = 4.0
+PLATFORM_BACK_X = 3.7
 PLATFORM_FRONT_X = ARENA_MAX_X - WALL_HALF_THICKNESS
 PLATFORM_HALF_WIDTH = 1.4
 
-BOTTOM_STEP_HALF_SIZE = (0.55, 0.7, 0.125)
-TOP_STEP_HALF_SIZE = (0.4, 0.45, 0.125)
-BOTTOM_STEP_MASS = 4.0
-TOP_STEP_MASS = 2.5
+STEP_HALF_WIDTH = 0.55
+LOWER_STEP_HALF_SIZE = (0.25, 0.45, 0.1)
+UPPER_STEP_HALF_SIZE = (0.5, 0.45, 0.1)
+LOWER_STEP_MASS = 4.0
+UPPER_STEP_MASS = 7.0
+
 STEP_FRICTION = (0.9, 0.02, 0.002)
-STEP_SPAWN_MIN_X = 1.0
-STEP_SPAWN_MAX_X = 3.0
+STEP_SPAWN_MIN_X = 0.6
+STEP_SPAWN_MAX_X = 2.9
 STEP_SPAWN_MARGIN = 0.2
 
 _WALL_RGBA = (0.3, 0.35, 0.4, 1.0)
 _PLATFORM_RGBA = _WALL_RGBA
 _PLATFORM_TOP_RGBA = (0.15, 0.8, 0.3, 1.0)
-_STEP_RGBA = (1.0, 0.75, 0.05, 1.0)
+_STEP_RGBA = (0.95, 0.55, 0.1, 1.0)
 
 
 def make_stack_steps_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
-    """Create a walled arena with a goal platform and two movable step blocks."""
+    """Create a walled arena with a landing and two movable stair modules."""
 
-    bottom_start, top_start = _sample_step_starts(seed)
+    lower_start, upper_start = _sample_step_starts(seed)
 
     def add_stack_steps(spec: MjSpec) -> None:
         _add_arena_walls(spec)
         _add_platform(spec)
         _add_step(
             spec,
-            name="stack_steps_bottom_step",
-            center=bottom_start,
-            half_size=BOTTOM_STEP_HALF_SIZE,
-            mass=BOTTOM_STEP_MASS,
+            name="stack_steps_lower_step",
+            center=lower_start,
+            half_size=LOWER_STEP_HALF_SIZE,
+            mass=LOWER_STEP_MASS,
         )
         _add_step(
             spec,
-            name="stack_steps_top_step",
-            center=top_start,
-            half_size=TOP_STEP_HALF_SIZE,
-            mass=TOP_STEP_MASS,
+            name="stack_steps_upper_step",
+            center=upper_start,
+            half_size=UPPER_STEP_HALF_SIZE,
+            mass=UPPER_STEP_MASS,
         )
 
     return add_stack_steps
@@ -146,7 +148,7 @@ def _add_step(
     body.pos = (x, y, half_z)
     body.add_freejoint(name=f"{name}_free")
     body.add_geom(
-        name=f"{name}_pushable",
+        name=f"{name}_body",
         type=MJGEOM_BOX,
         size=half_size,
         mass=mass,
@@ -161,17 +163,17 @@ def _sample_step_starts(
     seed: int | None,
 ) -> tuple[tuple[float, float], tuple[float, float]]:
     rng = random.Random(seed)
-    bottom = _sample_start(rng, BOTTOM_STEP_HALF_SIZE)
+    lower = _sample_start(rng, LOWER_STEP_HALF_SIZE)
     for _ in range(100):
-        top = _sample_start(rng, TOP_STEP_HALF_SIZE)
+        upper = _sample_start(rng, UPPER_STEP_HALF_SIZE)
         if not _footprints_overlap(
-            bottom,
-            BOTTOM_STEP_HALF_SIZE,
-            top,
-            TOP_STEP_HALF_SIZE,
+            lower,
+            LOWER_STEP_HALF_SIZE,
+            upper,
+            UPPER_STEP_HALF_SIZE,
             margin=STEP_SPAWN_MARGIN,
         ):
-            return bottom, top
+            return lower, upper
     raise RuntimeError("Could not place both stack-steps blocks without overlap")
 
 
@@ -197,8 +199,7 @@ def _footprints_overlap(
     margin: float,
 ) -> bool:
     return (
-        abs(first[0] - second[0])
-        < first_half_size[0] + second_half_size[0] + margin
+        abs(first[0] - second[0]) < first_half_size[0] + second_half_size[0] + margin
         and abs(first[1] - second[1])
         < first_half_size[1] + second_half_size[1] + margin
     )

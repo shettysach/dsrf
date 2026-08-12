@@ -136,7 +136,7 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
 
     assert captured.image.startswith(b"\xff\xd8")
     assert task.views == ("agent", "overview", "overhead", "corridor_left")
-    assert camera_configs[0].azimuth == 0.0
+    assert camera_configs[0].azimuth == 45.0
     assert camera_configs[1] is agent_camera
     assert any(name == "renderer.update:corridor_left" for name, _ in calls)
     worker_threads = {thread_id for _, thread_id in calls}

@@ -12,7 +12,7 @@ def _make_scene(*, goal_index: int | None = None) -> SceneSpecFn:
 
 TASK = TaskSpec(
     name="stack-steps",
-    objective="Stack the two blocks into steps and reach the green platform.",
+    objective="Arrange the two stair modules and reach the green landing.",
     make_scene=_make_scene,
     viewer=ViewerSpec(distance=4.0, elevation=-28.0),
 )
