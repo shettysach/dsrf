@@ -337,6 +337,8 @@ def _parse_planner_command(text: str) -> tuple[str, str | None]:
         return "stand", None
     if motion == "walk" and direction in {"forward", "backward", "left", "right"}:
         return "walk", direction
+    if motion == "turn" and direction in {"left", "right"}:
+        return "turn", direction
     raise ValueError("Unsupported planner motion or direction")
 
 

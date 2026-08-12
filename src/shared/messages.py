@@ -125,11 +125,15 @@ class PipelineError:
 def _validate_navigation(
     motion: str, target_xy: tuple[float, float] | None, direction: str | None
 ) -> None:
-    if motion not in {"stand", "walk"}:
-        raise ValueError("Motion must be stand or walk")
+    if motion not in {"stand", "walk", "turn"}:
+        raise ValueError("Motion must be stand, walk, or turn")
     if motion == "stand":
         if target_xy is not None or direction is not None:
             raise ValueError("Stand command must not have a target")
+        return
+    if motion == "turn":
+        if target_xy is not None or direction not in {"left", "right"}:
+            raise ValueError("Turn command requires a left or right direction")
         return
     if (target_xy is None) == (direction is None):
         raise ValueError("Walk command requires exactly one target")

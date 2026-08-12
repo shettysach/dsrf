@@ -224,6 +224,27 @@ def test_agent_stand_bypasses_missing_projection() -> None:
     assert command.target_xy is None
 
 
+def test_agent_accepts_directional_turn_without_projection() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(['{"motion":"turn","direction":"right"}'])
+
+    AgentLoop(
+        cast(Any, node), cast(Any, client), command_mode="direction"
+    ).run()
+
+    command = agent_command_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert command.motion == "turn"
+    assert command.direction == "right"
+    assert command.target_xy is None
+
+
 def test_agent_retries_motion_gen_errors() -> None:
     node = _Node(
         [

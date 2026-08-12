@@ -106,6 +106,31 @@ def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
     assert any("motion generated" in message for _, message, _ in node.logs)
 
 
+def test_motion_gen_routes_turn_to_kinematic_planner(monkeypatch) -> None:
+    generated: list[tuple[str, tuple[float, float] | None, str | None]] = []
+
+    def generate(motion, target_xy, direction):
+        generated.append((motion, target_xy, direction))
+        return _planner_motion()
+
+    command = AgentCommand(
+        0,
+        '{"motion":"turn","direction":"left"}',
+        "turn",
+        None,
+        "left",
+    )
+    value, metadata = agent_command_to_arrow(command)
+    node = _run_motion_gen(
+        monkeypatch,
+        [{"type": "INPUT", "id": "command", "value": value, "metadata": metadata}],
+        generate,
+    )
+
+    assert generated == [("turn", None, "left")]
+    assert [output for output in node.outputs if output[0] == "motion"]
+
+
 def test_motion_gen_reports_invalid_raw_vlm_response(monkeypatch) -> None:
     def generate(motion, target_xy, direction):
         del motion, target_xy, direction
@@ -476,3 +501,6 @@ def test_command_signature_detects_repeated_directional_commands() -> None:
     assert sim_runtime._command_signature(forward) != sim_runtime._command_signature(
         left
     )
+    assert sim_runtime._command_signature(
+        '{"motion":"turn","direction":"left"}'
+    ) == ("turn", "left")

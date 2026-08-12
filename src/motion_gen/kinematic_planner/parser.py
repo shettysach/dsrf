@@ -36,9 +36,11 @@ class PlannerMode(IntEnum):
 def planner_mode(motion: str) -> PlannerMode:
     if motion == "stand":
         return PlannerMode.IDLE
-    if motion == "walk":
+    if motion in {"walk", "turn"}:
         return PlannerMode.WALK
-    raise ValueError(f"Unsupported motion {motion!r}; expected 'stand' or 'walk'")
+    raise ValueError(
+        f"Unsupported motion {motion!r}; expected 'stand', 'walk', or 'turn'"
+    )
 
 
 def planner_direction(direction: str) -> tuple[float, float]:
@@ -53,3 +55,11 @@ def planner_direction(direction: str) -> tuple[float, float]:
     raise ValueError(
         f"Unsupported direction {direction!r}; expected forward, backward, left, or right"
     )
+
+
+def planner_turn_direction(direction: str) -> tuple[float, float]:
+    if direction == "left":
+        return (0.0, 1.0)
+    if direction == "right":
+        return (0.0, -1.0)
+    raise ValueError(f"Unsupported turn direction {direction!r}; expected left or right")

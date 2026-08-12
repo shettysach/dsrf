@@ -5,6 +5,7 @@ import numpy as np
 from motion_gen.kinematic_planner.parser import (
     planner_direction,
     planner_mode,
+    planner_turn_direction,
 )
 from shared.geometry import local_xy_to_world, yaw_from_quat_wxyz
 
@@ -23,6 +24,10 @@ def build_planner_inputs(
         raise ValueError("stand requires no target")
     if motion == "walk" and (target_xy is None) == (direction is None):
         raise ValueError("walk requires exactly one target")
+    if motion == "turn" and (
+        target_xy is not None or direction not in {"left", "right"}
+    ):
+        raise ValueError("turn requires a left or right direction and no position target")
 
     root = context[0, -1]
     root_position = root[:3].astype(np.float32)
@@ -33,7 +38,11 @@ def build_planner_inputs(
     positions = np.zeros((1, PLANNER_CONTEXT_FRAMES, 3), dtype=np.float32)
     headings = np.zeros((1, PLANNER_CONTEXT_FRAMES), dtype=np.float32)
 
-    if direction is not None:
+    if motion == "turn":
+        assert direction is not None
+        local_forward, local_left = planner_turn_direction(direction)
+        facing = _planar_vector(local_forward, local_left, yaw)
+    elif direction is not None:
         local_forward, local_left = planner_direction(direction)
         movement = _planar_vector(local_forward, local_left, yaw)
     elif target_xy is not None:

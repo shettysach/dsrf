@@ -5,6 +5,7 @@ from motion_gen.kinematic_planner.parser import (
     PlannerMode,
     planner_direction,
     planner_mode,
+    planner_turn_direction,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "KinematicPlanner",
     "planner_direction",
     "planner_mode",
+    "planner_turn_direction",
 ]

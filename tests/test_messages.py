@@ -38,6 +38,12 @@ def test_agent_command_arrow_round_trip() -> None:
     assert agent_command_from_arrow(value, metadata) == command
 
 
+def test_turn_command_arrow_round_trip() -> None:
+    command = AgentCommand(4, "turn left", "turn", None, "left")
+    value, metadata = agent_command_to_arrow(command)
+    assert agent_command_from_arrow(value, metadata) == command
+
+
 def test_observation_arrow_round_trip() -> None:
     projection = ProjectionContext(
         depth=np.arange(12, dtype=np.float32).reshape(3, 4) + 1.0,

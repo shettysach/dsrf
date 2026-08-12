@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -10,6 +11,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from tasks import TaskSpec
 
+from shared.geometry import yaw_from_quat_wxyz
 from shared.messages import ProjectionContext
 from sim.config import make_sim_env_cfg
 
@@ -39,13 +41,15 @@ class MjlabEnv:
         goal_index: int | None = None,
     ) -> None:
         torch_device = torch.device(device)
+        env_cfg = make_sim_env_cfg(
+            image_width=image_width,
+            image_height=image_height,
+            task=task,
+            goal_index=goal_index,
+        )
+        self._camera_base_azimuth = float(env_cfg.viewer.azimuth)
         self._env = ManagerBasedRlEnv(
-            cfg=make_sim_env_cfg(
-                image_width=image_width,
-                image_height=image_height,
-                task=task,
-                goal_index=goal_index,
-            ),
+            cfg=env_cfg,
             device=str(torch_device),
             render_mode="rgb_array",
         )
@@ -129,6 +133,7 @@ class MjlabEnv:
 
     def render(self) -> np.ndarray:
         with self.compute_context():
+            self._sync_offscreen_camera_heading()
             image = self._env.render()
         if image is None:
             raise RuntimeError("MJLab offscreen renderer returned no image")
@@ -139,6 +144,7 @@ class MjlabEnv:
             offline = self._env._offline_renderer
             if offline is None:
                 raise RuntimeError("MJLab offscreen renderer is not initialized")
+            self._sync_offscreen_camera_heading()
             debug_callback = (
                 self._env.update_visualizers
                 if hasattr(self._env, "update_visualizers")
@@ -188,10 +194,20 @@ class MjlabEnv:
             offline = self._env._offline_renderer
             if offline is None:
                 raise RuntimeError("MJLab offscreen renderer is not initialized")
-            # Keep this camera state untouched: render_rgbd(), which feeds the
-            # VLM, uses the same offscreen renderer and camera.
+            self._sync_offscreen_camera_heading()
             offline.update(self._env.sim.data)
             return offline.render().copy()
+
+    def _sync_offscreen_camera_heading(self) -> None:
+        offline = self._env._offline_renderer
+        if offline is None:
+            return
+        root_quat_w = (
+            self._env.scene["robot"].data.root_link_quat_w[0].detach().cpu().numpy()
+        )
+        offline._cam.azimuth = _heading_camera_azimuth(
+            self._camera_base_azimuth, root_quat_w
+        )
 
     def close(self) -> None:
         self._env.close()
@@ -233,3 +249,9 @@ def _is_task_collision_geom(name: str | None) -> bool:
         and not name.startswith("robot/")
         and name.endswith("_collision")
     )
+
+
+def _heading_camera_azimuth(
+    base_azimuth: float, root_quat_w: np.ndarray
+) -> float:
+    return base_azimuth + math.degrees(yaw_from_quat_wxyz(root_quat_w))
