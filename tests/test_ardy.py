@@ -112,6 +112,35 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     torch.testing.assert_close(generator.root_heading, torch.tensor(torch.pi / 2.0))
 
 
+def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
+    import motion_gen.ardy.generator as ardy_generator
+
+    model = Mock()
+    model.diffusion.num_base_steps = 10
+    model.return_value = torch.zeros((1, 129, 3))
+    model.motion_rep.inverse.return_value = {
+        "root_positions": torch.zeros((1, 125, 3)),
+        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 125]),
+    }
+    converter = Mock()
+    converter.dict_to_qpos.return_value = np.zeros((1, 125, 36), dtype=np.float32)
+
+    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
+    generator.device = torch.device("cpu")
+    generator.model = model
+    generator.converter = converter
+    generator.history_frames = 4
+    generator.initial_history = torch.zeros((1, 4, 3))
+    generator.root_history = torch.zeros((2, 3))
+    generator.root_heading = torch.tensor(0.0)
+
+    generator.generate(torch.arange(4096, dtype=torch.float32), None)
+
+    assert model.motion_rep.create_conditions.call_count == 0
+    assert model.call_args.kwargs["motion_mask"] is None
+    assert model.call_args.kwargs["observed_motion"] is None
+
+
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:
     embedding = torch.arange(4096, dtype=torch.float64)
     text_feat, text_pad_mask = prepare_conditioning(
