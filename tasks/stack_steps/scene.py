@@ -19,17 +19,19 @@ ARENA_HALF_WIDTH = 2.5
 WALL_HALF_THICKNESS = 0.1
 WALL_HEIGHT = 1.2
 
-PLATFORM_HEIGHT = 0.5
+PLATFORM_HEIGHT = 0.75
 PLATFORM_CAP_THICKNESS = 0.025
 PLATFORM_BACK_X = 3.7
 PLATFORM_FRONT_X = ARENA_MAX_X - WALL_HALF_THICKNESS
 PLATFORM_HALF_WIDTH = 1.4
 
 STEP_HALF_WIDTH = 0.55
-LOWER_STEP_HALF_SIZE = (0.25, 0.45, 0.1)
-UPPER_STEP_HALF_SIZE = (0.5, 0.45, 0.1)
+LOWER_STEP_HALF_SIZE = (0.25, 0.45, 0.15)
+UPPER_STEP_HALF_SIZE = (0.5, 0.45, 0.2)
 LOWER_STEP_MASS = 4.0
 UPPER_STEP_MASS = 7.0
+LOWER_RAISED_TREAD_FRACTION = 0.5
+UPPER_RAISED_TREAD_FRACTION = 0.75
 
 STEP_FRICTION = (0.9, 0.02, 0.002)
 STEP_SPAWN_MIN_X = 0.6
@@ -56,6 +58,7 @@ def make_stack_steps_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             center=lower_start,
             half_size=LOWER_STEP_HALF_SIZE,
             mass=LOWER_STEP_MASS,
+            raised_tread_fraction=LOWER_RAISED_TREAD_FRACTION,
         )
         _add_step(
             spec,
@@ -63,6 +66,7 @@ def make_stack_steps_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             center=upper_start,
             half_size=UPPER_STEP_HALF_SIZE,
             mass=UPPER_STEP_MASS,
+            raised_tread_fraction=UPPER_RAISED_TREAD_FRACTION,
         )
 
     return add_stack_steps
@@ -141,17 +145,32 @@ def _add_step(
     center: tuple[float, float],
     half_size: tuple[float, float, float],
     mass: float,
+    raised_tread_fraction: float,
 ) -> None:
-    _, _, half_z = half_size
+    half_x, half_y, half_z = half_size
+    raised_half_x = half_x * raised_tread_fraction
+    lower_mass = mass / (1.0 + raised_tread_fraction)
     x, y = center
     body = spec.worldbody.add_body(name=name)
     body.pos = (x, y, half_z)
     body.add_freejoint(name=f"{name}_free")
     body.add_geom(
-        name=f"{name}_body",
+        name=f"{name}_lower_tread",
         type=MJGEOM_BOX,
-        size=half_size,
-        mass=mass,
+        pos=(0.0, 0.0, -half_z * 0.5),
+        size=(half_x, half_y, half_z * 0.5),
+        mass=lower_mass,
+        friction=STEP_FRICTION,
+        rgba=_STEP_RGBA,
+        contype=1,
+        conaffinity=1,
+    )
+    body.add_geom(
+        name=f"{name}_raised_tread",
+        type=MJGEOM_BOX,
+        pos=(half_x - raised_half_x, 0.0, half_z * 0.5),
+        size=(raised_half_x, half_y, half_z * 0.5),
+        mass=mass - lower_mass,
         friction=STEP_FRICTION,
         rgba=_STEP_RGBA,
         contype=1,
