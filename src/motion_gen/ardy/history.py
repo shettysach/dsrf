@@ -17,13 +17,17 @@ def qpos_to_ardy_inputs(
     """Convert MuJoCo G1 qpos into ARDY local rotations and root positions."""
     qpos_tensor = torch.as_tensor(qpos, dtype=torch.float32, device=device)
     if qpos_tensor.ndim != 2 or qpos_tensor.shape[1] != 36:
-        raise ValueError(f"Initial qpos must have shape [T, 36], got {qpos_tensor.shape}")
+        raise ValueError(
+            f"Initial qpos must have shape [T, 36], got {qpos_tensor.shape}"
+        )
 
     frames = qpos_tensor.shape[0]
     joints = converter.skeleton.nbjoints
-    local_rot_mats = torch.eye(3, dtype=torch.float32, device=device).expand(
-        frames, joints, 3, 3
-    ).clone()
+    local_rot_mats = (
+        torch.eye(3, dtype=torch.float32, device=device)
+        .expand(frames, joints, 3, 3)
+        .clone()
+    )
 
     ardy_joint_indices = converter._mujoco_indices_to_ardy_indices.to(
         device=device, dtype=torch.long

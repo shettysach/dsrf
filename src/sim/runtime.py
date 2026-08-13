@@ -8,19 +8,24 @@ import torch
 from dora import Node
 
 from shared.arrow import (
+    grounding_request_from_arrow,
+    grounding_result_to_arrow,
     motion_from_arrow,
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
 from shared.messages import (
     SONIC_FPS,
+    GroundingResult,
     PipelineError,
+    ProjectionContext,
     VisualObservation,
 )
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.sonic.policy import SonicPolicy
 from sim.viewer import SimViewer
+from sim.waypoint import resolve_waypoint
 
 CONTROL_PERIOD = 1.0 / SONIC_FPS
 
@@ -40,16 +45,14 @@ class SimRuntime:
         policy: SonicPolicy,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
-        *,
-        capture_depth: bool = True,
     ) -> None:
         self.node = node
         self.simulation = simulation
         self.policy = policy
         self.renderer = renderer
         self.viewer = viewer
-        self.capture_depth = capture_depth
         self.observation_id = 0
+        self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
 
     def run(self) -> None:
@@ -69,9 +72,43 @@ class SimRuntime:
         for event in self.node:
             if event["type"] == "STOP":
                 return
-            if event["type"] != "INPUT" or event["id"] != "motion":
+            if event["type"] != "INPUT":
                 continue
-            self._accept_motion(event)
+            if event["id"] == "motion":
+                self._accept_motion(event)
+            elif event["id"] == "grounding_request":
+                self._accept_grounding_request(event)
+
+    def _accept_grounding_request(self, event: dict[str, Any]) -> None:
+        metadata = dict(event.get("metadata") or {})
+        try:
+            request = grounding_request_from_arrow(event["value"], metadata)
+            if request.observation_id != self.observation_id:
+                raise ValueError(
+                    f"Expected grounding request for observation {self.observation_id}, "
+                    f"got {request.observation_id}"
+                )
+            if self._projection_cache is None:
+                self._projection_cache = self.renderer.capture_depth()
+            resolved = resolve_waypoint(request.waypoint_2d, self._projection_cache)
+        except (KeyError, TypeError, ValueError) as exc:
+            self._report_error(str(exc), source="grounding")
+            return
+
+        self.node.log(
+            "info",
+            f"[OBS {self.observation_id}] waypoint grounded: "
+            f"normalized={resolved.normalized} pixel={resolved.pixel} "
+            f"depth={resolved.depth:.3f} target_xy={resolved.target_xy}",
+            target="dsrf.sim.grounding",
+            fields={
+                "event": "waypoint_grounded",
+                "observation_id": str(self.observation_id),
+            },
+        )
+        result = GroundingResult(self.observation_id, resolved.target_xy)
+        data, result_metadata = grounding_result_to_arrow(result)
+        self.node.send_output("grounding_result", data, metadata=result_metadata)
 
     def _accept_motion(self, event: dict[str, Any]) -> None:
         received_at = time.perf_counter()
@@ -87,6 +124,8 @@ class SimRuntime:
                 f"{chunk.observation_id}"
             )
             return
+
+        self._projection_cache = None
 
         with self.simulation.compute_context():
             state = self.simulation.robot_state()
@@ -171,33 +210,30 @@ class SimRuntime:
         self, *, completed_command: str | None
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
-        if self.capture_depth:
-            jpeg, projection = self.renderer.capture_rgbd()
-        else:
-            jpeg, projection = self.renderer.capture_jpeg(), None
+        jpeg = self.renderer.capture_jpeg()
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,
             completed_command=completed_command,
             jpeg=jpeg,
-            projection=projection,
         )
         data, metadata = observation_to_arrow(observation)
         self.node.send_output("observation", data, metadata=metadata)
+        self._projection_cache = None
         self._observation_published_at = time.perf_counter()
         return render_ms, len(jpeg)
 
-    def _report_error(self, detail: str) -> None:
+    def _report_error(self, detail: str, *, source: str = "sim") -> None:
         self.node.log(
             "error",
-            f"[OBS {self.observation_id}] SONIC error: {detail}",
+            f"[OBS {self.observation_id}] {source} error: {detail}",
             target="dsrf.sim",
             fields={
                 "event": "pipeline_error",
                 "observation_id": str(self.observation_id),
-                "source": "sim",
+                "source": source,
                 "detail": detail,
             },
         )
-        error = PipelineError("sim", self.observation_id, detail)
+        error = PipelineError(source, self.observation_id, detail)
         self.node.send_output("error", pipeline_error_to_arrow(error))

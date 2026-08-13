@@ -92,13 +92,41 @@ class VisualObservation:
     observation_id: int
     completed_command: str | None
     jpeg: bytes
-    projection: ProjectionContext | None = None
 
     def __post_init__(self) -> None:
         if self.observation_id < 0:
             raise ValueError("Observation ID must be non-negative")
         if not self.jpeg:
             raise ValueError("Observation JPEG is empty")
+
+
+@dataclass(frozen=True)
+class GroundingRequest:
+    observation_id: int
+    waypoint_2d: tuple[int, int]
+
+    def __post_init__(self) -> None:
+        if self.observation_id < 0:
+            raise ValueError("Observation ID must be non-negative")
+        x, y = self.waypoint_2d
+        if any(
+            isinstance(value, bool) or not isinstance(value, int) for value in (x, y)
+        ):
+            raise ValueError("Waypoint coordinates must be integers")
+        if not (0 <= x <= 1000 and 0 <= y <= 1000):
+            raise ValueError("Waypoint coordinates must be in [0,1000]")
+
+
+@dataclass(frozen=True)
+class GroundingResult:
+    observation_id: int
+    target_xy: tuple[float, float]
+
+    def __post_init__(self) -> None:
+        if self.observation_id < 0:
+            raise ValueError("Observation ID must be non-negative")
+        if not all(np.isfinite(value) for value in self.target_xy):
+            raise ValueError("target_xy must be finite")
 
 
 @dataclass(frozen=True)
@@ -119,18 +147,13 @@ class PipelineError:
 def _validate_navigation(
     motion: str, target_xy: tuple[float, float] | None, direction: str | None
 ) -> None:
-    if motion not in {"stand", "walk"}:
-        raise ValueError("Motion must be stand or walk")
-    if motion == "stand":
-        if target_xy is not None or direction is not None:
-            raise ValueError("Stand command must not have a target")
-        return
-    if (target_xy is None) == (direction is None):
-        raise ValueError("Walk command requires exactly one target")
+    if not motion.strip():
+        raise ValueError("Motion prompt must not be empty")
+    if target_xy is not None and direction is not None:
+        raise ValueError("Motion command cannot have both a waypoint and direction")
     if direction is not None:
         if direction not in {"forward", "backward", "left", "right"}:
             raise ValueError("Unsupported direction")
         return
-    assert target_xy is not None
-    if not all(np.isfinite(value) for value in target_xy):
+    if target_xy is not None and not all(np.isfinite(value) for value in target_xy):
         raise ValueError("target_xy must be finite")

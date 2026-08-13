@@ -22,6 +22,9 @@ class SimRenderer:
         image, projection = self.simulation.render_rgbd()
         return self._encode(image), projection
 
+    def capture_depth(self) -> ProjectionContext:
+        return self.simulation.render_depth()
+
     def _encode(self, image: np.ndarray) -> bytes:
         buffer = BytesIO()
         iio.imwrite(

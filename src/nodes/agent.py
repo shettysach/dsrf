@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -9,15 +10,19 @@ import imageio.v3 as iio
 from dora import Node
 
 from agent.vlm import OAIChatClient
-from agent.waypoint import ResolvedWaypoint, parse_waypoint_command, resolve_waypoint
+from agent.waypoint import parse_waypoint_command
 from shared.arrow import (
     agent_command_to_arrow,
+    grounding_request_to_arrow,
+    grounding_result_from_arrow,
     observation_from_arrow,
     pipeline_error_from_arrow,
 )
 from shared.config import AgentConfig
 from shared.messages import (
     AgentCommand,
+    GroundingRequest,
+    GroundingResult,
     PipelineError,
     VisualObservation,
 )
@@ -25,6 +30,13 @@ from shared.messages import (
 MAX_INVALID_RESPONSES = 3
 FALLBACK_COMMAND = '{"motion":"stand","waypoint_2d":null}'
 PLANNER_FALLBACK_COMMAND = '{"motion":"stand","direction":"forward"}'
+
+
+@dataclass(frozen=True)
+class _PendingGrounding:
+    command_text: str
+    motion: str
+    waypoint_2d: tuple[int, int]
 
 
 class AgentLoop:
@@ -40,6 +52,7 @@ class AgentLoop:
         self.client = client
         self.observation: VisualObservation | None = None
         self.pending_command: str | None = None
+        self.pending_grounding: _PendingGrounding | None = None
         self.invalid_responses = 0
         self.waypoint_debug = waypoint_debug
         self.command_mode = command_mode
@@ -58,6 +71,12 @@ class AgentLoop:
                 )
             elif event["id"] in {"planning_error", "sim_error"}:
                 self._accept_error(pipeline_error_from_arrow(event["value"]))
+            elif event["id"] == "grounding_result":
+                self._accept_grounding_result(
+                    grounding_result_from_arrow(
+                        event["value"], dict(event.get("metadata") or {})
+                    )
+                )
 
     def _accept_observation(self, observation: VisualObservation) -> None:
         if self.observation is None:
@@ -84,6 +103,7 @@ class AgentLoop:
 
         self.observation = observation
         self.pending_command = None
+        self.pending_grounding = None
         self.invalid_responses = 0
         self._query_and_send()
 
@@ -94,6 +114,13 @@ class AgentLoop:
             raise RuntimeError(
                 f"Stale {error.source} error for observation {error.observation_id}"
             )
+        if error.source == "grounding":
+            if self.pending_grounding is None:
+                raise RuntimeError("Grounding failed without a pending request")
+            previous = self.pending_grounding.command_text
+            self.pending_grounding = None
+            self._retry_invalid(previous, error.detail)
+            return
         if error.source != "motion-gen":
             self.node.log(
                 "error",
@@ -113,6 +140,7 @@ class AgentLoop:
 
     def _retry_invalid(self, previous: str, detail: str) -> None:
         assert self.observation is not None
+        self.pending_grounding = None
         self.invalid_responses += 1
         observation_id = self.observation.observation_id
         self.node.log(
@@ -210,24 +238,53 @@ class AgentLoop:
                     )
                     return
             parsed = parse_waypoint_command(command)
-            if parsed.motion == "stand":
-                self._send(command, motion="stand", target_xy=None)
+            if parsed.waypoint_2d is None:
+                self._send(command, motion=parsed.motion, target_xy=None)
                 return
-            if self.observation.projection is None:
-                raise ValueError("Observation has no depth projection context")
-            assert parsed.waypoint_2d is not None
-            resolved = resolve_waypoint(
-                parsed.waypoint_2d,
-                self.observation.projection,
-            )
         except ValueError as exc:
             self._retry_invalid(command, str(exc))
             return
 
+        assert parsed.waypoint_2d is not None
+        self.pending_grounding = _PendingGrounding(
+            command_text=command,
+            motion=parsed.motion,
+            waypoint_2d=parsed.waypoint_2d,
+        )
+        request = GroundingRequest(observation_id, parsed.waypoint_2d)
+        data, metadata = grounding_request_to_arrow(request)
+        self.node.send_output("grounding_request", data, metadata=metadata)
+
+    def _accept_grounding_result(self, result: GroundingResult) -> None:
+        if self.observation is None or self.pending_grounding is None:
+            raise RuntimeError("Received an unexpected grounding result")
+        if result.observation_id != self.observation.observation_id:
+            raise RuntimeError(
+                f"Stale grounding result for observation {result.observation_id}"
+            )
+        pending = self.pending_grounding
+        self.pending_grounding = None
         if self.waypoint_debug:
-            self._log_waypoint(resolved)
-            _write_debug_image(self.observation.jpeg, observation_id, resolved.pixel)
-        self._send(command, motion="walk", target_xy=resolved.target_xy)
+            self.node.log(
+                "info",
+                f"VLM waypoint: normalized={pending.waypoint_2d} "
+                f"local_target={result.target_xy}",
+                target="dsrf.agent.waypoint",
+                fields={
+                    "event": "waypoint_grounded",
+                    "observation_id": str(result.observation_id),
+                },
+            )
+            _write_debug_image(
+                self.observation.jpeg,
+                result.observation_id,
+                pending.waypoint_2d,
+            )
+        self._send(
+            pending.command_text,
+            motion=pending.motion,
+            target_xy=result.target_xy,
+        )
 
     def _send(
         self,
@@ -257,29 +314,15 @@ class AgentLoop:
             else FALLBACK_COMMAND
         )
 
-    def _log_waypoint(self, waypoint: ResolvedWaypoint) -> None:
-        assert self.observation is not None
-        world = ",".join(f"{value:.3f}" for value in waypoint.world_point)
-        local = ",".join(f"{value:.3f}" for value in waypoint.target_xy)
-        self.node.log(
-            "info",
-            f"VLM waypoint: normalized={waypoint.normalized} pixel={waypoint.pixel}\n"
-            f"depth={waypoint.depth:.3f} meters\n"
-            f"world_point=({world})\n"
-            f"local_target=({local})",
-            target="dsrf.agent.waypoint",
-            fields={
-                "event": "waypoint_resolved",
-                "observation_id": str(self.observation.observation_id),
-            },
-        )
-
 
 def _write_debug_image(
-    jpeg: bytes, observation_id: int, pixel: tuple[int, int]
+    jpeg: bytes, observation_id: int, waypoint_2d: tuple[int, int]
 ) -> None:
     image = iio.imread(BytesIO(jpeg), extension=".jpg")
-    u, v = pixel
+    height, width = image.shape[:2]
+    x, y = waypoint_2d
+    u = round(x / 1000 * (width - 1))
+    v = round(y / 1000 * (height - 1))
     image[max(0, v - 5) : v + 6, u] = (255, 0, 0)
     image[v, max(0, u - 5) : u + 6] = (255, 0, 0)
     output_dir = Path("/tmp/dsrf-waypoint-debug")

@@ -55,7 +55,6 @@ class SimConfig:
     image_width: int
     image_height: int
     jpeg_quality: int
-    capture_depth: bool
     viewer: ViewerMode
     reference_ghost: bool
 
@@ -68,7 +67,6 @@ class SimConfig:
             image_width=_positive_int("IMAGE_WIDTH"),
             image_height=_positive_int("IMAGE_HEIGHT"),
             jpeg_quality=_bounded_int("JPEG_QUALITY", minimum=1, maximum=100),
-            capture_depth=_optional_boolean("CAPTURE_DEPTH", default=True),
             viewer=_viewer_mode(),
             reference_ghost=_boolean("REFERENCE_GHOST"),
         )

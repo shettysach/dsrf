@@ -10,9 +10,10 @@ import pyarrow as pa
 from shared.messages import (
     MOTION_COLUMNS,
     AgentCommand,
+    GroundingRequest,
+    GroundingResult,
     MotionChunk,
     PipelineError,
-    ProjectionContext,
     VisualObservation,
 )
 
@@ -71,29 +72,7 @@ def observation_to_arrow(
     }
     if observation.completed_command is not None:
         metadata["completed_command"] = observation.completed_command
-    depth: bytes | None = None
-    if observation.projection is not None:
-        projection = observation.projection
-        depth = projection.depth.tobytes()
-        metadata["projection"] = json.dumps(
-            {
-                "shape": projection.depth.shape,
-                "camera_pos_w": projection.camera_pos_w.tolist(),
-                "camera_forward_w": projection.camera_forward_w.tolist(),
-                "camera_up_w": projection.camera_up_w.tolist(),
-                "frustum_height": projection.frustum_height,
-                "root_pos_w": projection.root_pos_w.tolist(),
-                "root_quat_w": projection.root_quat_w.tolist(),
-                "near": projection.near,
-                "far": projection.far,
-            },
-            separators=(",", ":"),
-        )
-    value = pa.array(
-        [{"jpeg": observation.jpeg, "depth": depth}],
-        type=pa.struct([("jpeg", pa.binary()), ("depth", pa.binary())]),
-    )
-    return value, metadata
+    return pa.array([observation.jpeg], type=pa.binary()), metadata
 
 
 def observation_from_arrow(
@@ -102,31 +81,7 @@ def observation_from_arrow(
     mime_type = metadata.get("mime_type")
     if mime_type != "image/jpeg":
         raise ValueError(f"Unsupported observation MIME type: {mime_type!r}")
-    rows = value.to_pylist()
-    if len(rows) != 1 or not isinstance(rows[0], dict):
-        raise ValueError("Expected one observation struct")
-    jpeg = rows[0].get("jpeg")
-    depth_bytes = rows[0].get("depth")
-    if not isinstance(jpeg, bytes):
-        raise ValueError("Observation JPEG is invalid")
-    projection = None
-    if "projection" in metadata:
-        if not isinstance(depth_bytes, bytes):
-            raise ValueError("Observation depth is invalid")
-        document = json.loads(str(metadata["projection"]))
-        shape = tuple(int(size) for size in document["shape"])
-        depth = np.frombuffer(depth_bytes, dtype=np.float32).copy().reshape(shape)
-        projection = ProjectionContext(
-            depth=depth,
-            camera_pos_w=document["camera_pos_w"],
-            camera_forward_w=document["camera_forward_w"],
-            camera_up_w=document["camera_up_w"],
-            frustum_height=float(document["frustum_height"]),
-            root_pos_w=document["root_pos_w"],
-            root_quat_w=document["root_quat_w"],
-            near=float(document["near"]),
-            far=float(document["far"]),
-        )
+    jpeg = _binary_from_arrow(value)
     return VisualObservation(
         observation_id=_observation_id(metadata),
         completed_command=(
@@ -135,7 +90,46 @@ def observation_from_arrow(
             else None
         ),
         jpeg=jpeg,
-        projection=projection,
+    )
+
+
+def grounding_request_to_arrow(
+    request: GroundingRequest,
+) -> tuple[pa.Array, dict[str, str]]:
+    return pa.array(request.waypoint_2d, type=pa.int32()), {
+        "observation_id": str(request.observation_id)
+    }
+
+
+def grounding_request_from_arrow(
+    value: pa.Array, metadata: dict[str, Any]
+) -> GroundingRequest:
+    waypoint = value.to_pylist()
+    if len(waypoint) != 2:
+        raise ValueError("Grounding request must contain one 2D waypoint")
+    return GroundingRequest(
+        observation_id=_observation_id(metadata),
+        waypoint_2d=(int(waypoint[0]), int(waypoint[1])),
+    )
+
+
+def grounding_result_to_arrow(
+    result: GroundingResult,
+) -> tuple[pa.Array, dict[str, str]]:
+    return pa.array(result.target_xy, type=pa.float32()), {
+        "observation_id": str(result.observation_id)
+    }
+
+
+def grounding_result_from_arrow(
+    value: pa.Array, metadata: dict[str, Any]
+) -> GroundingResult:
+    target = value.to_pylist()
+    if len(target) != 2:
+        raise ValueError("Grounding result must contain one local target")
+    return GroundingResult(
+        observation_id=_observation_id(metadata),
+        target_xy=(float(target[0]), float(target[1])),
     )
 
 

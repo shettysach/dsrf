@@ -75,14 +75,7 @@ class OAIChatClient:
         return content.strip()
 
     def commit(self, observation: VisualObservation, command: str) -> None:
-        # Projection depth is only needed for the current waypoint and must not
-        # accumulate in the VLM conversation history.
-        history_observation = VisualObservation(
-            observation.observation_id,
-            observation.completed_command,
-            observation.jpeg,
-        )
-        self._history.append(_ConversationTurn(history_observation, command))
+        self._history.append(_ConversationTurn(observation, command))
 
 
 def _user_message(

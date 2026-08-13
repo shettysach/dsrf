@@ -46,7 +46,6 @@ def main() -> None:
             policy,
             renderer,
             viewer,
-            capture_depth=cfg.capture_depth,
         ).run()
     finally:
         if viewer is not None:
@@ -69,6 +68,5 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "device": cfg.device,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
-            "capture_depth": str(cfg.capture_depth).lower(),
         },
     )

@@ -12,6 +12,8 @@ import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
 from shared.arrow import (
     agent_command_to_arrow,
+    grounding_request_to_arrow,
+    grounding_result_from_arrow,
     motion_from_arrow,
     motion_to_arrow,
     observation_from_arrow,
@@ -20,6 +22,7 @@ from shared.arrow import (
 from shared.config import KinematicPlannerConfig
 from shared.messages import (
     AgentCommand,
+    GroundingRequest,
     MotionChunk,
     ProjectionContext,
 )
@@ -82,9 +85,7 @@ def _planner_motion() -> np.ndarray:
 
 
 def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
-    generated: list[
-        tuple[str, tuple[float, float] | None, str | None]
-    ] = []
+    generated: list[tuple[str, tuple[float, float] | None, str | None]] = []
 
     def generate(motion, target_xy, direction):
         generated.append((motion, target_xy, direction))
@@ -148,8 +149,9 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     generated: list[tuple[torch.Tensor, tuple[float, float]]] = []
     generator = SimpleNamespace(
         fps=25,
-        generate=lambda embedding, target: generated.append((embedding, target))
-        or _planner_motion(),
+        generate=lambda embedding, target: (
+            generated.append((embedding, target)) or _planner_motion()
+        ),
     )
     encoder = SimpleNamespace(
         encode=lambda text: encoded.append(text) or embedding,
@@ -221,6 +223,7 @@ class _Renderer:
         self.capture_steps: list[int] = []
         self.jpeg_steps: list[int] = []
         self.rgbd_steps: list[int] = []
+        self.depth_steps: list[int] = []
 
     def capture_jpeg(self) -> bytes:
         self.capture_steps.append(self.simulation.steps)
@@ -231,6 +234,10 @@ class _Renderer:
         self.capture_steps.append(self.simulation.steps)
         self.rgbd_steps.append(self.simulation.steps)
         return f"jpeg-{self.simulation.steps}".encode(), _projection()
+
+    def capture_depth(self) -> ProjectionContext:
+        self.depth_steps.append(self.simulation.steps)
+        return _projection()
 
 
 def _projection() -> ProjectionContext:
@@ -269,6 +276,20 @@ def _motion_event(chunk: MotionChunk) -> dict[str, object]:
     }
 
 
+def _grounding_request_event(
+    observation_id: int, waypoint_2d: tuple[int, int] = (500, 500)
+) -> dict[str, object]:
+    value, metadata = grounding_request_to_arrow(
+        GroundingRequest(observation_id, waypoint_2d)
+    )
+    return {
+        "type": "INPUT",
+        "id": "grounding_request",
+        "value": value,
+        "metadata": metadata,
+    }
+
+
 def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     qpos = np.zeros((2, 36), dtype=np.float32)
     qpos[:, 3] = 1.0
@@ -291,7 +312,8 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
 
     assert simulation.steps == 2
     assert viewer.sync_steps == [1, 2]
-    assert renderer.capture_steps == [0, 2]
+    assert renderer.jpeg_steps == [0, 2]
+    assert renderer.depth_steps == []
     observations = [output for output in node.outputs if output[0] == "observation"]
     first = observation_from_arrow(
         observations[0][1], cast(Any, observations[0][2]["metadata"])
@@ -306,7 +328,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     assert any("[OBS 0->1] motion complete" in message for _, message, _ in node.logs)
 
 
-def test_sim_can_publish_jpeg_without_depth() -> None:
+def test_sim_publishes_rgb_without_eager_depth() -> None:
     node = _Node([{"type": "STOP"}])
     simulation = _Simulation()
     renderer = _Renderer(simulation)
@@ -315,7 +337,6 @@ def test_sim_can_publish_jpeg_without_depth() -> None:
         cast(Any, simulation),
         cast(Any, _Policy()),
         cast(Any, renderer),
-        capture_depth=False,
     )
 
     runtime.run()
@@ -326,7 +347,37 @@ def test_sim_can_publish_jpeg_without_depth() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert observation.jpeg == b"jpeg-0"
-    assert observation.projection is None
+
+
+def test_sim_lazily_caches_depth_for_current_observation() -> None:
+    node = _Node(
+        [
+            _grounding_request_event(0),
+            _grounding_request_event(0, (600, 500)),
+            {"type": "STOP"},
+        ]
+    )
+    simulation = _Simulation()
+    renderer = _Renderer(simulation)
+    runtime = sim_runtime.SimRuntime(
+        cast(Any, node),
+        cast(Any, simulation),
+        cast(Any, _Policy()),
+        cast(Any, renderer),
+    )
+
+    runtime.run()
+
+    assert simulation.steps == 0
+    assert renderer.jpeg_steps == [0]
+    assert renderer.depth_steps == [0]
+    results = [output for output in node.outputs if output[0] == "grounding_result"]
+    assert len(results) == 2
+    assert all(
+        grounding_result_from_arrow(value, cast(Any, kwargs["metadata"])).observation_id
+        == 0
+        for _, value, kwargs in results
+    )
 
 
 def test_sonic_rejects_motion_for_stale_observation() -> None:

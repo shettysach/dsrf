@@ -27,7 +27,6 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "IMAGE_WIDTH": "640",
         "IMAGE_HEIGHT": "480",
         "JPEG_QUALITY": "85",
-        "CAPTURE_DEPTH": "false",
         "VIEWER": "native",
         "REFERENCE_GHOST": "false",
     }
@@ -46,9 +45,12 @@ def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["motion-gen"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
     assert nodes["motion-gen"]["env"]["TEXT_ENCODER_DEVICE"] == "cuda"
-    assert nodes["sim"]["inputs"] == {"motion": "motion-gen/motion"}
-    assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
+    assert nodes["sim"]["inputs"] == {
+        "motion": "motion-gen/motion",
+        "grounding_request": "agent/grounding_request",
+    }
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
+    assert nodes["agent"]["inputs"]["grounding_result"] == "sim/grounding_result"
     assert "encoding_error" not in nodes["agent"]["inputs"]
 
 

@@ -11,9 +11,7 @@ from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
 
 
-def test_ardy_model_loader_receives_a_device_string(
-    monkeypatch, tmp_path
-) -> None:
+def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> None:
     import motion_gen.ardy.generator as ardy_generator
 
     received: dict[str, object] = {}

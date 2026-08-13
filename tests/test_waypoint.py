@@ -3,8 +3,9 @@ import math
 import numpy as np
 import pytest
 
-from agent.waypoint import parse_waypoint_command, resolve_waypoint
+from agent.waypoint import parse_waypoint_command
 from shared.messages import ProjectionContext
+from sim.waypoint import resolve_waypoint
 
 
 def _floor_projection() -> ProjectionContext:
@@ -69,7 +70,6 @@ def test_depth_patch_uses_valid_median_and_clamps_horizon() -> None:
         '{"motion":"walk","waypoint_2d":[500]}',
         '{"motion":"walk","waypoint_2d":[-1,500]}',
         '{"motion":"walk","waypoint_2d":[500.0,500]}',
-        '{"motion":"stand","waypoint_2d":[500,500]}',
     ],
 )
 def test_malformed_commands_fail(text: str) -> None:
@@ -81,6 +81,18 @@ def test_stand_parses_without_resolving_depth() -> None:
     command = parse_waypoint_command('{"motion":"stand","waypoint_2d":null}')
     assert command.motion == "stand"
     assert command.waypoint_2d is None
+
+
+def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:
+    grounded = parse_waypoint_command(
+        '{"motion":"sidestep carefully toward the doorway","waypoint_2d":[400,600]}'
+    )
+    ungrounded = parse_waypoint_command(
+        '{"motion":"wave with the right hand","waypoint_2d":null}'
+    )
+    assert grounded.motion == "sidestep carefully toward the doorway"
+    assert grounded.waypoint_2d == (400, 600)
+    assert ungrounded.waypoint_2d is None
 
 
 def test_invalid_depth_fails() -> None:

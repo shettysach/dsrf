@@ -43,9 +43,7 @@ def test_reference_ghost_follows_mjlab_visualizers(
     sonic_viewer.env_idx = 0
     sonic_viewer.mjm = object()
 
-    sonic_viewer._update_debug_visualizers(
-        SimpleNamespace(user_scn=object())
-    )
+    sonic_viewer._update_debug_visualizers(SimpleNamespace(user_scn=object()))
 
     assert calls == expected
 

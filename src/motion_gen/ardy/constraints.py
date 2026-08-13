@@ -15,7 +15,11 @@ def build_waypoint_constraints(
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Convert [forward, left] into ARDY's [left, forward] root endpoint."""
-    if root_history.ndim != 2 or root_history.shape[0] < 2 or root_history.shape[1] != 3:
+    if (
+        root_history.ndim != 2
+        or root_history.shape[0] < 2
+        or root_history.shape[1] != 3
+    ):
         raise ValueError(
             "ARDY root history must have shape [T >= 2, 3], "
             f"got {tuple(root_history.shape)}"

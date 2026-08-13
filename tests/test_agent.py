@@ -1,17 +1,18 @@
 import json
-import math
 from typing import Any, cast
 
-import numpy as np
+import pytest
 
 from agent.vlm import OAIChatClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
     agent_command_from_arrow,
+    grounding_request_from_arrow,
+    grounding_result_to_arrow,
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
-from shared.messages import PipelineError, ProjectionContext, VisualObservation
+from shared.messages import GroundingResult, PipelineError, VisualObservation
 
 
 class _Response:
@@ -115,18 +116,18 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
     }
 
 
-def _projection() -> ProjectionContext:
-    return ProjectionContext(
-        depth=np.full((5, 5), math.sqrt(2.0), dtype=np.float32),
-        camera_pos_w=np.array([0.0, 0.0, 1.0]),
-        camera_forward_w=np.array([math.sqrt(0.5), 0.0, -math.sqrt(0.5)]),
-        camera_up_w=np.array([math.sqrt(0.5), 0.0, math.sqrt(0.5)]),
-        frustum_height=1.0,
-        root_pos_w=np.zeros(3),
-        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
-        near=0.01,
-        far=100.0,
+def _grounding_event(
+    observation_id: int, target_xy: tuple[float, float] = (1.0, 0.0)
+) -> dict[str, object]:
+    value, metadata = grounding_result_to_arrow(
+        GroundingResult(observation_id, target_xy)
     )
+    return {
+        "type": "INPUT",
+        "id": "grounding_result",
+        "value": value,
+        "metadata": metadata,
+    }
 
 
 def _error_event(observation_id: int) -> dict[str, object]:
@@ -142,7 +143,7 @@ def _error_event(observation_id: int) -> dict[str, object]:
 def test_agent_retries_three_invalid_responses_then_stands() -> None:
     node = _Node(
         [
-            _observation_event(VisualObservation(0, None, b"jpeg", _projection())),
+            _observation_event(VisualObservation(0, None, b"jpeg")),
             {"type": "STOP"},
         ]
     )
@@ -177,13 +178,13 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
 def test_agent_commits_exact_completed_command() -> None:
     node = _Node(
         [
-            _observation_event(VisualObservation(0, None, b"first", _projection())),
+            _observation_event(VisualObservation(0, None, b"first")),
+            _grounding_event(0),
             _observation_event(
                 VisualObservation(
                     1,
                     '{"motion":"walk","waypoint_2d":[500,500]}',
                     b"second",
-                    _projection(),
                 )
             ),
             {"type": "STOP"},
@@ -201,7 +202,7 @@ def test_agent_commits_exact_completed_command() -> None:
     assert client.commits == [(0, '{"motion":"walk","waypoint_2d":[500,500]}')]
 
 
-def test_agent_stand_bypasses_missing_projection() -> None:
+def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg")),
@@ -222,8 +223,10 @@ def test_agent_stand_bypasses_missing_projection() -> None:
 def test_agent_retries_motion_gen_errors() -> None:
     node = _Node(
         [
-            _observation_event(VisualObservation(0, None, b"jpeg", _projection())),
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0),
             _error_event(0),
+            _grounding_event(0),
             {"type": "STOP"},
         ]
     )
@@ -246,3 +249,30 @@ def test_agent_retries_motion_gen_errors() -> None:
         '{"motion":"walk","waypoint_2d":[500,500]}',
     ]
     assert client.feedback[1] is not None
+
+
+def test_agent_requests_grounding_before_sending_complete_command() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0, (0.8, -0.2)),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(['{"motion":"sidestep carefully","waypoint_2d":[300,600]}'])
+
+    AgentLoop(cast(Any, node), cast(Any, client)).run()
+
+    request_output = next(
+        output for output in node.outputs if output[0] == "grounding_request"
+    )
+    request = grounding_request_from_arrow(
+        request_output[1], cast(Any, request_output[2]["metadata"])
+    )
+    assert request.waypoint_2d == (300, 600)
+    command_output = next(output for output in node.outputs if output[0] == "command")
+    command = agent_command_from_arrow(
+        command_output[1], cast(Any, command_output[2]["metadata"])
+    )
+    assert command.motion == "sidestep carefully"
+    assert command.target_xy == pytest.approx((0.8, -0.2))
