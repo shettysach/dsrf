@@ -241,6 +241,7 @@ class AgentLoop:
             if parsed.waypoint_2d is None:
                 self._send(command, motion=parsed.motion, target_xy=None)
                 return
+            request = GroundingRequest(observation_id, parsed.waypoint_2d)
         except ValueError as exc:
             self._retry_invalid(command, str(exc))
             return
@@ -251,7 +252,6 @@ class AgentLoop:
             motion=parsed.motion,
             waypoint_2d=parsed.waypoint_2d,
         )
-        request = GroundingRequest(observation_id, parsed.waypoint_2d)
         data, metadata = grounding_request_to_arrow(request)
         self.node.send_output("grounding_request", data, metadata=metadata)
 

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from agent.waypoint import parse_waypoint_command
-from shared.messages import ProjectionContext
+from shared.messages import GroundingRequest, ProjectionContext
 from sim.waypoint import resolve_waypoint
 
 
@@ -37,7 +37,6 @@ def test_center_floor_pixel_resolves_forward() -> None:
     assert result.pixel == (50, 50)
     assert result.target_xy[0] == pytest.approx(1.0, abs=0.03)
     assert result.target_xy[1] == pytest.approx(0.0, abs=0.01)
-    assert result.world_point[2] == pytest.approx(0.0, abs=0.02)
 
 
 def test_left_image_pixel_maps_to_positive_robot_left() -> None:
@@ -68,13 +67,19 @@ def test_depth_patch_uses_valid_median_and_clamps_horizon() -> None:
     [
         "not json",
         '{"motion":"walk","waypoint_2d":[500]}',
-        '{"motion":"walk","waypoint_2d":[-1,500]}',
         '{"motion":"walk","waypoint_2d":[500.0,500]}',
     ],
 )
 def test_malformed_commands_fail(text: str) -> None:
     with pytest.raises(ValueError):
         parse_waypoint_command(text)
+
+
+def test_grounding_request_validates_coordinate_range() -> None:
+    parsed = parse_waypoint_command('{"motion":"walk","waypoint_2d":[-1,500]}')
+    assert parsed.waypoint_2d is not None
+    with pytest.raises(ValueError, match=r"\[0,1000\]"):
+        GroundingRequest(0, parsed.waypoint_2d)
 
 
 def test_stand_parses_without_resolving_depth() -> None:

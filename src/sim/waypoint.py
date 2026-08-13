@@ -19,7 +19,6 @@ class ResolvedWaypoint:
     normalized: tuple[int, int]
     pixel: tuple[int, int]
     depth: float
-    world_point: tuple[float, float, float]
     target_xy: tuple[float, float]
 
 
@@ -87,11 +86,6 @@ def resolve_waypoint(
         normalized=waypoint,
         pixel=(u, v),
         depth=depth,
-        world_point=(
-            float(world_point[0]),
-            float(world_point[1]),
-            float(world_point[2]),
-        ),
         target_xy=(float(target[0]), float(target[1])),
     )
 
