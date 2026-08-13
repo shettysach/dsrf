@@ -53,8 +53,6 @@ class MotionChunk:
     qpos: np.ndarray
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         if not self.command.strip():
             raise ValueError("Motion command is empty")
         qpos = np.asarray(self.qpos, dtype=np.float32)
@@ -78,8 +76,6 @@ class AgentCommand:
     direction: str | None = None
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         normalized = self.text.strip()
         if not normalized:
             raise ValueError("Command is empty")
@@ -94,8 +90,6 @@ class VisualObservation:
     jpeg: bytes
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         if not self.jpeg:
             raise ValueError("Observation JPEG is empty")
 
@@ -106,10 +100,6 @@ class GroundingRequest:
     waypoints_2d: tuple[tuple[int, int], ...]
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
-        if not self.waypoints_2d:
-            raise ValueError("Grounding request must contain at least one waypoint")
         for x, y in self.waypoints_2d:
             if any(
                 isinstance(value, bool) or not isinstance(value, int)
@@ -126,10 +116,6 @@ class GroundingResult:
     target_xys: tuple[tuple[float, float], ...]
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
-        if not self.target_xys:
-            raise ValueError("Grounding result must contain at least one target")
         if not all(
             np.isfinite(value) for target_xy in self.target_xys for value in target_xy
         ):
@@ -143,8 +129,6 @@ class PipelineError:
     detail: str
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         if not self.source:
             raise ValueError("Error source is empty")
         if not self.detail:

@@ -190,10 +190,7 @@ def _binary_from_arrow(value: pa.Array) -> bytes:
 
 
 def _observation_id(metadata: dict[str, Any]) -> int:
-    observation_id = int(metadata["observation_id"])
-    if observation_id < 0:
-        raise ValueError("Observation ID must be non-negative")
-    return observation_id
+    return int(metadata["observation_id"])
 
 
 def _target_xys(metadata: dict[str, Any]) -> tuple[tuple[float, float], ...]:
@@ -209,10 +206,7 @@ def _target_xys(metadata: dict[str, Any]) -> tuple[tuple[float, float], ...]:
 
 
 def _waypoint_count(metadata: dict[str, Any]) -> int:
-    count = int(metadata["waypoint_count"])
-    if count <= 0:
-        raise ValueError("waypoint_count must be positive")
-    return count
+    return int(metadata["waypoint_count"])
 
 
 def _direction(metadata: dict[str, Any]) -> str | None:
