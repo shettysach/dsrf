@@ -48,10 +48,10 @@ def _command_event(
     observation_id: int,
     text: str,
     motion: str = "walk",
-    target_xy: tuple[float, float] | None = (1.0, 0.0),
+    target_xys: tuple[tuple[float, float], ...] = ((1.0, 0.0),),
 ) -> dict[str, object]:
     value, metadata = agent_command_to_arrow(
-        AgentCommand(observation_id, text, motion, target_xy)
+        AgentCommand(observation_id, text, motion, target_xys)
     )
     return {
         "type": "INPUT",
@@ -85,31 +85,31 @@ def _planner_motion() -> np.ndarray:
 
 
 def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
-    generated: list[tuple[str, tuple[float, float] | None, str | None]] = []
+    generated: list[tuple[str, tuple[tuple[float, float], ...], str | None]] = []
 
-    def generate(motion, target_xy, direction):
-        generated.append((motion, target_xy, direction))
+    def generate(motion, target_xys, direction):
+        generated.append((motion, target_xys, direction))
         return _planner_motion()
 
     node = _run_motion_gen(
         monkeypatch,
-        [_command_event(4, '{"motion":"walk","waypoint_2d":[500,500]}')],
+        [_command_event(4, '{"motion":"walk","waypoints_2d":[[500,500]]}')],
         generate,
     )
 
     motions = [output for output in node.outputs if output[0] == "motion"]
-    assert generated == [("walk", (1.0, 0.0), None)]
+    assert generated == [("walk", ((1.0, 0.0),), None)]
     assert len(motions) == 1
     _, value, kwargs = motions[0]
     chunk = motion_from_arrow(value, kwargs["metadata"])
     assert chunk.observation_id == 4
-    assert chunk.command == '{"motion":"walk","waypoint_2d":[500,500]}'
+    assert chunk.command == '{"motion":"walk","waypoints_2d":[[500,500]]}'
     assert any("motion generated" in message for _, message, _ in node.logs)
 
 
 def test_motion_gen_reports_invalid_raw_vlm_response(monkeypatch) -> None:
-    def generate(motion, target_xy, direction):
-        del motion, target_xy, direction
+    def generate(motion, target_xys, direction):
+        del motion, target_xys, direction
         raise ValueError("Command must be a JSON object")
 
     node = _run_motion_gen(
@@ -127,14 +127,14 @@ def test_motion_gen_reports_invalid_raw_vlm_response(monkeypatch) -> None:
 
 
 def test_motion_gen_does_not_swallow_planner_errors(monkeypatch) -> None:
-    def generate(motion, target_xy, direction):
-        del motion, target_xy, direction
+    def generate(motion, target_xys, direction):
+        del motion, target_xys, direction
         raise KeyError("unexpected")
 
     with pytest.raises(KeyError, match="unexpected"):
         _run_motion_gen(
             monkeypatch,
-            [_command_event(0, '{"motion":"walk","waypoint_2d":[500,500]}')],
+            [_command_event(0, '{"motion":"walk","waypoints_2d":[[500,500]]}')],
             generate,
         )
 
@@ -142,11 +142,13 @@ def test_motion_gen_does_not_swallow_planner_errors(monkeypatch) -> None:
 def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     from shared.config import ArdyConfig
 
-    command_text = '{"motion":"walk","waypoint_2d":[700,500]}'
-    node = _Node([_command_event(7, command_text, target_xy=(0.2, -0.7))])
+    command_text = '{"motion":"walk","waypoints_2d":[[700,500],[500,700]]}'
+    node = _Node(
+        [_command_event(7, command_text, target_xys=((0.2, -0.7), (0.6, 0.1)))]
+    )
     embedding = torch.ones(4096)
     encoded: list[str] = []
-    generated: list[tuple[torch.Tensor, tuple[float, float]]] = []
+    generated: list[tuple[torch.Tensor, tuple[tuple[float, float], ...]]] = []
     generator = SimpleNamespace(
         fps=25,
         generate=lambda embedding, target: (
@@ -174,7 +176,7 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     assert encoded == ["walk"]
     assert len(generated) == 1
     assert generated[0][0] is embedding
-    assert generated[0][1] == (0.2, -0.7)
+    assert generated[0][1] == ((0.2, -0.7), (0.6, 0.1))
     chunk = motion_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
@@ -277,10 +279,10 @@ def _motion_event(chunk: MotionChunk) -> dict[str, object]:
 
 
 def _grounding_request_event(
-    observation_id: int, waypoint_2d: tuple[int, int] = (500, 500)
+    observation_id: int, waypoints_2d: tuple[tuple[int, int], ...] = ((500, 500),)
 ) -> dict[str, object]:
     value, metadata = grounding_request_to_arrow(
-        GroundingRequest(observation_id, waypoint_2d)
+        GroundingRequest(observation_id, waypoints_2d)
     )
     return {
         "type": "INPUT",
@@ -353,7 +355,7 @@ def test_sim_lazily_caches_depth_for_current_observation() -> None:
     node = _Node(
         [
             _grounding_request_event(0),
-            _grounding_request_event(0, (600, 500)),
+            _grounding_request_event(0, ((600, 500), (400, 500))),
             {"type": "STOP"},
         ]
     )

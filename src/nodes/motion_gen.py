@@ -60,7 +60,7 @@ def main() -> None:
             if text_encoder is None:
                 source_qpos = generator.generate(
                     request.motion,
-                    request.target_xy,
+                    request.target_xys,
                     request.direction,
                 )
             else:
@@ -72,7 +72,7 @@ def main() -> None:
                 encode_started_at = time.perf_counter()
                 embedding = text_encoder.encode(request.motion)
                 encode_ms = (time.perf_counter() - encode_started_at) * 1000.0
-                source_qpos = generator.generate(embedding, request.target_xy)
+                source_qpos = generator.generate(embedding, request.target_xys)
 
             chunk = resample_motion(
                 source_qpos,

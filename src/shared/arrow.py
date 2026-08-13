@@ -46,8 +46,8 @@ def agent_command_to_arrow(
         "observation_id": str(command.observation_id),
         "motion": command.motion,
     }
-    if command.target_xy is not None:
-        metadata["target_xy"] = json.dumps(command.target_xy, separators=(",", ":"))
+    if command.target_xys:
+        metadata["target_xys"] = json.dumps(command.target_xys, separators=(",", ":"))
     if command.direction is not None:
         metadata["direction"] = command.direction
     return pa.array([command.text], type=pa.string()), metadata
@@ -58,7 +58,7 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         observation_id=_observation_id(metadata),
         text=_string_from_arrow(value),
         motion=str(metadata["motion"]),
-        target_xy=_target_xy(metadata),
+        target_xys=_target_xys(metadata),
         direction=_direction(metadata),
     )
 
@@ -96,8 +96,12 @@ def observation_from_arrow(
 def grounding_request_to_arrow(
     request: GroundingRequest,
 ) -> tuple[pa.Array, dict[str, str]]:
-    return pa.array(request.waypoint_2d, type=pa.int32()), {
-        "observation_id": str(request.observation_id)
+    return pa.array(
+        [coordinate for waypoint in request.waypoints_2d for coordinate in waypoint],
+        type=pa.int32(),
+    ), {
+        "observation_id": str(request.observation_id),
+        "waypoint_count": str(len(request.waypoints_2d)),
     }
 
 
@@ -105,19 +109,29 @@ def grounding_request_from_arrow(
     value: pa.Array, metadata: dict[str, Any]
 ) -> GroundingRequest:
     waypoint = value.to_pylist()
-    if len(waypoint) != 2:
-        raise ValueError("Grounding request must contain one 2D waypoint")
+    count = _waypoint_count(metadata)
+    if len(waypoint) != count * 2:
+        raise ValueError(
+            "Grounding request payload has the wrong number of coordinates"
+        )
     return GroundingRequest(
         observation_id=_observation_id(metadata),
-        waypoint_2d=(int(waypoint[0]), int(waypoint[1])),
+        waypoints_2d=tuple(
+            (int(waypoint[index]), int(waypoint[index + 1]))
+            for index in range(0, len(waypoint), 2)
+        ),
     )
 
 
 def grounding_result_to_arrow(
     result: GroundingResult,
 ) -> tuple[pa.Array, dict[str, str]]:
-    return pa.array(result.target_xy, type=pa.float32()), {
-        "observation_id": str(result.observation_id)
+    return pa.array(
+        [coordinate for target in result.target_xys for coordinate in target],
+        type=pa.float32(),
+    ), {
+        "observation_id": str(result.observation_id),
+        "waypoint_count": str(len(result.target_xys)),
     }
 
 
@@ -125,11 +139,15 @@ def grounding_result_from_arrow(
     value: pa.Array, metadata: dict[str, Any]
 ) -> GroundingResult:
     target = value.to_pylist()
-    if len(target) != 2:
-        raise ValueError("Grounding result must contain one local target")
+    count = _waypoint_count(metadata)
+    if len(target) != count * 2:
+        raise ValueError("Grounding result payload has the wrong number of coordinates")
     return GroundingResult(
         observation_id=_observation_id(metadata),
-        target_xy=(float(target[0]), float(target[1])),
+        target_xys=tuple(
+            (float(target[index]), float(target[index + 1]))
+            for index in range(0, len(target), 2)
+        ),
     )
 
 
@@ -178,13 +196,23 @@ def _observation_id(metadata: dict[str, Any]) -> int:
     return observation_id
 
 
-def _target_xy(metadata: dict[str, Any]) -> tuple[float, float] | None:
-    if "target_xy" not in metadata:
-        return None
-    value = json.loads(str(metadata["target_xy"]))
-    if not isinstance(value, list) or len(value) != 2:
-        raise ValueError("target_xy metadata must contain two values")
-    return (float(value[0]), float(value[1]))
+def _target_xys(metadata: dict[str, Any]) -> tuple[tuple[float, float], ...]:
+    if "target_xys" not in metadata:
+        return ()
+    values = json.loads(str(metadata["target_xys"]))
+    if not isinstance(values, list):
+        raise ValueError("target_xys metadata must contain a list")
+    try:
+        return tuple((float(target[0]), float(target[1])) for target in values)
+    except (IndexError, TypeError) as exc:
+        raise ValueError("target_xys metadata must contain 2D targets") from exc
+
+
+def _waypoint_count(metadata: dict[str, Any]) -> int:
+    count = int(metadata["waypoint_count"])
+    if count <= 0:
+        raise ValueError("waypoint_count must be positive")
+    return count
 
 
 def _direction(metadata: dict[str, Any]) -> str | None:

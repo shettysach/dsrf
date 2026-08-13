@@ -90,23 +90,27 @@ class SimRuntime:
                 )
             if self._projection_cache is None:
                 self._projection_cache = self.renderer.capture_depth()
-            resolved = resolve_waypoint(request.waypoint_2d, self._projection_cache)
+            resolved = tuple(
+                resolve_waypoint(waypoint, self._projection_cache)
+                for waypoint in request.waypoints_2d
+            )
         except (KeyError, TypeError, ValueError) as exc:
             self._report_error(str(exc), source="grounding")
             return
 
         self.node.log(
             "info",
-            f"[OBS {self.observation_id}] waypoint grounded: "
-            f"normalized={resolved.normalized} pixel={resolved.pixel} "
-            f"depth={resolved.depth:.3f} target_xy={resolved.target_xy}",
+            f"[OBS {self.observation_id}] waypoints grounded: "
+            f"count={len(resolved)} targets={[waypoint.target_xy for waypoint in resolved]}",
             target="dsrf.sim.grounding",
             fields={
                 "event": "waypoint_grounded",
                 "observation_id": str(self.observation_id),
             },
         )
-        result = GroundingResult(self.observation_id, resolved.target_xy)
+        result = GroundingResult(
+            self.observation_id, tuple(waypoint.target_xy for waypoint in resolved)
+        )
         data, result_metadata = grounding_result_to_arrow(result)
         self.node.send_output("grounding_result", data, metadata=result_metadata)
 

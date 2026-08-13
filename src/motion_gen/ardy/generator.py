@@ -56,7 +56,7 @@ class Ardy:
     def generate(
         self,
         embedding: torch.Tensor,
-        target_xy: tuple[float, float] | None,
+        target_xys: tuple[tuple[float, float], ...],
     ) -> np.ndarray:
         text_feat, text_pad_mask = prepare_conditioning(
             embedding,
@@ -66,12 +66,12 @@ class Ardy:
         num_frames = generated_frames + self.history_frames
         lengths = torch.tensor([num_frames], device=self.device)
         motion_mask = observed_motion = None
-        if target_xy is not None:
+        if target_xys:
             motion_mask, observed_motion = build_waypoint_constraints(
                 self.model.motion_rep,
                 self.root_history,
                 self.root_heading,
-                target_xy,
+                target_xys,
                 generated_frames=generated_frames,
                 history_frames=self.history_frames,
                 device=self.device,

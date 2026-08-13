@@ -95,7 +95,7 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     initial_history = generator.initial_history
 
     embedding = torch.arange(4096, dtype=torch.float32)
-    qpos = generator.generate(embedding, (0.0, 0.5))
+    qpos = generator.generate(embedding, ((0.0, 0.5),))
 
     assert qpos.shape == (125, 36)
     model.motion_rep.inverse.assert_called_once()
@@ -134,7 +134,7 @@ def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
 
-    generator.generate(torch.arange(4096, dtype=torch.float32), None)
+    generator.generate(torch.arange(4096, dtype=torch.float32), ())
 
     assert model.motion_rep.create_conditions.call_count == 0
     assert model.call_args.kwargs["motion_mask"] is None

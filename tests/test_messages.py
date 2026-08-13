@@ -34,7 +34,7 @@ def test_motion_arrow_round_trip() -> None:
 
 
 def test_agent_command_arrow_round_trip() -> None:
-    command = AgentCommand(3, "waypoint", "walk", (0.4, 0.2))
+    command = AgentCommand(3, "waypoint", "walk", ((0.4, 0.2),))
     value, metadata = agent_command_to_arrow(command)
     assert agent_command_from_arrow(value, metadata) == command
 
@@ -56,15 +56,15 @@ def test_grounding_messages_arrow_round_trip() -> None:
         grounding_result_to_arrow,
     )
 
-    request = GroundingRequest(4, (300, 700))
+    request = GroundingRequest(4, ((300, 700), (600, 500)))
     value, metadata = grounding_request_to_arrow(request)
     assert grounding_request_from_arrow(value, metadata) == request
 
-    result = GroundingResult(4, (1.25, -0.5))
+    result = GroundingResult(4, ((1.25, -0.5), (0.5, 1.0)))
     value, metadata = grounding_result_to_arrow(result)
     restored = grounding_result_from_arrow(value, metadata)
     assert restored.observation_id == result.observation_id
-    np.testing.assert_allclose(restored.target_xy, result.target_xy)
+    np.testing.assert_allclose(restored.target_xys, result.target_xys)
 
 
 def test_pipeline_error_arrow_round_trip() -> None:

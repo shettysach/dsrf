@@ -1,7 +1,7 @@
 import json
 from typing import Any, cast
 
-import pytest
+import numpy as np
 
 from agent.vlm import OAIChatClient
 from nodes.agent import AgentLoop
@@ -117,10 +117,10 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
 
 
 def _grounding_event(
-    observation_id: int, target_xy: tuple[float, float] = (1.0, 0.0)
+    observation_id: int, target_xys: tuple[tuple[float, float], ...] = ((1.0, 0.0),)
 ) -> dict[str, object]:
     value, metadata = grounding_result_to_arrow(
-        GroundingResult(observation_id, target_xy)
+        GroundingResult(observation_id, target_xys)
     )
     return {
         "type": "INPUT",
@@ -157,7 +157,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
-        '{"motion":"stand","waypoint_2d":null}',
+        '{"motion":"stand","waypoints_2d":[]}',
     ]
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
@@ -170,7 +170,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
     assert "[OBS 0] VLM command: 'invalid three'" in vlm_messages[2]
     assert vlm_messages[2].endswith("retry=2")
     assert any(
-        'fallback command: \'{"motion":"stand","waypoint_2d":null}\'' in message
+        'fallback command: \'{"motion":"stand","waypoints_2d":[]}\'' in message
         for _, message, _ in node.logs
     )
 
@@ -183,7 +183,7 @@ def test_agent_commits_exact_completed_command() -> None:
             _observation_event(
                 VisualObservation(
                     1,
-                    '{"motion":"walk","waypoint_2d":[500,500]}',
+                    '{"motion":"walk","waypoints_2d":[[500,500]]}',
                     b"second",
                 )
             ),
@@ -192,14 +192,14 @@ def test_agent_commits_exact_completed_command() -> None:
     )
     client = _Client(
         [
-            '{"motion":"walk","waypoint_2d":[500,500]}',
-            '{"motion":"stand","waypoint_2d":null}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+            '{"motion":"stand","waypoints_2d":[]}',
         ]
     )
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
-    assert client.commits == [(0, '{"motion":"walk","waypoint_2d":[500,500]}')]
+    assert client.commits == [(0, '{"motion":"walk","waypoints_2d":[[500,500]]}')]
 
 
 def test_agent_command_without_waypoint_bypasses_grounding() -> None:
@@ -209,7 +209,7 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
             {"type": "STOP"},
         ]
     )
-    client = _Client(['{"motion":"stand","waypoint_2d":null}'])
+    client = _Client(['{"motion":"stand","waypoints_2d":[]}'])
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
@@ -217,7 +217,7 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert command.motion == "stand"
-    assert command.target_xy is None
+    assert command.target_xys == ()
 
 
 def test_agent_retries_motion_gen_errors() -> None:
@@ -232,8 +232,8 @@ def test_agent_retries_motion_gen_errors() -> None:
     )
     client = _Client(
         [
-            '{"motion":"walk","waypoint_2d":[500,500]}',
-            '{"motion":"walk","waypoint_2d":[500,500]}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
         ]
     )
 
@@ -245,8 +245,8 @@ def test_agent_retries_motion_gen_errors() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
-        '{"motion":"walk","waypoint_2d":[500,500]}',
-        '{"motion":"walk","waypoint_2d":[500,500]}',
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
     ]
     assert client.feedback[1] is not None
 
@@ -255,11 +255,13 @@ def test_agent_requests_grounding_before_sending_complete_command() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg")),
-            _grounding_event(0, (0.8, -0.2)),
+            _grounding_event(0, ((0.8, -0.2), (0.2, 0.6))),
             {"type": "STOP"},
         ]
     )
-    client = _Client(['{"motion":"sidestep carefully","waypoint_2d":[300,600]}'])
+    client = _Client(
+        ['{"motion":"sidestep carefully","waypoints_2d":[[300,600],[600,500]]}']
+    )
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
@@ -269,10 +271,10 @@ def test_agent_requests_grounding_before_sending_complete_command() -> None:
     request = grounding_request_from_arrow(
         request_output[1], cast(Any, request_output[2]["metadata"])
     )
-    assert request.waypoint_2d == (300, 600)
+    assert request.waypoints_2d == ((300, 600), (600, 500))
     command_output = next(output for output in node.outputs if output[0] == "command")
     command = agent_command_from_arrow(
         command_output[1], cast(Any, command_output[2]["metadata"])
     )
     assert command.motion == "sidestep carefully"
-    assert command.target_xy == pytest.approx((0.8, -0.2))
+    np.testing.assert_allclose(command.target_xys, ((0.8, -0.2), (0.2, 0.6)))

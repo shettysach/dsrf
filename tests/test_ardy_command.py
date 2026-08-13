@@ -31,7 +31,7 @@ def test_local_waypoint_becomes_ardy_root_endpoint() -> None:
         motion_rep,
         root_history,
         torch.tensor(0.0),
-        (0.8, 0.3),
+        ((0.8, 0.3),),
         generated_frames=125,
         history_frames=4,
         device=torch.device("cpu"),
@@ -65,7 +65,7 @@ def test_local_forward_rotates_by_ardy_root_heading(
         motion_rep,
         root_history,
         torch.tensor(heading),
-        (1.0, 0.0),
+        ((1.0, 0.0),),
         generated_frames=125,
         history_frames=4,
         device=torch.device("cpu"),
@@ -76,4 +76,25 @@ def test_local_forward_rotates_by_ardy_root_heading(
         torch.tensor([expected_endpoint]),
         atol=1e-6,
         rtol=1e-6,
+    )
+
+
+def test_multiple_waypoints_are_evenly_spaced_through_the_generation() -> None:
+    motion_rep, received = _conditions()
+    root_history = torch.tensor([[1.0, 0.0, 2.0], [1.0, 0.0, 2.0]])
+
+    build_waypoint_constraints(
+        motion_rep,
+        root_history,
+        torch.tensor(0.0),
+        ((1.0, 0.0), (0.0, 1.0)),
+        generated_frames=125,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+    assert received["index"]["root_2d"][0].tolist() == [65, 128]
+    torch.testing.assert_close(
+        received["data"]["root_2d"][0],
+        torch.tensor([[1.0, 3.0], [2.0, 2.0]]),
     )

@@ -28,7 +28,7 @@ from shared.messages import (
 )
 
 MAX_INVALID_RESPONSES = 3
-FALLBACK_COMMAND = '{"motion":"stand","waypoint_2d":null}'
+FALLBACK_COMMAND = '{"motion":"stand","waypoints_2d":[]}'
 PLANNER_FALLBACK_COMMAND = '{"motion":"stand","direction":"forward"}'
 
 
@@ -36,7 +36,7 @@ PLANNER_FALLBACK_COMMAND = '{"motion":"stand","direction":"forward"}'
 class _PendingGrounding:
     command_text: str
     motion: str
-    waypoint_2d: tuple[int, int]
+    waypoints_2d: tuple[tuple[int, int], ...]
 
 
 class AgentLoop:
@@ -168,7 +168,7 @@ class AgentLoop:
                     "invalid_responses": str(self.invalid_responses),
                 },
             )
-            self._send(self._fallback_command, motion="stand", target_xy=None)
+            self._send(self._fallback_command, motion="stand", target_xys=())
             return
         feedback = f"Your previous response {previous!r} was invalid: {detail}"
         self._query_and_send(retry_feedback=feedback)
@@ -233,24 +233,23 @@ class AgentLoop:
                     self._send(
                         command,
                         motion=motion,
-                        target_xy=None,
+                        target_xys=(),
                         direction=direction,
                     )
                     return
             parsed = parse_waypoint_command(command)
-            if parsed.waypoint_2d is None:
-                self._send(command, motion=parsed.motion, target_xy=None)
+            if not parsed.waypoints_2d:
+                self._send(command, motion=parsed.motion, target_xys=())
                 return
-            request = GroundingRequest(observation_id, parsed.waypoint_2d)
+            request = GroundingRequest(observation_id, parsed.waypoints_2d)
         except ValueError as exc:
             self._retry_invalid(command, str(exc))
             return
 
-        assert parsed.waypoint_2d is not None
         self.pending_grounding = _PendingGrounding(
             command_text=command,
             motion=parsed.motion,
-            waypoint_2d=parsed.waypoint_2d,
+            waypoints_2d=parsed.waypoints_2d,
         )
         data, metadata = grounding_request_to_arrow(request)
         self.node.send_output("grounding_request", data, metadata=metadata)
@@ -267,8 +266,8 @@ class AgentLoop:
         if self.waypoint_debug:
             self.node.log(
                 "info",
-                f"VLM waypoint: normalized={pending.waypoint_2d} "
-                f"local_target={result.target_xy}",
+                f"VLM waypoints: normalized={pending.waypoints_2d} "
+                f"local_targets={result.target_xys}",
                 target="dsrf.agent.waypoint",
                 fields={
                     "event": "waypoint_grounded",
@@ -278,12 +277,12 @@ class AgentLoop:
             _write_debug_image(
                 self.observation.jpeg,
                 result.observation_id,
-                pending.waypoint_2d,
+                pending.waypoints_2d,
             )
         self._send(
             pending.command_text,
             motion=pending.motion,
-            target_xy=result.target_xy,
+            target_xys=result.target_xys,
         )
 
     def _send(
@@ -291,7 +290,7 @@ class AgentLoop:
         command_text: str,
         *,
         motion: str,
-        target_xy: tuple[float, float] | None,
+        target_xys: tuple[tuple[float, float], ...],
         direction: str | None = None,
     ) -> None:
         assert self.observation is not None
@@ -299,7 +298,7 @@ class AgentLoop:
             self.observation.observation_id,
             command_text,
             motion,
-            target_xy,
+            target_xys,
             direction,
         )
         data, metadata = agent_command_to_arrow(command)
@@ -316,15 +315,15 @@ class AgentLoop:
 
 
 def _write_debug_image(
-    jpeg: bytes, observation_id: int, waypoint_2d: tuple[int, int]
+    jpeg: bytes, observation_id: int, waypoints_2d: tuple[tuple[int, int], ...]
 ) -> None:
     image = iio.imread(BytesIO(jpeg), extension=".jpg")
     height, width = image.shape[:2]
-    x, y = waypoint_2d
-    u = round(x / 1000 * (width - 1))
-    v = round(y / 1000 * (height - 1))
-    image[max(0, v - 5) : v + 6, u] = (255, 0, 0)
-    image[v, max(0, u - 5) : u + 6] = (255, 0, 0)
+    for x, y in waypoints_2d:
+        u = round(x / 1000 * (width - 1))
+        v = round(y / 1000 * (height - 1))
+        image[max(0, v - 5) : v + 6, u] = (255, 0, 0)
+        image[v, max(0, u - 5) : u + 6] = (255, 0, 0)
     output_dir = Path("/tmp/dsrf-waypoint-debug")
     output_dir.mkdir(parents=True, exist_ok=True)
     iio.imwrite(output_dir / f"observation-{observation_id}.jpg", image)
@@ -368,7 +367,7 @@ def _is_waypoint_command(text: str) -> bool:
         payload = json.loads(text)
     except json.JSONDecodeError:
         return False
-    return isinstance(payload, dict) and "waypoint_2d" in payload
+    return isinstance(payload, dict) and "waypoints_2d" in payload
 
 
 if __name__ == "__main__":

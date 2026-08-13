@@ -64,12 +64,12 @@ float32 tensor directly to ARDY's device.
 ## Waypoint grounding
 
 The simulator publishes RGB-only observations. When a VLM command contains an
-image waypoint, the agent sends that pixel to the simulator while physics remains
+one or more image waypoints, the agent sends those pixels to the simulator while physics remains
 paused. The simulator renders depth on demand, resolves the pixel into a
-robot-local target, and returns only the two target coordinates. The agent then
-sends one complete request containing the motion prompt and resolved target to
+robot-local targets, and returns only those coordinates. The agent then
+sends one complete request containing the motion prompt and ordered resolved targets to
 the motion generator.
 
-Depth is cached for the current observation, so VLM retries reuse the same render.
+Depth is cached for the current observation, so VLM retries and multiple waypoints reuse the same render.
 The cache is discarded when motion begins and the next RGB observation is
 published.
