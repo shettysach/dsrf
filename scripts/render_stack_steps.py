@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Save the close isometric view of the stack-steps task."""
+"""Save the agent and close isometric views of the stack-steps task."""
 
 import os
 from pathlib import Path
@@ -9,6 +9,11 @@ from mjlab_scout.runtime import ScoutRuntime
 
 OUTPUT_PATH = Path(
     os.environ.get("STACK_STEPS_IMAGE_PATH", "/tmp/stack-steps-current-isometric.jpg")
+)
+AGENT_OUTPUT_PATH = Path(
+    os.environ.get(
+        "STACK_STEPS_AGENT_IMAGE_PATH", "/tmp/stack-steps-current-agent.jpg"
+    )
 )
 
 
@@ -24,9 +29,11 @@ def main() -> None:
     try:
         runtime.load_task("stack-steps")
         OUTPUT_PATH.write_bytes(runtime.capture_view("overview").image)
+        AGENT_OUTPUT_PATH.write_bytes(runtime.capture_view("agent").image)
     finally:
         runtime.close()
     print(OUTPUT_PATH)
+    print(AGENT_OUTPUT_PATH)
 
 
 if __name__ == "__main__":
