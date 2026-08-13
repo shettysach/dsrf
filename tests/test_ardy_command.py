@@ -1,5 +1,7 @@
+import math
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from motion_gen.ardy.constraints import build_waypoint_constraints
@@ -28,6 +30,7 @@ def test_local_waypoint_becomes_ardy_root_endpoint() -> None:
     motion_mask, observed_motion = build_waypoint_constraints(
         motion_rep,
         root_history,
+        torch.tensor(0.0),
         (0.8, 0.3),
         generated_frames=125,
         history_frames=4,
@@ -50,6 +53,7 @@ def test_stand_holds_root_position() -> None:
     build_waypoint_constraints(
         motion_rep,
         root_history,
+        torch.tensor(0.0),
         None,
         generated_frames=125,
         history_frames=4,
@@ -61,3 +65,36 @@ def test_stand_holds_root_position() -> None:
         128,
     ]
     assert received["data"]["root_2d"][0].tolist() == [[1.0, 2.0]] * 13
+
+
+@pytest.mark.parametrize(
+    ("heading", "expected_endpoint"),
+    [
+        (0.0, [1.0, 3.0]),
+        (math.pi / 2.0, [0.0, 2.0]),
+        (math.pi, [1.0, 1.0]),
+        (-math.pi / 2.0, [2.0, 2.0]),
+    ],
+)
+def test_local_forward_rotates_by_ardy_root_heading(
+    heading: float, expected_endpoint: list[float]
+) -> None:
+    motion_rep, received = _conditions()
+    root_history = torch.tensor([[1.0, 0.0, 2.0], [1.0, 0.0, 2.0]])
+
+    build_waypoint_constraints(
+        motion_rep,
+        root_history,
+        torch.tensor(heading),
+        (1.0, 0.0),
+        generated_frames=125,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+    torch.testing.assert_close(
+        received["data"]["root_2d"][0],
+        torch.tensor([expected_endpoint]),
+        atol=1e-6,
+        rtol=1e-6,
+    )
