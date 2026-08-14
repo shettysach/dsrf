@@ -2,111 +2,105 @@
 
 ## Objective
 
-Push both yellow boxes completely onto the two green goal regions.
+Push both yellow boxes completely onto their matching green floor goals, one box
+at a time. When both boxes are fully centered on separate goals, issue **stand**.
 
-The goals are against different walls and require different push directions:
+This arena has two box-goal lanes:
 
-- Push the lower-left box **forward** onto the green region at the far wall.
-- Push the upper-right box **right** onto the green region at the right wall.
+- The **lower-left box** is already aligned with the green goal against the far
+  wall. It must move only **forward**.
+- The **upper-right box** is already aligned with the green goal against the
+  right wall. It must move only **right**.
 
-When both boxes are centered on their goals, issue **stand**.
+The boxes do not need sideways correction. Never push either box out of its
+existing lane.
 
-## Placed boxes are finished
+## Controls and scene
 
-**Once a box is fully inside and centered on a green goal, never push or touch that
-box again.** Treat it as locked in place and permanently complete.
-
-After placing a box:
-
-1. Stop immediately.
-2. Move opposite the completed push to create clear separation: **backward** from
-   the far-wall box or **left** from the right-wall box.
-3. Route around it without making contact.
-4. Work only on the remaining unplaced box.
-
-Do not use a placed box for alignment, do not walk through it, and do not make an
-extra "small correction" after it is already centered. Moving a completed box off
-its green region undoes progress.
-
-## Scene and controls
-
-- The elevated camera looks forward over the humanoid.
-- Yellow cubes are movable boxes.
-- Green floor squares are goal regions.
-- Dark walls bound the wide arena.
-- One green goal touches the far wall; the other touches the right wall at
-  approximately the middle depth of the arena.
-- Boxes are very light. Walking into a box pushes it in your direction of travel.
-- You can push boxes, but you cannot pull them.
+- Yellow cubes are pushable boxes; green floor regions are goals.
+- Walking into a box pushes it. Boxes can be pushed but cannot be pulled.
 - **forward** and **backward** move along the robot's facing direction.
-- **left** and **right** move laterally; they do not turn the robot around and can
-  be used to push a box sideways.
+- **left** and **right** move laterally without rotating the robot or camera.
+- Dark walls bound the arena. The open central floor is the safe route between
+  the two box lanes.
 
-## Critical alignment rule
+Use open floor for repositioning. Never place a movement target on a box, goal,
+wall, or other obstacle, and do not route through either box.
 
-**Align the robot before touching a box.**
+## Required push alignment
 
-For any push, the center of the robot, the center of the chosen box, and the center
-of that box's green goal must form one straight line in the intended push direction.
+Before touching a box, establish this exact straight-line arrangement:
 
-- For the far-wall box, stand directly behind it and push **forward**.
-- For the right-wall box, stand directly to its left at the same depth and push
-  **right**.
+**ROBOT → BOX → GOAL**
 
-Never push through a corner.
+Stand on the side of the box opposite its goal. The robot's center, the box's
+center, and the goal's center must lie on the same line. Look through the center
+of the box toward the center of the goal.
 
-Do not begin pushing merely because the robot is close to a box. First move through
-open floor until the robot is on the side opposite that box's goal and centered on
-the box-goal line. Only then move toward the box.
+Being near a box is not enough. If the box is not directly between the robot and
+its goal, continue moving through open floor without touching it. Never contact a
+box through a corner or from a diagonal approach.
 
-## Procedure
+## Solve the far-wall box
 
-Complete one box before working on the other. Prefer the far-wall box first:
+Prefer the lower-left far-wall box first:
 
-1. Stay behind both boxes and move **left** into the lower-left box's lane.
-2. Verify that the robot, box, and far-wall goal form a straight forward line.
-3. Push only **forward**, checking the image after each command near the goal.
-4. Stop when the entire box is centered inside the far-wall green region.
-5. Walk **backward** until clearly separated, then return through the open center.
-6. Approach the upper-right box without touching it and move to its left side.
-7. Match the box's forward depth so the robot, box, and right-wall goal form a
-   straight horizontal line in the image.
-8. Push only **right**, checking the image after each command near the goal.
-9. Stop when the entire box is centered inside the right-wall green region.
+1. Stay behind the boxes and move through open floor into the lower-left lane.
+2. Position the robot directly behind the lower-left box, on the near side away
+   from the far-wall goal.
+3. Verify that the robot, box, and far-wall goal form one straight forward line.
+4. Move **forward** to contact the center of the box.
+5. Once contact begins, use only **forward**. Do not steer left or right.
+6. Inspect after each short push near the goal and stop as soon as the box is
+   fully centered inside the far-wall green region.
 
-## While pushing
+## Move to the right-wall box
 
-- Push through the center of the box, never through a corner.
-- Use **forward** only for the far-wall box and **right** only for the right-wall box
-  once contact begins.
-- Do not approach or push diagonally.
-- Do not push a box past its green goal.
-- A box correctly placed on green is finished: never touch, push, or correct it
-  again.
-- Keep boxes away from every wall except their intended wall-touching goal. A box
-  against the wrong wall may be impossible to recover because it cannot be pulled.
+After the far-wall box is complete:
 
-## Recovery
+1. Move **backward** until clearly separated from it.
+2. Never touch the completed box again.
+3. Return through the open center of the arena toward the upper-right box.
+4. Approach without contact and move to the box's left side, opposite the
+   right-wall goal.
+5. Match the box's forward depth so the robot, box, and goal form one straight
+   horizontal line.
+6. Move **right** to contact the center of the box.
+7. Once contact begins, use only **right**. Do not move forward or backward.
+8. Inspect after each short push near the goal and stop as soon as the box is
+   fully centered inside the right-wall green region.
 
-If a box drifts off its box-goal line or the robot contacts it off-center:
+## Completed boxes
+
+A box is complete only when it is fully inside and centered on its green goal.
+Once complete:
+
+- Stop pushing immediately.
+- Move away in the direction opposite the push: **backward** from the far-wall
+  box or **left** from the right-wall box.
+- Treat the box as a permanent obstacle.
+- Never touch, recenter, or push it again.
+
+## Recovery before completion
+
+If the robot contacts an unfinished box off-center or the box leaves its lane:
 
 1. Stop pushing immediately.
-2. Move opposite the failed push until there is clear space: **backward** after a
-   forward push or **left** after a right push.
-3. Return to the side opposite the goal: behind the far-wall box or left of the
-   right-wall box.
-4. Verify the robot–box–goal centerline.
-5. Resume with one short push in the correct direction: **forward** or **right**.
+2. Move opposite the push until there is clear space.
+3. Route through open floor to the side opposite the goal.
+4. Re-establish **ROBOT → BOX → GOAL** through the box centers.
+5. Resume only in the box's required direction: **forward** for the far-wall box
+   or **right** for the right-wall box.
 
-Never try to fix bad alignment by continuing to push from the wrong angle.
-This recovery procedure applies only to a box that is not yet correctly centered on
-a goal. Never recover, adjust, or re-push a completed box.
+Never recover or adjust a box that is already centered on its goal.
 
 ## Finish
 
-Before issuing **stand**, verify that both yellow boxes are fully inside separate green
-goal regions and neither green region is empty. A box touching only the edge of a
-goal is not complete.
+Before issuing **stand**, verify that both yellow boxes are fully inside and
+centered on separate green regions and that neither goal is empty. If only one box
+is complete, ignore it and continue with the unfinished box.
 
-If one box is complete and the other is not, ignore the completed box entirely and
-act only on the unfinished box.
+## Critical rule
+
+**Align the robot before contact, then push each box straight along its existing
+box-goal lane without sideways correction.**
