@@ -9,7 +9,7 @@ The motion value must be stand, walk, or turn.
   sideways strafes; they do not change which way the robot faces.
 - turn supports only left or right. A turn rotates the robot about a quarter turn
   with little translation, causing the next camera image to face the new direction.
-- stand requires direction forward.
+- stand accepts forward, backward, left, or right; the direction is ignored.
 
 All directions are relative to the robot's current facing direction. Use turn when
 the robot must face a different direction, especially before walking toward or

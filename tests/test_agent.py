@@ -282,6 +282,25 @@ def test_agent_accepts_directional_turn_without_projection() -> None:
     assert command.target_xys == ()
 
 
+def test_agent_accepts_stand_with_non_forward_direction() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(['{"motion":"stand","direction":"left"}'])
+
+    AgentLoop(cast(Any, node), cast(Any, client), command_mode="direction").run()
+
+    command = agent_command_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert command.motion == "stand"
+    assert command.direction is None
+    assert command.target_xys == ()
+
+
 def test_agent_retries_motion_gen_errors() -> None:
     node = _Node(
         [
