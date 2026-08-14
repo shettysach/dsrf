@@ -54,37 +54,21 @@ Prefer the lower-left far-wall box first:
 6. Inspect after each short push near the goal and stop as soon as the box is
    fully centered inside the far-wall green region.
 
-## Locate the next box
-
-After completing either box, deliberately find the remaining unfinished box
-before choosing another push:
-
-1. Move away from the completed box until both the box and its wall are safely
-   outside the robot's immediate path.
-2. Inspect the scene for the remaining yellow box. An unfinished box is the one
-   that is not fully centered on a green region.
-3. If it is not visible, move through the open central floor and inspect again
-   after each movement. Search from open space; never search by walking along or
-   through the completed box.
-4. Once the unfinished box is visible, identify its green goal and the open side
-   opposite that goal.
-5. Move toward that open side without touching the box. Stop with clear space,
-   then establish **ROBOT → BOX → GOAL** before making contact.
-
 ## Move to the right-wall box
 
 After the far-wall box is complete:
 
 1. Move **backward** until clearly separated from it.
 2. Never touch the completed box again.
-3. Locate the remaining upper-right box using the procedure above.
-4. Return through the open center of the arena without touching the box, then
-   move to its left side, opposite the right-wall goal.
-5. Match the box's forward depth so the robot, box, and goal form one straight
+3. Look for the remaining upper-right yellow box. If it is not visible, move
+   back toward the open center and inspect again.
+4. Cross the open center toward that box without touching either box.
+5. Move to the unfinished box's left side, opposite the right-wall goal.
+6. Match the box's forward depth so the robot, box, and goal form one straight
    horizontal line.
-6. Move **right** to contact the center of the box.
-7. Once contact begins, use only **right**. Do not move forward or backward.
-8. Inspect after each short push near the goal and stop as soon as the box is
+7. Move **right** to contact the center of the box.
+8. Once contact begins, use only **right**. Do not move forward or backward.
+9. Inspect after each short push near the goal and stop as soon as the box is
    fully centered inside the right-wall green region.
 
 ## Completed boxes
