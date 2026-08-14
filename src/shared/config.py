@@ -76,16 +76,8 @@ class SimConfig:
             viewer=_viewer_mode(),
             reference_ghost=_boolean("REFERENCE_GHOST"),
             camera_yaw=_optional_boolean("CAMERA_YAW", default=True),
-            demo_video_path=(
-                Path(value)
-                if (value := os.environ.get("DEMO_VIDEO_PATH", "").strip())
-                else None
-            ),
-            demo_video_dir=(
-                Path(value)
-                if (value := os.environ.get("DEMO_VIDEO_DIR", "").strip())
-                else None
-            ),
+            demo_video_path=_optional_path("DEMO_VIDEO_PATH"),
+            demo_video_dir=_optional_path("DEMO_VIDEO_DIR"),
             demo_runs=_positive_int_default("DEMO_RUNS", default=1),
             motion_timeout_seconds=_positive_float(
                 "MOTION_TIMEOUT_SECONDS", default=20.0
@@ -180,6 +172,11 @@ def _bounded_int(name: str, *, minimum: int, maximum: int | None = None) -> int:
 def _optional_name(name: str) -> str | None:
     value = os.environ[name].strip()
     return None if value.lower() == "none" or not value else value
+
+
+def _optional_path(name: str) -> Path | None:
+    value = os.environ.get(name, "").strip()
+    return None if value.lower() in {"", "none"} else Path(value)
 
 
 def _optional_task() -> TaskSpec | None:

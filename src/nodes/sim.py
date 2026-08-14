@@ -50,7 +50,7 @@ def main() -> None:
             cfg.demo_video_dir
             / f"goal{cfg.goal_index}_{datetime.now().strftime('%H%M')}.mp4"
             if cfg.demo_video_dir is not None
-            else cfg.demo_video_path
+            else None
         )
         recorder = DemoVideoRecorder(video_path) if video_path is not None else None
         _log_init(node, cfg)
