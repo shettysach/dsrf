@@ -41,7 +41,8 @@ def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
 
     box_bodies = [model.body(name) for name in ("sokoban_box_1", "sokoban_box_2")]
     box_geoms = [
-        model.geom(name) for name in ("sokoban_box_1_pushable", "sokoban_box_2_pushable")
+        model.geom(name)
+        for name in ("sokoban_box_1_pushable", "sokoban_box_2_pushable")
     ]
     goal_geoms = [model.geom(name) for name in ("sokoban_goal_1", "sokoban_goal_2")]
 

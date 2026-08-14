@@ -30,6 +30,32 @@ def test_navigation_directions_map_to_local_vectors() -> None:
         planner_direction("north")
 
 
+def test_kinematic_planner_visits_waypoints_in_order() -> None:
+    captured: list[dict[str, np.ndarray]] = []
+
+    def run(_outputs, inputs):
+        captured.append(inputs)
+        qpos = np.tile(_standing(), (1, 8, 1))
+        qpos[0, :, 0] = inputs["specific_target_positions"][0, 0, 0]
+        qpos[0, :, 1] = inputs["specific_target_positions"][0, 0, 1]
+        return qpos, np.array([8], dtype=np.int64)
+
+    planner = KinematicPlanner.__new__(KinematicPlanner)
+    planner.session = cast(Any, SimpleNamespace(run=run))
+    planner._context = np.tile(_standing(), (1, 4, 1))
+
+    qpos = planner.generate("walk", ((1.0, 0.5), (2.0, -0.5)))
+
+    assert len(captured) == 2
+    np.testing.assert_allclose(
+        captured[0]["specific_target_positions"][0, :, :2], [[1.0, 0.5]] * 4
+    )
+    np.testing.assert_allclose(
+        captured[1]["specific_target_positions"][0, :, :2], [[2.0, -0.5]] * 4
+    )
+    assert qpos.shape == (16, 36)
+
+
 def test_local_lateral_target_uses_world_target_and_preserves_heading() -> None:
     captured: dict[str, np.ndarray] = {}
 
@@ -41,7 +67,7 @@ def test_local_lateral_target_uses_world_target_and_preserves_heading() -> None:
     planner = KinematicPlanner.__new__(KinematicPlanner)
     planner.session = cast(Any, SimpleNamespace(run=run))
     planner._context = np.tile(_standing(), (1, 4, 1))
-    planner.generate("walk", (1.0, 0.5))
+    planner.generate("walk", ((1.0, 0.5),))
 
     np.testing.assert_allclose(
         captured["specific_target_positions"][0, :, :2],
@@ -63,7 +89,7 @@ def test_stand_has_no_specific_target() -> None:
     planner = KinematicPlanner.__new__(KinematicPlanner)
     planner.session = cast(Any, SimpleNamespace(run=run))
     planner._context = np.tile(_standing(), (1, 4, 1))
-    planner.generate("stand", None)
+    planner.generate("stand", ())
 
     assert captured["has_specific_target"].tolist() == [[0]]
     np.testing.assert_allclose(captured["movement_direction"], 0.0)
@@ -85,7 +111,7 @@ def test_direction_is_robot_relative() -> None:
     context_frame[6] = np.sin(yaw / 2.0)
     planner._context = np.tile(context_frame, (1, 4, 1))
 
-    planner.generate("walk", None, "forward")
+    planner.generate("walk", (), "forward")
 
     np.testing.assert_allclose(
         captured["movement_direction"], [[0.0, 1.0, 0.0]], atol=1e-6
@@ -107,7 +133,7 @@ def test_turn_changes_facing_without_requesting_translation() -> None:
     planner.session = cast(Any, SimpleNamespace(run=run))
     planner._context = np.tile(_standing(), (1, 4, 1))
 
-    planner.generate("turn", None, "left")
+    planner.generate("turn", (), "left")
 
     assert captured["mode"].tolist() == [PlannerMode.WALK]
     assert captured["has_specific_target"].tolist() == [[0]]

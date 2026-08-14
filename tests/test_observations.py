@@ -46,9 +46,7 @@ def test_default_observation_layout(tmp_path: Path) -> None:
 
 
 def test_low_latency_observation_layout(tmp_path: Path) -> None:
-    layout = ObservationLayout.load(
-        _write_layout(tmp_path / "low-latency.yml", step=1)
-    )
+    layout = ObservationLayout.load(_write_layout(tmp_path / "low-latency.yml", step=1))
     assert layout.encoder_input_dimension == 644
     assert layout.policy_input_dimension == 94
     assert layout.g1_step == 1

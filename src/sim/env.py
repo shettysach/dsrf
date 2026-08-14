@@ -188,6 +188,44 @@ class MjlabEnv:
             )
         return rgb, projection
 
+    def render_depth(self) -> ProjectionContext:
+        with self.compute_context():
+            offline = self._env._offline_renderer
+            if offline is None:
+                raise RuntimeError("MJLab offscreen renderer is not initialized")
+            self._sync_offscreen_camera_heading()
+            offline.update(self._env.sim.data)
+            renderer = offline.renderer
+            renderer.enable_depth_rendering()
+            try:
+                depth = renderer.render().copy()
+            finally:
+                renderer.disable_depth_rendering()
+            camera_pos = np.empty(3, dtype=np.float64)
+            camera_forward = np.empty(3, dtype=np.float64)
+            camera_up = np.empty(3, dtype=np.float64)
+            mujoco.mjv_cameraInModel(  # ty: ignore[unresolved-attribute]
+                camera_pos, camera_forward, camera_up, renderer.scene
+            )
+            model = renderer.model
+            extent = float(model.stat.extent)
+            state = self.robot_state()
+            return ProjectionContext(
+                depth=depth,
+                camera_pos_w=camera_pos,
+                camera_forward_w=camera_forward,
+                camera_up_w=camera_up,
+                frustum_height=float(
+                    mujoco.mjv_frustumHeight(  # ty: ignore[unresolved-attribute]
+                        renderer.scene
+                    )
+                ),
+                root_pos_w=state.root_pos_w.detach().cpu().numpy(),
+                root_quat_w=state.root_quat_w.detach().cpu().numpy(),
+                near=float(model.vis.map.znear) * extent,
+                far=float(model.vis.map.zfar) * extent,
+            )
+
     def render_demo_rgb(self) -> np.ndarray:
         """Render the same offscreen camera view that is sent to the VLM."""
         with self.compute_context():
@@ -251,7 +289,5 @@ def _is_task_collision_geom(name: str | None) -> bool:
     )
 
 
-def _heading_camera_azimuth(
-    base_azimuth: float, root_quat_w: np.ndarray
-) -> float:
+def _heading_camera_azimuth(base_azimuth: float, root_quat_w: np.ndarray) -> float:
     return base_azimuth + math.degrees(yaw_from_quat_wxyz(root_quat_w))

@@ -55,7 +55,6 @@ class SimConfig:
     image_width: int
     image_height: int
     jpeg_quality: int
-    capture_depth: bool
     viewer: ViewerMode
     reference_ghost: bool
     demo_video_path: Path | None = None
@@ -73,7 +72,6 @@ class SimConfig:
             image_width=_positive_int("IMAGE_WIDTH"),
             image_height=_positive_int("IMAGE_HEIGHT"),
             jpeg_quality=_bounded_int("JPEG_QUALITY", minimum=1, maximum=100),
-            capture_depth=_optional_boolean("CAPTURE_DEPTH", default=True),
             viewer=_viewer_mode(),
             reference_ghost=_boolean("REFERENCE_GHOST"),
             demo_video_path=(
@@ -151,7 +149,9 @@ def _positive_int_default(name: str, *, default: int) -> int:
 
 
 def _positive_float(name: str, *, default: float | None = None) -> float:
-    value = float(os.environ[name]) if default is None or name in os.environ else default
+    value = (
+        float(os.environ[name]) if default is None or name in os.environ else default
+    )
     if value <= 0.0:
         raise ValueError(f"{name} must be positive")
     return value

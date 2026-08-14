@@ -51,11 +51,12 @@ class Ardy:
             device=self.device,
         )
         self.root_history = root_positions[0, -2:].detach().clone()
+        self.root_heading = torch.tensor(0.0)
 
     def generate(
         self,
         embedding: torch.Tensor,
-        target_xy: tuple[float, float] | None,
+        target_xys: tuple[tuple[float, float], ...],
     ) -> np.ndarray:
         text_feat, text_pad_mask = prepare_conditioning(
             embedding,
@@ -64,14 +65,17 @@ class Ardy:
         generated_frames = self.fps * self.duration_s
         num_frames = generated_frames + self.history_frames
         lengths = torch.tensor([num_frames], device=self.device)
-        motion_mask, observed_motion = build_waypoint_constraints(
-            self.model.motion_rep,
-            self.root_history,
-            target_xy,
-            generated_frames=generated_frames,
-            history_frames=self.history_frames,
-            device=self.device,
-        )
+        motion_mask = observed_motion = None
+        if target_xys:
+            motion_mask, observed_motion = build_waypoint_constraints(
+                self.model.motion_rep,
+                self.root_history,
+                self.root_heading,
+                target_xys,
+                generated_frames=generated_frames,
+                history_frames=self.history_frames,
+                device=self.device,
+            )
 
         with torch.inference_mode():
             motion = self.model(
@@ -99,9 +103,21 @@ class Ardy:
                 is_normalized=True,
             )
             root_positions = decoded["root_positions"]
+            root_headings = decoded["global_root_heading"]
             if root_positions.shape[1] < 2:
                 raise ValueError("ARDY generated fewer than two root positions")
+            if root_headings.ndim != 3 or root_headings.shape[-1] != 2:
+                raise ValueError("ARDY global_root_heading must have shape [B, T, 2]")
             next_root_history = root_positions[0, -2:].detach().clone()
+            final_heading = root_headings[0, -1]
+            if (
+                not torch.isfinite(final_heading).all()
+                or torch.linalg.vector_norm(final_heading) <= 1e-8
+            ):
+                raise ValueError("ARDY generated an invalid root heading")
+            next_root_heading = (
+                torch.atan2(final_heading[1], final_heading[0]).detach().clone()
+            )
             batched_qpos = self.converter.dict_to_qpos(
                 decoded,
                 str(self.device),
@@ -116,4 +132,5 @@ class Ardy:
             raise ValueError("ARDY qpos contains NaN or infinite values")
         self.initial_history = next_history
         self.root_history = next_root_history
+        self.root_heading = next_root_heading
         return qpos

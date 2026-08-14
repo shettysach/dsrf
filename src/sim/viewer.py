@@ -193,7 +193,7 @@ def _vlm_panel_html(
     )
     return (
         '<div style="font-family:system-ui,sans-serif;font-size:11px;'
-        'line-height:1.35;padding:2px 0;width:100%;max-width:100%;'
+        "line-height:1.35;padding:2px 0;width:100%;max-width:100%;"
         'box-sizing:border-box;overflow:hidden;">'
         f'<div style="font-size:11px;margin-bottom:8px;">Observation #{observation}</div>'
         '<div style="font-size:12px;font-weight:700;margin-bottom:6px;">'
@@ -201,7 +201,7 @@ def _vlm_panel_html(
         '<div style="font-size:10px;font-weight:700;color:#94a3b8;">'
         "Reasoning</div>"
         '<div style="font-size:11px;line-height:1.35;max-height:180px;'
-        'max-width:100%;overflow-y:auto;overflow-wrap:anywhere;'
+        "max-width:100%;overflow-y:auto;overflow-wrap:anywhere;"
         f'white-space:pre-wrap;margin-top:2px;">{reasoning_html}</div>'
         f"{decision}"
         "</div>"

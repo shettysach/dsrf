@@ -1,5 +1,4 @@
 import json
-import math
 from typing import Any, cast
 
 import numpy as np
@@ -8,10 +7,12 @@ from agent.vlm import OAIChatClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
     agent_command_from_arrow,
+    grounding_request_from_arrow,
+    grounding_result_to_arrow,
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
-from shared.messages import PipelineError, ProjectionContext, VisualObservation
+from shared.messages import GroundingResult, PipelineError, VisualObservation
 
 
 class _Response:
@@ -99,7 +100,9 @@ def test_llama_client_rebases_bounded_history_in_epochs(monkeypatch) -> None:
     )
     for observation_id in range(5):
         client.commit(
-            VisualObservation(observation_id, "walk", f"image-{observation_id}".encode()),
+            VisualObservation(
+                observation_id, "walk", f"image-{observation_id}".encode()
+            ),
             "walk",
         )
 
@@ -156,18 +159,18 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
     }
 
 
-def _projection() -> ProjectionContext:
-    return ProjectionContext(
-        depth=np.full((5, 5), math.sqrt(2.0), dtype=np.float32),
-        camera_pos_w=np.array([0.0, 0.0, 1.0]),
-        camera_forward_w=np.array([math.sqrt(0.5), 0.0, -math.sqrt(0.5)]),
-        camera_up_w=np.array([math.sqrt(0.5), 0.0, math.sqrt(0.5)]),
-        frustum_height=1.0,
-        root_pos_w=np.zeros(3),
-        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
-        near=0.01,
-        far=100.0,
+def _grounding_event(
+    observation_id: int, target_xys: tuple[tuple[float, float], ...] = ((1.0, 0.0),)
+) -> dict[str, object]:
+    value, metadata = grounding_result_to_arrow(
+        GroundingResult(observation_id, target_xys)
     )
+    return {
+        "type": "INPUT",
+        "id": "grounding_result",
+        "value": value,
+        "metadata": metadata,
+    }
 
 
 def _error_event(observation_id: int) -> dict[str, object]:
@@ -183,7 +186,7 @@ def _error_event(observation_id: int) -> dict[str, object]:
 def test_agent_retries_three_invalid_responses_then_stands() -> None:
     node = _Node(
         [
-            _observation_event(VisualObservation(0, None, b"jpeg", _projection())),
+            _observation_event(VisualObservation(0, None, b"jpeg")),
             {"type": "STOP"},
         ]
     )
@@ -197,7 +200,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
-        '{"motion":"stand","waypoint_2d":null}',
+        '{"motion":"stand","waypoints_2d":[]}',
     ]
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
@@ -210,7 +213,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
     assert "[OBS 0] VLM command: 'invalid three'" in vlm_messages[2]
     assert vlm_messages[2].endswith("retry=2")
     assert any(
-        'fallback command: \'{"motion":"stand","waypoint_2d":null}\'' in message
+        'fallback command: \'{"motion":"stand","waypoints_2d":[]}\'' in message
         for _, message, _ in node.logs
     )
 
@@ -218,13 +221,13 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
 def test_agent_commits_exact_completed_command() -> None:
     node = _Node(
         [
-            _observation_event(VisualObservation(0, None, b"first", _projection())),
+            _observation_event(VisualObservation(0, None, b"first")),
+            _grounding_event(0),
             _observation_event(
                 VisualObservation(
                     1,
-                    '{"motion":"walk","waypoint_2d":[500,500]}',
+                    '{"motion":"walk","waypoints_2d":[[500,500]]}',
                     b"second",
-                    _projection(),
                 )
             ),
             {"type": "STOP"},
@@ -232,24 +235,24 @@ def test_agent_commits_exact_completed_command() -> None:
     )
     client = _Client(
         [
-            '{"motion":"walk","waypoint_2d":[500,500]}',
-            '{"motion":"stand","waypoint_2d":null}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+            '{"motion":"stand","waypoints_2d":[]}',
         ]
     )
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
-    assert client.commits == [(0, '{"motion":"walk","waypoint_2d":[500,500]}')]
+    assert client.commits == [(0, '{"motion":"walk","waypoints_2d":[[500,500]]}')]
 
 
-def test_agent_stand_bypasses_missing_projection() -> None:
+def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg")),
             {"type": "STOP"},
         ]
     )
-    client = _Client(['{"motion":"stand","waypoint_2d":null}'])
+    client = _Client(['{"motion":"stand","waypoints_2d":[]}'])
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
@@ -257,7 +260,7 @@ def test_agent_stand_bypasses_missing_projection() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert command.motion == "stand"
-    assert command.target_xy is None
+    assert command.target_xys == ()
 
 
 def test_agent_accepts_directional_turn_without_projection() -> None:
@@ -269,30 +272,30 @@ def test_agent_accepts_directional_turn_without_projection() -> None:
     )
     client = _Client(['{"motion":"turn","direction":"right"}'])
 
-    AgentLoop(
-        cast(Any, node), cast(Any, client), command_mode="direction"
-    ).run()
+    AgentLoop(cast(Any, node), cast(Any, client), command_mode="direction").run()
 
     command = agent_command_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert command.motion == "turn"
     assert command.direction == "right"
-    assert command.target_xy is None
+    assert command.target_xys == ()
 
 
 def test_agent_retries_motion_gen_errors() -> None:
     node = _Node(
         [
-            _observation_event(VisualObservation(0, None, b"jpeg", _projection())),
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0),
             _error_event(0),
+            _grounding_event(0),
             {"type": "STOP"},
         ]
     )
     client = _Client(
         [
-            '{"motion":"walk","waypoint_2d":[500,500]}',
-            '{"motion":"walk","waypoint_2d":[500,500]}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
         ]
     )
 
@@ -304,7 +307,36 @@ def test_agent_retries_motion_gen_errors() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
-        '{"motion":"walk","waypoint_2d":[500,500]}',
-        '{"motion":"walk","waypoint_2d":[500,500]}',
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
     ]
     assert client.feedback[1] is not None
+
+
+def test_agent_requests_grounding_before_sending_complete_command() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0, ((0.8, -0.2), (0.2, 0.6))),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(
+        ['{"motion":"sidestep carefully","waypoints_2d":[[300,600],[600,500]]}']
+    )
+
+    AgentLoop(cast(Any, node), cast(Any, client)).run()
+
+    request_output = next(
+        output for output in node.outputs if output[0] == "grounding_request"
+    )
+    request = grounding_request_from_arrow(
+        request_output[1], cast(Any, request_output[2]["metadata"])
+    )
+    assert request.waypoints_2d == ((300, 600), (600, 500))
+    command_output = next(output for output in node.outputs if output[0] == "command")
+    command = agent_command_from_arrow(
+        command_output[1], cast(Any, command_output[2]["metadata"])
+    )
+    assert command.motion == "sidestep carefully"
+    np.testing.assert_allclose(command.target_xys, ((0.8, -0.2), (0.2, 0.6)))

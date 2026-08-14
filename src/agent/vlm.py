@@ -16,7 +16,9 @@ class VlmResult(str):
 
     def __new__(cls, content: str, reasoning: str | None = None) -> "VlmResult":
         result = super().__new__(cls, content)
-        result.reasoning = reasoning.strip() if reasoning and reasoning.strip() else None
+        result.reasoning = (
+            reasoning.strip() if reasoning and reasoning.strip() else None
+        )
         return result
 
     @property
@@ -80,12 +82,7 @@ class OAIChatClient:
         request = urllib.request.Request(
             self.endpoint,
             data=json.dumps(
-                {
-                    "model": "",
-                    "messages": messages,
-                    "temperature": 0,
-                    "cache_prompt": True,
-                },
+                {"model": "", "messages": messages, "temperature": 0},
                 separators=(",", ":"),
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -107,8 +104,6 @@ class OAIChatClient:
         return VlmResult(content.strip(), reasoning)
 
     def commit(self, observation: VisualObservation, command: str) -> None:
-        # Projection depth is only needed for the current waypoint and must not
-        # accumulate in the VLM conversation history.
         history_observation = VisualObservation(
             observation.observation_id,
             observation.completed_command,
@@ -117,12 +112,9 @@ class OAIChatClient:
         )
         self._history.append(_ConversationTurn(history_observation, command))
         if len(self._history) > self.history_turns:
-            # Rebase occasionally instead of sliding by one turn on every request.
-            # Prompts remain append-only between rebases, maximizing KV-prefix reuse.
             self._history = self._history[-self.history_retain_turns :]
 
     def reset(self) -> None:
-        """Start a fresh VLM conversation for the next demo run."""
         self._history.clear()
 
 

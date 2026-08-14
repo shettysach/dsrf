@@ -54,8 +54,6 @@ class MotionChunk:
     reasoning: str | None = None
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         if not self.command.strip():
             raise ValueError("Motion command is empty")
         qpos = np.asarray(self.qpos, dtype=np.float32)
@@ -75,17 +73,15 @@ class AgentCommand:
     observation_id: int
     text: str
     motion: str
-    target_xy: tuple[float, float] | None
+    target_xys: tuple[tuple[float, float], ...]
     direction: str | None = None
     reasoning: str | None = None
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         normalized = self.text.strip()
         if not normalized:
             raise ValueError("Command is empty")
-        _validate_navigation(self.motion, self.target_xy, self.direction)
+        _validate_navigation(self.motion, self.target_xys, self.direction)
         object.__setattr__(self, "text", normalized)
 
 
@@ -94,17 +90,40 @@ class VisualObservation:
     observation_id: int
     completed_command: str | None
     jpeg: bytes
-    projection: ProjectionContext | None = None
     run_id: int = 0
     collision_detected: bool = False
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
-        if self.run_id < 0:
-            raise ValueError("Run ID must be non-negative")
         if not self.jpeg:
             raise ValueError("Observation JPEG is empty")
+
+
+@dataclass(frozen=True)
+class GroundingRequest:
+    observation_id: int
+    waypoints_2d: tuple[tuple[int, int], ...]
+
+    def __post_init__(self) -> None:
+        for x, y in self.waypoints_2d:
+            if any(
+                isinstance(value, bool) or not isinstance(value, int)
+                for value in (x, y)
+            ):
+                raise ValueError("Waypoint coordinates must be integers")
+            if not (0 <= x <= 1000 and 0 <= y <= 1000):
+                raise ValueError("Waypoint coordinates must be in [0,1000]")
+
+
+@dataclass(frozen=True)
+class GroundingResult:
+    observation_id: int
+    target_xys: tuple[tuple[float, float], ...]
+
+    def __post_init__(self) -> None:
+        if not all(
+            np.isfinite(value) for target_xy in self.target_xys for value in target_xy
+        ):
+            raise ValueError("target_xys must be finite")
 
 
 @dataclass(frozen=True)
@@ -114,8 +133,6 @@ class PipelineError:
     detail: str
 
     def __post_init__(self) -> None:
-        if self.observation_id < 0:
-            raise ValueError("Observation ID must be non-negative")
         if not self.source:
             raise ValueError("Error source is empty")
         if not self.detail:
@@ -123,24 +140,15 @@ class PipelineError:
 
 
 def _validate_navigation(
-    motion: str, target_xy: tuple[float, float] | None, direction: str | None
+    motion: str, target_xys: tuple[tuple[float, float], ...], direction: str | None
 ) -> None:
-    if motion not in {"stand", "walk", "turn"}:
-        raise ValueError("Motion must be stand, walk, or turn")
-    if motion == "stand":
-        if target_xy is not None or direction is not None:
-            raise ValueError("Stand command must not have a target")
-        return
-    if motion == "turn":
-        if target_xy is not None or direction not in {"left", "right"}:
-            raise ValueError("Turn command requires a left or right direction")
-        return
-    if (target_xy is None) == (direction is None):
-        raise ValueError("Walk command requires exactly one target")
+    if not motion.strip():
+        raise ValueError("Motion prompt must not be empty")
+    if target_xys and direction is not None:
+        raise ValueError("Motion command cannot have both a waypoint and direction")
     if direction is not None:
         if direction not in {"forward", "backward", "left", "right"}:
             raise ValueError("Unsupported direction")
         return
-    assert target_xy is not None
-    if not all(np.isfinite(value) for value in target_xy):
-        raise ValueError("target_xy must be finite")
+    if not all(np.isfinite(value) for target_xy in target_xys for value in target_xy):
+        raise ValueError("target_xys must be finite")

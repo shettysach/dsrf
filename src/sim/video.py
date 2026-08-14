@@ -48,9 +48,7 @@ class DemoVideoRecorder:
 def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
     """Burn a compact, resolution-aware VLM panel into one RGB frame."""
 
-    image = Image.fromarray(np.asarray(rgb, dtype=np.uint8), mode="RGB").convert(
-        "RGBA"
-    )
+    image = Image.fromarray(np.asarray(rgb, dtype=np.uint8), mode="RGB").convert("RGBA")
     overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
@@ -71,9 +69,7 @@ def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
     max_panel_height = round(image.height * 0.55)
     max_entry_lines = max(5, (max_panel_height - 2 * padding - 4) // line_height)
     max_reasoning_lines = max(1, max_entry_lines - 4)
-    reasoning = " ".join(
-        (state.reasoning.strip() or "No reasoning returned.").split()
-    )
+    reasoning = " ".join((state.reasoning.strip() or "No reasoning returned.").split())
     reasoning_lines = _wrap_pixels(
         draw,
         reasoning,

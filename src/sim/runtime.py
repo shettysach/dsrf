@@ -13,13 +13,17 @@ import yaml
 from dora import Node
 
 from shared.arrow import (
+    grounding_request_from_arrow,
+    grounding_result_to_arrow,
     motion_from_arrow,
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
 from shared.messages import (
     SONIC_FPS,
+    GroundingResult,
     PipelineError,
+    ProjectionContext,
     VisualObservation,
 )
 from sim.env import MjlabEnv
@@ -27,6 +31,7 @@ from sim.renderer import SimRenderer
 from sim.sonic.policy import SonicPolicy
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
+from sim.waypoint import resolve_waypoint
 
 CONTROL_PERIOD = 1.0 / SONIC_FPS
 PORTRAIT_CORRIDOR_APPROACH_X = 1.0
@@ -69,7 +74,9 @@ def portrait_corridor_demo_runs(count: int) -> tuple[DemoRun, ...]:
         raise ValueError(
             f"Demo run count must be in 1..{len(PORTRAIT_CORRIDOR_RUNS)}, got {count}"
         )
-    return tuple(DemoRun(title, start_xy) for title, start_xy in PORTRAIT_CORRIDOR_RUNS[:count])
+    return tuple(
+        DemoRun(title, start_xy) for title, start_xy in PORTRAIT_CORRIDOR_RUNS[:count]
+    )
 
 
 class SimRuntime:
@@ -84,8 +91,6 @@ class SimRuntime:
         stop_recording_at_corridor: bool = False,
         motion_timeout_seconds: float = 20.0,
         demo_runs: tuple[DemoRun, ...] = (),
-        *,
-        capture_depth: bool = True,
     ) -> None:
         self.node = node
         self.simulation = simulation
@@ -96,15 +101,13 @@ class SimRuntime:
         self.stop_recording_at_corridor = stop_recording_at_corridor
         if motion_timeout_seconds <= 0.0:
             raise ValueError("Motion timeout must be positive")
-        self.max_motion_frames = max(
-            1, math.ceil(motion_timeout_seconds * SONIC_FPS)
-        )
+        self.max_motion_frames = max(1, math.ceil(motion_timeout_seconds * SONIC_FPS))
         self.motion_timeout_seconds = motion_timeout_seconds
         self.demo_runs = demo_runs or (DemoRun("Center start", (0.0, 0.0)),)
         self.reset_for_demo_run = bool(demo_runs)
         self.run_index = 0
-        self.capture_depth = capture_depth
         self.observation_id = 0
+        self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
         self.demo_vlm_state = DemoVlmState()
         self._demo_complete = False
@@ -116,9 +119,12 @@ class SimRuntime:
         for event in self.node:
             if event["type"] == "STOP":
                 return
-            if event["type"] != "INPUT" or event["id"] != "motion":
+            if event["type"] != "INPUT":
                 continue
-            self._accept_motion(event)
+            if event["id"] == "motion":
+                self._accept_motion(event)
+            elif event["id"] == "grounding_request":
+                self._accept_grounding_request(event)
             if self._demo_complete:
                 return
 
@@ -150,6 +156,30 @@ class SimRuntime:
             },
         )
 
+    def _accept_grounding_request(self, event: dict[str, Any]) -> None:
+        try:
+            request = grounding_request_from_arrow(
+                event["value"], dict(event.get("metadata") or {})
+            )
+            if request.observation_id != self.observation_id:
+                raise ValueError(
+                    f"Expected grounding request for observation {self.observation_id}, got {request.observation_id}"
+                )
+            if self._projection_cache is None:
+                self._projection_cache = self.renderer.capture_depth()
+            resolved = tuple(
+                resolve_waypoint(point, self._projection_cache)
+                for point in request.waypoints_2d
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            self._report_error(str(exc), source="grounding")
+            return
+        result = GroundingResult(
+            self.observation_id, tuple(item.target_xy for item in resolved)
+        )
+        data, metadata = grounding_result_to_arrow(result)
+        self.node.send_output("grounding_result", data, metadata=metadata)
+
     def _accept_motion(self, event: dict[str, Any]) -> None:
         received_at = time.perf_counter()
         metadata = dict(event.get("metadata") or {})
@@ -164,6 +194,7 @@ class SimRuntime:
                 f"{chunk.observation_id}"
             )
             return
+        self._projection_cache = None
 
         with self.simulation.compute_context():
             state = self.simulation.robot_state()
@@ -414,16 +445,12 @@ class SimRuntime:
         collision_detected: bool = False,
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
-        if self.capture_depth:
-            jpeg, projection = self.renderer.capture_rgbd()
-        else:
-            jpeg, projection = self.renderer.capture_jpeg(), None
+        jpeg = self.renderer.capture_jpeg()
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,
             completed_command=completed_command,
             jpeg=jpeg,
-            projection=projection,
             run_id=self.run_index,
             collision_detected=collision_detected,
         )
@@ -434,19 +461,19 @@ class SimRuntime:
             self.viewer.set_vlm_thinking(self.observation_id)
         return render_ms, len(jpeg)
 
-    def _report_error(self, detail: str) -> None:
+    def _report_error(self, detail: str, *, source: str = "sim") -> None:
         self.node.log(
             "error",
-            f"[OBS {self.observation_id}] SONIC error: {detail}",
+            f"[OBS {self.observation_id}] {source} error: {detail}",
             target="dsrf.sim",
             fields={
                 "event": "pipeline_error",
                 "observation_id": str(self.observation_id),
-                "source": "sim",
+                "source": source,
                 "detail": detail,
             },
         )
-        error = PipelineError("sim", self.observation_id, detail)
+        error = PipelineError(source, self.observation_id, detail)
         self.node.send_output("error", pipeline_error_to_arrow(error))
 
 

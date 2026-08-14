@@ -30,7 +30,6 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "IMAGE_WIDTH": "1280",
         "IMAGE_HEIGHT": "720",
         "JPEG_QUALITY": "85",
-        "CAPTURE_DEPTH": "false",
         "VIEWER": "native",
         "REFERENCE_GHOST": "${REFERENCE_GHOST:-false}",
         "DEMO_VIDEO_DIR": "${DEMO_VIDEO_DIR:-}",
@@ -52,9 +51,12 @@ def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["motion-gen"]["env"]["TEXT_ENCODER_MODEL"] == "/tmp/model"
     assert nodes["motion-gen"]["env"]["TEXT_ENCODER_DEVICE"] == "cuda"
-    assert nodes["sim"]["inputs"] == {"motion": "motion-gen/motion"}
-    assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
+    assert nodes["sim"]["inputs"] == {
+        "motion": "motion-gen/motion",
+        "grounding_request": "agent/grounding_request",
+    }
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
+    assert nodes["agent"]["inputs"]["grounding_result"] == "sim/grounding_result"
     assert "encoding_error" not in nodes["agent"]["inputs"]
 
 
@@ -73,9 +75,7 @@ def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == (
-        "tasks/stack_steps/TASK.md"
-    )
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == ("tasks/stack_steps/TASK.md")
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "stack-steps"
 
@@ -99,9 +99,7 @@ def test_seesaw_video_dataflow_has_finite_recording_duration() -> None:
     assert nodes["capture"]["env"]["SEESAW_GIF_PATH"] == (
         "${SEESAW_GIF_PATH:-/tmp/see-saw.gif}"
     )
-    assert nodes["capture"]["env"]["SEESAW_GIF_SECONDS"] == (
-        "${SEESAW_GIF_SECONDS:-3}"
-    )
+    assert nodes["capture"]["env"]["SEESAW_GIF_SECONDS"] == ("${SEESAW_GIF_SECONDS:-3}")
 
 
 def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
@@ -109,10 +107,7 @@ def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert (
-        nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"]
-        == "tasks/sokoban/SYSTEM_2D.md"
-    )
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/SYSTEM_2D.md"
     assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER_2D.md"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"

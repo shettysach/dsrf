@@ -15,10 +15,12 @@ nodes:
       MOTION_GENERATOR: ardy
     inputs:
       observation: sim/observation
+      grounding_result: sim/grounding_result
       planning_error: motion-gen/error
       sim_error: sim/error
     outputs:
       - command
+      - grounding_request
 
   - id: motion-gen
     path: uv
@@ -47,11 +49,12 @@ nodes:
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"
       JPEG_QUALITY: "85"
-      CAPTURE_DEPTH: "true"
       VIEWER: native
       REFERENCE_GHOST: "false"
     inputs:
       motion: motion-gen/motion
+      grounding_request: agent/grounding_request
     outputs:
       - observation
+      - grounding_result
       - error

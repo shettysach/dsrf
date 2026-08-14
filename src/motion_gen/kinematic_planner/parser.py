@@ -62,4 +62,6 @@ def planner_turn_direction(direction: str) -> tuple[float, float]:
         return (0.0, 1.0)
     if direction == "right":
         return (0.0, -1.0)
-    raise ValueError(f"Unsupported turn direction {direction!r}; expected left or right")
+    raise ValueError(
+        f"Unsupported turn direction {direction!r}; expected left or right"
+    )

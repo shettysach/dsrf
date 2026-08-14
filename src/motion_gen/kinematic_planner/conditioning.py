@@ -27,7 +27,9 @@ def build_planner_inputs(
     if motion == "turn" and (
         target_xy is not None or direction not in {"left", "right"}
     ):
-        raise ValueError("turn requires a left or right direction and no position target")
+        raise ValueError(
+            "turn requires a left or right direction and no position target"
+        )
 
     root = context[0, -1]
     root_position = root[:3].astype(np.float32)

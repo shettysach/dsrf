@@ -3,13 +3,13 @@ import pytest
 from tasks import TASKS, get_task
 from tasks.stack_steps.scene import (
     ARENA_HALF_WIDTH,
+    LOWER_RAISED_TREAD_FRACTION,
     LOWER_STEP_HALF_SIZE,
     LOWER_STEP_MASS,
     PLATFORM_BACK_X,
     PLATFORM_FRONT_X,
     PLATFORM_HALF_WIDTH,
     PLATFORM_HEIGHT,
-    LOWER_RAISED_TREAD_FRACTION,
     UPPER_RAISED_TREAD_FRACTION,
     UPPER_STEP_HALF_SIZE,
     UPPER_STEP_MASS,
@@ -107,8 +107,12 @@ def test_stack_steps_scene_has_walls_landing_and_two_stair_modules() -> None:
     assert model.geom_pos[upper_raised_tread.id, 2] > 0.0
     assert model.body_mass[lower.id] == pytest.approx(LOWER_STEP_MASS)
     assert model.body_mass[upper.id] == pytest.approx(UPPER_STEP_MASS)
-    assert tuple(model.geom_rgba[lower_geom.id]) == pytest.approx((0.95, 0.55, 0.1, 1.0))
-    assert tuple(model.geom_rgba[upper_geom.id]) == pytest.approx((0.95, 0.55, 0.1, 1.0))
+    assert tuple(model.geom_rgba[lower_geom.id]) == pytest.approx(
+        (0.95, 0.55, 0.1, 1.0)
+    )
+    assert tuple(model.geom_rgba[upper_geom.id]) == pytest.approx(
+        (0.95, 0.55, 0.1, 1.0)
+    )
     assert UPPER_STEP_HALF_SIZE[0] > LOWER_STEP_HALF_SIZE[0]
     assert LOWER_STEP_HALF_SIZE[1] == UPPER_STEP_HALF_SIZE[1]
     assert LOWER_STEP_HALF_SIZE[0] <= model.geom_size[upper_raised_tread.id, 0]

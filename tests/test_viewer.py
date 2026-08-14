@@ -43,9 +43,7 @@ def test_reference_ghost_follows_mjlab_visualizers(
     sonic_viewer.env_idx = 0
     sonic_viewer.mjm = object()
 
-    sonic_viewer._update_debug_visualizers(
-        SimpleNamespace(user_scn=object())
-    )
+    sonic_viewer._update_debug_visualizers(SimpleNamespace(user_scn=object()))
 
     assert calls == expected
 
@@ -73,7 +71,9 @@ def test_viser_reference_ghost_follows_mjlab_visualizers(
 
 
 def test_viser_vlm_panel_uses_compact_html() -> None:
-    panel = _vlm_panel_html(12, reasoning="Inspect the left corridor.", command="WALK LEFT")
+    panel = _vlm_panel_html(
+        12, reasoning="Inspect the left corridor.", command="WALK LEFT"
+    )
 
     assert "<h" not in panel
     assert "font-size:11px" in panel

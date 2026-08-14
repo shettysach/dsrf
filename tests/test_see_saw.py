@@ -62,9 +62,7 @@ def test_see_saw_scene_has_walls_hinged_plank_and_counterweight() -> None:
     assert model.qpos0[model.jnt_qposadr[hinge.id]] == pytest.approx(
         np.deg2rad(INITIAL_TILT_DEGREES)
     )
-    assert model.dof_damping[model.jnt_dofadr[hinge.id]] == pytest.approx(
-        HINGE_DAMPING
-    )
+    assert model.dof_damping[model.jnt_dofadr[hinge.id]] == pytest.approx(HINGE_DAMPING)
     assert model.dof_frictionloss[model.jnt_dofadr[hinge.id]] == pytest.approx(
         HINGE_FRICTION_LOSS
     )

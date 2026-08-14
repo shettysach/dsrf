@@ -10,9 +10,10 @@ import pyarrow as pa
 from shared.messages import (
     MOTION_COLUMNS,
     AgentCommand,
+    GroundingRequest,
+    GroundingResult,
     MotionChunk,
     PipelineError,
-    ProjectionContext,
     VisualObservation,
 )
 
@@ -49,8 +50,8 @@ def agent_command_to_arrow(
         "observation_id": str(command.observation_id),
         "motion": command.motion,
     }
-    if command.target_xy is not None:
-        metadata["target_xy"] = json.dumps(command.target_xy, separators=(",", ":"))
+    if command.target_xys:
+        metadata["target_xys"] = json.dumps(command.target_xys, separators=(",", ":"))
     if command.direction is not None:
         metadata["direction"] = command.direction
     if command.reasoning is not None:
@@ -63,7 +64,7 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         observation_id=_observation_id(metadata),
         text=_string_from_arrow(value),
         motion=str(metadata["motion"]),
-        target_xy=_target_xy(metadata),
+        target_xys=_target_xys(metadata),
         direction=_direction(metadata),
         reasoning=_optional_string(metadata, "reasoning"),
     )
@@ -81,29 +82,7 @@ def observation_to_arrow(
         metadata["completed_command"] = observation.completed_command
     if observation.collision_detected:
         metadata["collision_detected"] = "true"
-    depth: bytes | None = None
-    if observation.projection is not None:
-        projection = observation.projection
-        depth = projection.depth.tobytes()
-        metadata["projection"] = json.dumps(
-            {
-                "shape": projection.depth.shape,
-                "camera_pos_w": projection.camera_pos_w.tolist(),
-                "camera_forward_w": projection.camera_forward_w.tolist(),
-                "camera_up_w": projection.camera_up_w.tolist(),
-                "frustum_height": projection.frustum_height,
-                "root_pos_w": projection.root_pos_w.tolist(),
-                "root_quat_w": projection.root_quat_w.tolist(),
-                "near": projection.near,
-                "far": projection.far,
-            },
-            separators=(",", ":"),
-        )
-    value = pa.array(
-        [{"jpeg": observation.jpeg, "depth": depth}],
-        type=pa.struct([("jpeg", pa.binary()), ("depth", pa.binary())]),
-    )
-    return value, metadata
+    return pa.array([observation.jpeg], type=pa.binary()), metadata
 
 
 def observation_from_arrow(
@@ -112,31 +91,7 @@ def observation_from_arrow(
     mime_type = metadata.get("mime_type")
     if mime_type != "image/jpeg":
         raise ValueError(f"Unsupported observation MIME type: {mime_type!r}")
-    rows = value.to_pylist()
-    if len(rows) != 1 or not isinstance(rows[0], dict):
-        raise ValueError("Expected one observation struct")
-    jpeg = rows[0].get("jpeg")
-    depth_bytes = rows[0].get("depth")
-    if not isinstance(jpeg, bytes):
-        raise ValueError("Observation JPEG is invalid")
-    projection = None
-    if "projection" in metadata:
-        if not isinstance(depth_bytes, bytes):
-            raise ValueError("Observation depth is invalid")
-        document = json.loads(str(metadata["projection"]))
-        shape = tuple(int(size) for size in document["shape"])
-        depth = np.frombuffer(depth_bytes, dtype=np.float32).copy().reshape(shape)
-        projection = ProjectionContext(
-            depth=depth,
-            camera_pos_w=document["camera_pos_w"],
-            camera_forward_w=document["camera_forward_w"],
-            camera_up_w=document["camera_up_w"],
-            frustum_height=float(document["frustum_height"]),
-            root_pos_w=document["root_pos_w"],
-            root_quat_w=document["root_quat_w"],
-            near=float(document["near"]),
-            far=float(document["far"]),
-        )
+    jpeg = _binary_from_arrow(value)
     return VisualObservation(
         observation_id=_observation_id(metadata),
         completed_command=(
@@ -145,10 +100,67 @@ def observation_from_arrow(
             else None
         ),
         jpeg=jpeg,
-        projection=projection,
         run_id=int(metadata.get("run_id", 0)),
         collision_detected=str(metadata.get("collision_detected", "false")).lower()
         == "true",
+    )
+
+
+def grounding_request_to_arrow(
+    request: GroundingRequest,
+) -> tuple[pa.Array, dict[str, str]]:
+    return pa.array(
+        [coordinate for waypoint in request.waypoints_2d for coordinate in waypoint],
+        type=pa.int32(),
+    ), {
+        "observation_id": str(request.observation_id),
+        "waypoint_count": str(len(request.waypoints_2d)),
+    }
+
+
+def grounding_request_from_arrow(
+    value: pa.Array, metadata: dict[str, Any]
+) -> GroundingRequest:
+    waypoint = value.to_pylist()
+    count = _waypoint_count(metadata)
+    if len(waypoint) != count * 2:
+        raise ValueError(
+            "Grounding request payload has the wrong number of coordinates"
+        )
+    return GroundingRequest(
+        observation_id=_observation_id(metadata),
+        waypoints_2d=tuple(
+            (int(waypoint[index]), int(waypoint[index + 1]))
+            for index in range(0, len(waypoint), 2)
+        ),
+    )
+
+
+def grounding_result_to_arrow(
+    result: GroundingResult,
+) -> tuple[pa.Array, dict[str, str]]:
+    return pa.array(
+        [coordinate for target in result.target_xys for coordinate in target],
+        type=pa.float32(),
+    ), {
+        "observation_id": str(result.observation_id),
+        "waypoint_count": str(len(result.target_xys)),
+    }
+
+
+def grounding_result_from_arrow(
+    value: pa.Array, metadata: dict[str, Any]
+) -> GroundingResult:
+    target = value.to_pylist()
+    count = _waypoint_count(metadata)
+    if len(target) != count * 2:
+        raise ValueError("Grounding result payload has the wrong number of coordinates")
+    return GroundingResult(
+        observation_id=_observation_id(metadata),
+        target_xys=tuple(
+            (float(target[index]), float(target[index + 1]))
+            for index in range(0, len(target), 2)
+        ),
     )
 
 
@@ -191,19 +203,23 @@ def _binary_from_arrow(value: pa.Array) -> bytes:
 
 
 def _observation_id(metadata: dict[str, Any]) -> int:
-    observation_id = int(metadata["observation_id"])
-    if observation_id < 0:
-        raise ValueError("Observation ID must be non-negative")
-    return observation_id
+    return int(metadata["observation_id"])
 
 
-def _target_xy(metadata: dict[str, Any]) -> tuple[float, float] | None:
-    if "target_xy" not in metadata:
-        return None
-    value = json.loads(str(metadata["target_xy"]))
-    if not isinstance(value, list) or len(value) != 2:
-        raise ValueError("target_xy metadata must contain two values")
-    return (float(value[0]), float(value[1]))
+def _target_xys(metadata: dict[str, Any]) -> tuple[tuple[float, float], ...]:
+    if "target_xys" not in metadata:
+        return ()
+    values = json.loads(str(metadata["target_xys"]))
+    if not isinstance(values, list):
+        raise ValueError("target_xys metadata must contain a list")
+    try:
+        return tuple((float(target[0]), float(target[1])) for target in values)
+    except (IndexError, TypeError) as exc:
+        raise ValueError("target_xys metadata must contain 2D targets") from exc
+
+
+def _waypoint_count(metadata: dict[str, Any]) -> int:
+    return int(metadata["waypoint_count"])
 
 
 def _direction(metadata: dict[str, Any]) -> str | None:

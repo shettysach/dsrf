@@ -22,6 +22,9 @@ class SimRenderer:
         image, projection = self.simulation.render_rgbd()
         return self._encode(image), projection
 
+    def capture_depth(self) -> ProjectionContext:
+        return self.simulation.render_depth()
+
     def capture_demo_rgb(self) -> np.ndarray:
         """Capture the same offscreen camera view that is sent to the VLM."""
         return self.simulation.render_demo_rgb()
