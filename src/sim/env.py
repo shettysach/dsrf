@@ -264,8 +264,14 @@ class MjlabEnv:
         qpos = sim.data.qpos[0].detach().cpu().numpy()
         centers = tuple(
             (
-                start_x + float(qpos[model.joint(f"sokoban_box_{index}_x").qposadr]),
-                start_y + float(qpos[model.joint(f"sokoban_box_{index}_y").qposadr]),
+                start_x
+                + float(
+                    qpos[_joint_qpos_address(model, f"sokoban_box_{index}_x")]
+                ),
+                start_y
+                + float(
+                    qpos[_joint_qpos_address(model, f"sokoban_box_{index}_y")]
+                ),
             )
             for index, (start_x, start_y) in enumerate(BOX_STARTS, start=1)
         )
@@ -274,6 +280,12 @@ class MjlabEnv:
             color = COMPLETED_BOX_RGBA if complete else _BOX_RGBA
             model.geom_rgba[geom_id] = color
             offline.renderer.model.geom_rgba[geom_id] = color
+
+
+def _joint_qpos_address(model: object, joint_name: str) -> int:
+    """Return MuJoCo's scalar qpos address across binding versions."""
+
+    return int(np.asarray(model.joint(joint_name).qposadr).item())
 
     def _sync_offscreen_camera_heading(self) -> None:
         if not getattr(self, "_camera_yaw", True):
