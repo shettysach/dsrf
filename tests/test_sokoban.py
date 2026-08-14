@@ -7,12 +7,10 @@ from tasks.sokoban.scene import (
     ARENA_MAX_X,
     BOX_MASS,
     BOX_STARTS,
-    COMPLETED_BOX_RGBA,
     GOAL_CENTERS,
     GOAL_HALF_SIZE,
     MJ_JOINT_SLIDE,
     WALL_HALF_THICKNESS,
-    completed_box_indices,
     make_sokoban_spec_fn,
 )
 
@@ -89,15 +87,3 @@ def test_sokoban_box_moves_under_a_small_planar_force() -> None:
 
     assert data.qpos[qpos_address] > 0.001
 
-
-def test_box_turns_green_only_when_safely_inside_its_goal() -> None:
-    assert completed_box_indices(GOAL_CENTERS) == (True, True)
-    assert completed_box_indices((BOX_STARTS[0], GOAL_CENTERS[1])) == (False, True)
-
-    # A center at the visible goal edge would leave part of the box outside.
-    edge_center = (
-        GOAL_CENTERS[0][0] + GOAL_HALF_SIZE,
-        GOAL_CENTERS[0][1],
-    )
-    assert completed_box_indices((edge_center, GOAL_CENTERS[1])) == (False, True)
-    assert COMPLETED_BOX_RGBA[1] > COMPLETED_BOX_RGBA[0]

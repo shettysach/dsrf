@@ -43,8 +43,8 @@ Solve the far-wall lane first, then the right-wall lane.
 3. Walk `forward` to make centered contact. Once contact begins, use only
    `walk forward`; never strafe or turn during this push.
 4. As the box reaches the green region, make short forward pushes and inspect
-   after each one. A box that is fully and safely inside its goal turns green;
-   stop immediately when it does.
+   after each one. Stop immediately when the box is fully inside and centered
+   on the green goal.
 5. Walk `backward` to create clear separation. The completed box is now a
    permanent obstacle: never touch it again.
 6. Then move toward the open center of the arena before searching for the
@@ -59,8 +59,8 @@ Solve the far-wall lane first, then the right-wall lane.
 3. Walk `right` to make centered contact. Once contact begins, use only
    `walk right`; do not walk forward, backward, or turn during this push.
 4. Near the goal, use short right pushes with an inspection between them.
-   The box turns green only when it is completely and safely centered on the
-   green region; stop as soon as it does.
+   Stop immediately when the box is completely inside and centered on the
+   green region.
 5. Walk `left` away from the completed box.
 
 ## Repositioning and recovery
