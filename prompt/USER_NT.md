@@ -3,7 +3,7 @@ Choose exactly one of these two command types for the robot's next action:
 1. DIRECTION: move relative to where the robot is currently facing.
 2. 2D WAYPOINT: walk to one visible point on the floor in the current image.
 
-Use only one type per response. Never combine direction and waypoint_2d.
+Use only one type per response. Never combine direction and waypoints_2d.
 
 DIRECTION COMMANDS
 
@@ -18,9 +18,10 @@ All directions are relative to the robot's current facing direction.
 2D WAYPOINT COMMAND
 
 Walk to a visible floor point:
-{"motion":"walk","waypoint_2d":[500,700]}
+{"motion":"walk","waypoints_2d":[[500,700]]}
 
-waypoint_2d contains two integer image coordinates in [0,1000]:
+waypoints_2d is a list of image-coordinate pairs. Each pair contains two integer
+coordinates in [0,1000]:
 
 - [0,0] is the top-left corner.
 - [1000,0] is the top-right corner.

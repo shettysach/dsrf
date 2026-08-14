@@ -495,10 +495,10 @@ def _command_signature(command: str) -> object:
     motion = payload.get("motion")
     if motion in {"walk", "turn"} and "direction" in payload:
         return (motion, payload.get("direction"))
-    if motion == "walk" and "waypoint_2d" in payload:
-        waypoint = payload.get("waypoint_2d")
-        if isinstance(waypoint, list):
-            return ("walk", tuple(waypoint))
+    if motion == "walk" and "waypoints_2d" in payload:
+        waypoints = payload.get("waypoints_2d")
+        if isinstance(waypoints, list):
+            return ("walk", tuple(tuple(waypoint) for waypoint in waypoints))
     return (motion,)
 
 
