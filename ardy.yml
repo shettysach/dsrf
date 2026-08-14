@@ -6,8 +6,7 @@ nodes:
     args: run --extra cu128 --extra ardy dsrf-agent
     min_log_level: warn
     env:
-      VLM_URL: http://127.0.0.1:8080
-      VLM_TIMEOUT: "120"
+      PI_TIMEOUT: "120"
       VLM_SYSTEM_PROMPT: tasks/portrait_corridors/TASK.md
       VLM_USER_PROMPT: prompt/USER.md
       MOTION_GENERATOR: ardy

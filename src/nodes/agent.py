@@ -9,7 +9,7 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
-from agent.vlm import OAIChatClient
+from agent.pi import PiRpcClient
 from agent.waypoint import parse_waypoint_command
 from shared.arrow import (
     agent_command_to_arrow,
@@ -43,7 +43,7 @@ class AgentLoop:
     def __init__(
         self,
         node: Node,
-        client: OAIChatClient,
+        client: PiRpcClient,
         *,
         waypoint_debug: bool = False,
         command_mode: str = "waypoint",
@@ -99,7 +99,6 @@ class AgentLoop:
                     "previous observation"
                 )
             assert self.pending_command is not None
-            self.client.commit(self.observation, self.pending_command)
 
         self.observation = observation
         self.pending_command = None
@@ -178,14 +177,14 @@ class AgentLoop:
         observation_id = self.observation.observation_id
         attempt = self.invalid_responses
         fields = {
-            "event": "vlm_request",
+            "event": "pi_request",
             "observation_id": str(observation_id),
             "attempt": str(attempt),
         }
         self.node.log(
             "debug",
-            f"[OBS {observation_id}] VLM request started retry={attempt}",
-            target="dsrf.agent.vlm",
+            f"[OBS {observation_id}] Pi request started retry={attempt}",
+            target="dsrf.agent.pi",
             fields=fields,
         )
         started_at = time.perf_counter()
@@ -195,33 +194,33 @@ class AgentLoop:
                 retry_feedback=retry_feedback,
             )
         except Exception as exc:
-            vlm_ms = (time.perf_counter() - started_at) * 1000.0
+            pi_ms = (time.perf_counter() - started_at) * 1000.0
             detail = f"{type(exc).__name__}: {exc}"
             self.node.log(
                 "error",
-                f"[OBS {observation_id}] VLM request failed: {detail}",
-                target="dsrf.agent.vlm",
+                f"[OBS {observation_id}] Pi request failed: {detail}",
+                target="dsrf.agent.pi",
                 fields={
-                    "event": "vlm_error",
+                    "event": "pi_error",
                     "observation_id": str(observation_id),
                     "attempt": str(attempt),
-                    "vlm_ms": f"{vlm_ms:.1f}",
+                    "pi_ms": f"{pi_ms:.1f}",
                     "detail": detail,
                 },
             )
             raise
 
-        vlm_ms = (time.perf_counter() - started_at) * 1000.0
+        pi_ms = (time.perf_counter() - started_at) * 1000.0
         self.node.log(
             "info",
-            f"[OBS {observation_id}] VLM command: {command!r} "
-            f"vlm_ms={vlm_ms:.1f} retry={attempt}",
-            target="dsrf.agent.vlm",
+            f"[OBS {observation_id}] Pi command: {command!r} "
+            f"pi_ms={pi_ms:.1f} retry={attempt}",
+            target="dsrf.agent.pi",
             fields={
-                "event": "vlm_response",
+                "event": "pi_response",
                 "observation_id": str(observation_id),
                 "command": command,
-                "vlm_ms": f"{vlm_ms:.1f}",
+                "pi_ms": f"{pi_ms:.1f}",
                 "attempt": str(attempt),
                 "jpeg_kb": f"{len(self.observation.jpeg) / 1024.0:.1f}",
             },
@@ -332,18 +331,22 @@ def _write_debug_image(
 def main() -> None:
     cfg = AgentConfig.from_env()
     node = Node()
-    client = OAIChatClient(
-        base_url=cfg.vlm_url,
-        timeout=cfg.vlm_timeout,
-        system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
-        user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
+    system_prompt = "\n\n".join(
+        (
+            cfg.system_prompt.read_text(encoding="utf-8"),
+            cfg.user_prompt.read_text(encoding="utf-8"),
+        )
     )
-    AgentLoop(
-        node,
-        client,
-        waypoint_debug=cfg.waypoint_debug,
-        command_mode=cfg.command_mode,
-    ).run()
+    client = PiRpcClient(timeout=cfg.pi_timeout, system_prompt=system_prompt)
+    try:
+        AgentLoop(
+            node,
+            client,
+            waypoint_debug=cfg.waypoint_debug,
+            command_mode=cfg.command_mode,
+        ).run()
+    finally:
+        client.close()
 
 
 def _parse_planner_command(text: str) -> tuple[str, str | None]:

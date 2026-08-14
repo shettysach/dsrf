@@ -9,8 +9,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"] == {
-        "VLM_URL": "http://127.0.0.1:8080",
-        "VLM_TIMEOUT": "120",
+        "PI_TIMEOUT": "120",
         "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
         "MOTION_GENERATOR": "kinematic_planner",

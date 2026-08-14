@@ -1,9 +1,10 @@
 import json
+import sys
 from typing import Any, cast
 
 import numpy as np
 
-from agent.vlm import OAIChatClient
+from agent.pi import PiRpcClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
     agent_command_from_arrow,
@@ -15,65 +16,41 @@ from shared.arrow import (
 from shared.messages import GroundingResult, PipelineError, VisualObservation
 
 
-class _Response:
-    def __init__(self, command: str) -> None:
-        self.payload = json.dumps(
-            {"choices": [{"message": {"content": command}}]}
-        ).encode()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args) -> None:
-        pass
-
-    def read(self) -> bytes:
-        return self.payload
-
-
-def test_llama_client_uses_blank_model_and_replays_history(monkeypatch) -> None:
-    posted: list[dict[str, Any]] = []
-    responses = iter(["stand", "walk forward 0.4"])
-
-    def urlopen(request, timeout):
-        posted.append(
-            {
-                "url": request.full_url,
-                "timeout": timeout,
-                "payload": json.loads(request.data),
-            }
-        )
-        return _Response(next(responses))
-
-    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
-    client = OAIChatClient(
-        base_url="http://127.0.0.1:8080/",
-        timeout=12.0,
-        system_prompt="System file prompt.\n",
-        user_prompt="User file prompt.\n",
+def test_pi_rpc_client_sends_current_image_and_retries_without_replay(tmp_path) -> None:
+    received = tmp_path / "received.jsonl"
+    fake_pi = tmp_path / "fake_pi.py"
+    fake_pi.write_text(
+        "import json, pathlib, sys\n"
+        "output = pathlib.Path(sys.argv[1])\n"
+        "with output.open('w') as saved:\n"
+        "  for index, line in enumerate(sys.stdin):\n"
+        "    request = json.loads(line)\n"
+        "    saved.write(json.dumps(request) + '\\n'); saved.flush()\n"
+        "    print(json.dumps({'type':'response','id':request['id'],'command':'prompt','success':True}), flush=True)\n"
+        "    print(json.dumps({'type':'message_end','message':{'role':'assistant','content':[{'type':'text','text':'command-' + str(index)}]}}), flush=True)\n"
+        "    print(json.dumps({'type':'agent_settled'}), flush=True)\n"
     )
-    first = VisualObservation(0, None, b"first")
-    assert client.complete(first) == "stand"
-    client.commit(first, "stand")
+    client = PiRpcClient(
+        timeout=2.0,
+        system_prompt="Task prompt",
+        command=(sys.executable, str(fake_pi), str(received)),
+    )
+    try:
+        assert client.complete(VisualObservation(0, None, b"jpeg")) == "command-0"
+        assert (
+            client.complete(VisualObservation(0, None, b"jpeg"), retry_feedback="bad JSON")
+            == "command-1"
+        )
+    finally:
+        client.close()
 
-    second = VisualObservation(1, "stand", b"second")
-    assert client.complete(second) == "walk forward 0.4"
-
-    assert posted[0]["url"] == "http://127.0.0.1:8080/v1/chat/completions"
-    assert posted[0]["timeout"] == 12.0
-    assert posted[0]["payload"]["model"] == ""
-    messages = posted[1]["payload"]["messages"]
-    assert [message["role"] for message in messages] == [
-        "system",
-        "user",
-        "assistant",
-        "user",
+    first, retry = [json.loads(line) for line in received.read_text().splitlines()]
+    assert first["images"] == [
+        {"type": "image", "data": "anBlZw==", "mimeType": "image/jpeg"}
     ]
-    assert messages[0]["content"] == "System file prompt.\n"
-    assert messages[1]["content"][0]["text"].endswith("User file prompt.\n")
-    assert messages[2]["content"] == "stand"
-    assert messages[1]["content"][1]["image_url"]["url"].endswith("Zmlyc3Q=")
-    assert messages[3]["content"][1]["image_url"]["url"].endswith("c2Vjb25k")
+    assert "Completed command: none (initial observation)" in first["message"]
+    assert "images" not in retry
+    assert "bad JSON" in retry["message"]
 
 
 class _Node:
@@ -96,14 +73,10 @@ class _Client:
     def __init__(self, responses: list[str]) -> None:
         self.responses = iter(responses)
         self.feedback: list[str | None] = []
-        self.commits: list[tuple[int, str]] = []
 
     def complete(self, observation, *, retry_feedback=None) -> str:
         self.feedback.append(retry_feedback)
         return next(self.responses)
-
-    def commit(self, observation, command) -> None:
-        self.commits.append((observation.observation_id, command))
 
 
 def _observation_event(observation: VisualObservation) -> dict[str, object]:
@@ -161,21 +134,21 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
     ]
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
-    vlm_messages = [message for _, message, _ in node.logs if "VLM command" in message]
-    assert len(vlm_messages) == 3
-    assert "[OBS 0] VLM command: 'invalid one'" in vlm_messages[0]
-    assert vlm_messages[0].endswith("retry=0")
-    assert "[OBS 0] VLM command: 'invalid two'" in vlm_messages[1]
-    assert vlm_messages[1].endswith("retry=1")
-    assert "[OBS 0] VLM command: 'invalid three'" in vlm_messages[2]
-    assert vlm_messages[2].endswith("retry=2")
+    pi_messages = [message for _, message, _ in node.logs if "Pi command" in message]
+    assert len(pi_messages) == 3
+    assert "[OBS 0] Pi command: 'invalid one'" in pi_messages[0]
+    assert pi_messages[0].endswith("retry=0")
+    assert "[OBS 0] Pi command: 'invalid two'" in pi_messages[1]
+    assert pi_messages[1].endswith("retry=1")
+    assert "[OBS 0] Pi command: 'invalid three'" in pi_messages[2]
+    assert pi_messages[2].endswith("retry=2")
     assert any(
         'fallback command: \'{"motion":"stand","waypoints_2d":[]}\'' in message
         for _, message, _ in node.logs
     )
 
 
-def test_agent_commits_exact_completed_command() -> None:
+def test_agent_accepts_exact_completed_command_without_client_commit() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"first")),
@@ -199,7 +172,7 @@ def test_agent_commits_exact_completed_command() -> None:
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
-    assert client.commits == [(0, '{"motion":"walk","waypoints_2d":[[500,500]]}')]
+    assert client.feedback == [None, None]
 
 
 def test_agent_command_without_waypoint_bypasses_grounding() -> None:

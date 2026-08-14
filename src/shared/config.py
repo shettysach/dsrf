@@ -74,8 +74,7 @@ class SimConfig:
 
 @dataclass(frozen=True)
 class AgentConfig:
-    vlm_url: str
-    vlm_timeout: float
+    pi_timeout: float
     system_prompt: Path
     user_prompt: Path
     waypoint_debug: bool
@@ -83,15 +82,11 @@ class AgentConfig:
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
-        url = os.environ["VLM_URL"].strip().rstrip("/")
-        if not url:
-            raise ValueError("VLM_URL must not be empty")
-        timeout = float(os.environ["VLM_TIMEOUT"])
+        timeout = float(os.environ["PI_TIMEOUT"])
         if timeout <= 0.0:
-            raise ValueError("VLM_TIMEOUT must be positive")
+            raise ValueError("PI_TIMEOUT must be positive")
         return cls(
-            vlm_url=url,
-            vlm_timeout=timeout,
+            pi_timeout=timeout,
             system_prompt=Path(os.environ["VLM_SYSTEM_PROMPT"]),
             user_prompt=Path(os.environ["VLM_USER_PROMPT"]),
             waypoint_debug=_optional_boolean("WAYPOINT_DEBUG", default=False),

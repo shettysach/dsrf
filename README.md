@@ -26,7 +26,9 @@ uvx --from huggingface_hub hf download nvidia/GEAR-SONIC \
   --local-dir /tmp/GEAR-SONIC
 ```
 
-Also an OpenAI compatible VLM inference server.
+Also a configured [`pi`](https://pi.dev) CLI. The agent launches Pi in RPC mode;
+configure Pi's model provider, model, extensions, session storage, and compaction before
+starting Dora. The dataflow supplies only the task-specific system and command prompts.
 
 ## Run
 
