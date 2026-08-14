@@ -280,13 +280,6 @@ class MjlabEnv:
             color = COMPLETED_BOX_RGBA if complete else _BOX_RGBA
             model.geom_rgba[geom_id] = color
             offline.renderer.model.geom_rgba[geom_id] = color
-
-
-def _joint_qpos_address(model: object, joint_name: str) -> int:
-    """Return MuJoCo's scalar qpos address across binding versions."""
-
-    return int(np.asarray(model.joint(joint_name).qposadr).item())
-
     def _sync_offscreen_camera_heading(self) -> None:
         if not getattr(self, "_camera_yaw", True):
             return
@@ -302,6 +295,12 @@ def _joint_qpos_address(model: object, joint_name: str) -> int:
 
     def close(self) -> None:
         self._env.close()
+
+
+def _joint_qpos_address(model: object, joint_name: str) -> int:
+    """Return MuJoCo's scalar qpos address across binding versions."""
+
+    return int(np.asarray(model.joint(joint_name).qposadr).item())
 
 
 # CUDA
