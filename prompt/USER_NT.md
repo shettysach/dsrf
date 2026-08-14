@@ -1,0 +1,42 @@
+Choose exactly one of these two command types for the robot's next action:
+
+1. DIRECTION: move relative to where the robot is currently facing.
+2. 2D WAYPOINT: walk to one visible point on the floor in the current image.
+
+Use only one type per response. Never combine direction and waypoint_2d.
+
+DIRECTION COMMANDS
+
+Walk forward, backward, left, or right:
+{"motion":"walk","direction":"forward"}
+{"motion":"walk","direction":"left"}
+
+Walk left and walk right are sideways steps. They do not rotate the robot.
+
+All directions are relative to the robot's current facing direction.
+
+2D WAYPOINT COMMAND
+
+Walk to a visible floor point:
+{"motion":"walk","waypoint_2d":[500,700]}
+
+waypoint_2d contains two integer image coordinates in [0,1000]:
+
+- [0,0] is the top-left corner.
+- [1000,0] is the top-right corner.
+- [0,1000] is the bottom-left corner.
+- [1000,1000] is the bottom-right corner.
+- [500,500] is the image center.
+
+The waypoint must be on visible traversable floor, not on a wall, box, or robot.
+An unobstructed green region is floor. Prefer a nearby reachable floor point. Use a
+2D waypoint when a precise position in the image is more useful than one fixed
+direction. Use a direction command for pushing straight, stepping sideways, or
+moving backward.
+
+To remain still:
+{"motion":"stand","direction":"forward"}
+
+Your entire response must be exactly one JSON object on one line. The first
+character must be { and the last character must be }. Do not write markdown,
+explanations, comments, or extra fields.
