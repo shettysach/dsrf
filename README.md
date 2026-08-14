@@ -46,6 +46,7 @@ dora run see_saw.yml
   runs.
 - Set `REFERENCE_GHOST: "true"` to show the active motion
   reference in the native viewer.
+- Set `CAMERA_YAW: "false"` to keep the camera heading fixed while the robot turns.
 
 ## ARDY closed loop
 

@@ -32,6 +32,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "JPEG_QUALITY": "85",
         "VIEWER": "native",
         "REFERENCE_GHOST": "${REFERENCE_GHOST:-false}",
+        "CAMERA_YAW": "${CAMERA_YAW:-true}",
         "DEMO_VIDEO_DIR": "${DEMO_VIDEO_DIR:-}",
         "DEMO_RUNS": "${DEMO_RUNS:-10}",
         "MOTION_TIMEOUT_SECONDS": "${MOTION_TIMEOUT_SECONDS:-20}",

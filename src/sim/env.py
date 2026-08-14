@@ -39,6 +39,7 @@ class MjlabEnv:
         image_height: int = 480,
         task: TaskSpec | None = None,
         goal_index: int | None = None,
+        camera_yaw: bool = True,
     ) -> None:
         torch_device = torch.device(device)
         env_cfg = make_sim_env_cfg(
@@ -48,6 +49,7 @@ class MjlabEnv:
             goal_index=goal_index,
         )
         self._camera_base_azimuth = float(env_cfg.viewer.azimuth)
+        self._camera_yaw = camera_yaw
         self._env = ManagerBasedRlEnv(
             cfg=env_cfg,
             device=str(torch_device),
@@ -237,6 +239,8 @@ class MjlabEnv:
             return offline.render().copy()
 
     def _sync_offscreen_camera_heading(self) -> None:
+        if not getattr(self, "_camera_yaw", True):
+            return
         offline = self._env._offline_renderer
         if offline is None:
             return

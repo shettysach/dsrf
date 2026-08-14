@@ -48,6 +48,7 @@ nodes:
       CAPTURE_DEPTH: "false"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
+      CAMERA_YAW: "${CAMERA_YAW:-true}"
     inputs:
       motion: motion-gen/motion
     outputs:

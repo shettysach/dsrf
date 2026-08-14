@@ -57,6 +57,7 @@ class SimConfig:
     jpeg_quality: int
     viewer: ViewerMode
     reference_ghost: bool
+    camera_yaw: bool = True
     demo_video_path: Path | None = None
     demo_video_dir: Path | None = None
     demo_runs: int = 1
@@ -74,6 +75,7 @@ class SimConfig:
             jpeg_quality=_bounded_int("JPEG_QUALITY", minimum=1, maximum=100),
             viewer=_viewer_mode(),
             reference_ghost=_boolean("REFERENCE_GHOST"),
+            camera_yaw=_optional_boolean("CAMERA_YAW", default=True),
             demo_video_path=(
                 Path(value)
                 if (value := os.environ.get("DEMO_VIDEO_PATH", "").strip())

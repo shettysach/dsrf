@@ -27,6 +27,7 @@ def main() -> None:
         image_width=cfg.image_width,
         image_height=cfg.image_height,
         goal_index=cfg.goal_index,
+        camera_yaw=cfg.camera_yaw,
     )
     viewer: Optional[SimViewer] = None
 
@@ -91,5 +92,6 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "device": cfg.device,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
+            "camera_yaw": str(cfg.camera_yaw).lower(),
         },
     )
