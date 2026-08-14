@@ -54,15 +54,32 @@ Prefer the lower-left far-wall box first:
 6. Inspect after each short push near the goal and stop as soon as the box is
    fully centered inside the far-wall green region.
 
+## Locate the next box
+
+After completing either box, deliberately find the remaining unfinished box
+before choosing another push:
+
+1. Move away from the completed box until both the box and its wall are safely
+   outside the robot's immediate path.
+2. Inspect the scene for the remaining yellow box. An unfinished box is the one
+   that is not fully centered on a green region.
+3. If it is not visible, move through the open central floor and inspect again
+   after each movement. Search from open space; never search by walking along or
+   through the completed box.
+4. Once the unfinished box is visible, identify its green goal and the open side
+   opposite that goal.
+5. Move toward that open side without touching the box. Stop with clear space,
+   then establish **ROBOT → BOX → GOAL** before making contact.
+
 ## Move to the right-wall box
 
 After the far-wall box is complete:
 
 1. Move **backward** until clearly separated from it.
 2. Never touch the completed box again.
-3. Return through the open center of the arena toward the upper-right box.
-4. Approach without contact and move to the box's left side, opposite the
-   right-wall goal.
+3. Locate the remaining upper-right box using the procedure above.
+4. Return through the open center of the arena without touching the box, then
+   move to its left side, opposite the right-wall goal.
 5. Match the box's forward depth so the robot, box, and goal form one straight
    horizontal line.
 6. Move **right** to contact the center of the box.
