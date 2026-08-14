@@ -28,8 +28,10 @@ BOX_STARTS = ((1.25, 2.1), (2.0, -1.0))
 GOAL_CENTERS = ((_GOAL_X_AT_FRONT_WALL, 2.1), (2.0, _GOAL_Y_AT_RIGHT_WALL))
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
+COMPLETED_BOX_RGBA = (0.1, 0.85, 0.25, 1.0)
 _GOAL_RGBA = (0.15, 0.8, 0.3, 0.55)
 _WALL_RGBA = (0.35, 0.4, 0.45, 1.0)
+COMPLETION_INSET = 0.03
 
 
 def make_sokoban_spec_fn() -> SceneSpecFn:
@@ -43,6 +45,21 @@ def make_sokoban_spec_fn() -> SceneSpecFn:
             _add_box(spec, index=index, center=center)
 
     return add_sokoban
+
+
+def completed_box_indices(
+    box_centers: tuple[tuple[float, float], ...],
+) -> tuple[bool, ...]:
+    """Return whether each box is safely contained by its corresponding goal."""
+
+    if len(box_centers) != len(GOAL_CENTERS):
+        raise ValueError("Expected one center for each Sokoban box")
+    allowed_offset = GOAL_HALF_SIZE - BOX_HALF_SIZE - COMPLETION_INSET
+    return tuple(
+        abs(box_x - goal_x) <= allowed_offset
+        and abs(box_y - goal_y) <= allowed_offset
+        for (box_x, box_y), (goal_x, goal_y) in zip(box_centers, GOAL_CENTERS)
+    )
 
 
 def _add_arena_walls(spec: "MjSpec") -> None:

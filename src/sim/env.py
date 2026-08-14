@@ -50,6 +50,7 @@ class MjlabEnv:
         )
         self._camera_base_azimuth = float(env_cfg.viewer.azimuth)
         self._camera_yaw = camera_yaw
+        self._task = task
         self._env = ManagerBasedRlEnv(
             cfg=env_cfg,
             device=str(torch_device),
@@ -135,6 +136,7 @@ class MjlabEnv:
 
     def render(self) -> np.ndarray:
         with self.compute_context():
+            self._update_sokoban_completion_visuals()
             self._sync_offscreen_camera_heading()
             image = self._env.render()
         if image is None:
@@ -146,6 +148,7 @@ class MjlabEnv:
             offline = self._env._offline_renderer
             if offline is None:
                 raise RuntimeError("MJLab offscreen renderer is not initialized")
+            self._update_sokoban_completion_visuals()
             self._sync_offscreen_camera_heading()
             debug_callback = (
                 self._env.update_visualizers
@@ -195,6 +198,7 @@ class MjlabEnv:
             offline = self._env._offline_renderer
             if offline is None:
                 raise RuntimeError("MJLab offscreen renderer is not initialized")
+            self._update_sokoban_completion_visuals()
             self._sync_offscreen_camera_heading()
             offline.update(self._env.sim.data)
             renderer = offline.renderer
@@ -234,9 +238,42 @@ class MjlabEnv:
             offline = self._env._offline_renderer
             if offline is None:
                 raise RuntimeError("MJLab offscreen renderer is not initialized")
+            self._update_sokoban_completion_visuals()
             self._sync_offscreen_camera_heading()
             offline.update(self._env.sim.data)
             return offline.render().copy()
+
+    def _update_sokoban_completion_visuals(self) -> None:
+        """Color a box green only after it is safely inside its own goal."""
+
+        if self._task is None or self._task.name != "sokoban":
+            return
+        offline = self._env._offline_renderer
+        if offline is None:
+            return
+
+        from tasks.sokoban.scene import (
+            BOX_STARTS,
+            COMPLETED_BOX_RGBA,
+            _BOX_RGBA,
+            completed_box_indices,
+        )
+
+        sim = self._env.sim
+        model = sim.mj_model
+        qpos = sim.data.qpos[0].detach().cpu().numpy()
+        centers = tuple(
+            (
+                start_x + float(qpos[model.joint(f"sokoban_box_{index}_x").qposadr]),
+                start_y + float(qpos[model.joint(f"sokoban_box_{index}_y").qposadr]),
+            )
+            for index, (start_x, start_y) in enumerate(BOX_STARTS, start=1)
+        )
+        for index, complete in enumerate(completed_box_indices(centers), start=1):
+            geom_id = model.geom(f"sokoban_box_{index}_pushable").id
+            color = COMPLETED_BOX_RGBA if complete else _BOX_RGBA
+            model.geom_rgba[geom_id] = color
+            offline.renderer.model.geom_rgba[geom_id] = color
 
     def _sync_offscreen_camera_heading(self) -> None:
         if not getattr(self, "_camera_yaw", True):

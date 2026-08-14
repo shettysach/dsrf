@@ -43,21 +43,24 @@ Solve the far-wall lane first, then the right-wall lane.
 3. Walk `forward` to make centered contact. Once contact begins, use only
    `walk forward`; never strafe or turn during this push.
 4. As the box reaches the green region, make short forward pushes and inspect
-   after each one. Stop immediately once the box is fully inside and centered.
+   after each one. A box that is fully and safely inside its goal turns green;
+   stop immediately when it does.
 5. Walk `backward` to create clear separation. The completed box is now a
    permanent obstacle: never touch it again.
+6. Then move toward the open center of the arena before searching for the
+   remaining yellow box. Do not linger beside the completed box or wall.
 
 ### 2. Right-wall box
 
-1. Return through open floor to the remaining box. Approach its left side,
+1. From the open center, locate the remaining yellow box. Approach its left side,
    opposite the green goal at the right wall, without contacting the box.
 2. Align at the same forward depth as the box so the robot, box, and goal make
    one horizontal line.
 3. Walk `right` to make centered contact. Once contact begins, use only
    `walk right`; do not walk forward, backward, or turn during this push.
 4. Near the goal, use short right pushes with an inspection between them.
-   Stop as soon as the box is completely inside and centered on the green
-   region.
+   The box turns green only when it is completely and safely centered on the
+   green region; stop as soon as it does.
 5. Walk `left` away from the completed box.
 
 ## Repositioning and recovery
@@ -70,8 +73,9 @@ Solve the far-wall lane first, then the right-wall lane.
 - If an unfinished box was contacted off-center, stop pushing at once, move
   away opposite the attempted push, route through open floor, and rebuild the
   robot -> box -> goal line. Resume only in that box's original lane.
-- Never try to correct a completed box. Avoid both completed boxes and walls
-  while crossing the arena.
+- When one box turns green, first move away from it and return to the open
+  center of the arena. From there, locate and approach the only remaining
+  yellow box. Never try to correct a completed box.
 
 ## Finish check
 
