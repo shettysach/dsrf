@@ -46,3 +46,28 @@ def test_pi_debug_is_silent_when_disabled() -> None:
     debug.event({"type": "agent_settled"})
 
     assert stream.getvalue() == ""
+
+
+def test_pi_debug_mirrors_complete_lines_to_callback() -> None:
+    received: list[str] = []
+    debug = PiDebug(True, stream=StringIO(), on_line=received.append)
+
+    debug.event(
+        {
+            "type": "message_update",
+            "assistantMessageEvent": {"type": "text_start", "contentIndex": 0},
+        }
+    )
+    debug.event(
+        {
+            "type": "message_update",
+            "assistantMessageEvent": {
+                "type": "text_delta",
+                "contentIndex": 0,
+                "delta": "Choosing left.",
+            },
+        }
+    )
+    debug.event({"type": "agent_settled"})
+
+    assert received == ["[pi] assistant: Choosing left.", "[pi] settled"]

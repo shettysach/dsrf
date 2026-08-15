@@ -9,6 +9,7 @@ import imageio.v3 as iio
 from dora import Node
 
 from agent.pi import PiAction, PiRpcClient
+from agent.pi_debug import PiDebug
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,
@@ -359,6 +360,14 @@ def main() -> None:
         timeout=cfg.pi_timeout,
         system_prompt=system_prompt,
         command_mode=cfg.command_mode,
+        debug=PiDebug(
+            on_line=lambda message: node.log(
+                "warn",
+                message,
+                target="dsrf.agent.pi.debug",
+                fields={"event": "pi_debug"},
+            )
+        ),
     )
     try:
         AgentLoop(

@@ -45,10 +45,11 @@ class PiRpcClient:
         command_mode: str,
         provider: str | None = None,
         model: str | None = None,
+        debug: PiDebug | None = None,
         command: Sequence[str] = ("pi",),
     ) -> None:
         self.timeout = timeout
-        self._debug = PiDebug()
+        self._debug = debug or PiDebug()
         self._stderr: deque[str] = deque(maxlen=40)
         # Pi owns provider discovery, credentials, endpoint, and model choice.
         # In particular, pi-llama-cpp may register a provider name such as

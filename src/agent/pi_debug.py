@@ -8,17 +8,25 @@ import sys
 import threading
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, TextIO
+from typing import Any, Callable, TextIO
 
 
 class PiDebug:
     """Format the useful Pi RPC lifecycle events without exposing image bytes."""
 
-    def __init__(self, enabled: bool | None = None, *, stream: TextIO | None = None) -> None:
+    def __init__(
+        self,
+        enabled: bool | None = None,
+        *,
+        stream: TextIO | None = None,
+        on_line: Callable[[str], None] | None = None,
+    ) -> None:
         self.enabled = _enabled_from_env() if enabled is None else enabled
         self._stream = sys.stderr if stream is None else stream
+        self._on_line = on_line
         self._lock = threading.Lock()
         self._text_open = False
+        self._text = ""
 
     def started(self, *, command_mode: str, provider: str | None) -> None:
         selection = provider or "Pi default"
@@ -63,7 +71,9 @@ class PiDebug:
     def stderr(self, line: str) -> None:
         if line:
             self._finish_text()
-            self._write(f"stderr: {line}")
+            # This runs on the Pi stderr reader thread.  Keep it on stderr
+            # instead of calling Dora's Node API from a background thread.
+            self._write(f"stderr: {line}", notify=False)
 
     def error(self, detail: str) -> None:
         self._finish_text()
@@ -80,11 +90,15 @@ class PiDebug:
             self._finish_text()
             self._write_prefix("assistant: ")
             self._text_open = True
+            self._text = ""
         elif assistant_event.get("type") == "text_delta":
             if not self._text_open:
                 self._write_prefix("assistant: ")
                 self._text_open = True
-            self._write_raw(str(assistant_event.get("delta", "")))
+                self._text = ""
+            delta = str(assistant_event.get("delta", ""))
+            self._text += delta
+            self._write_raw(delta)
         elif assistant_event.get("type") == "text_end":
             self._finish_text()
 
@@ -92,12 +106,17 @@ class PiDebug:
         if self.enabled and self._text_open:
             with self._lock:
                 print(file=self._stream, flush=True)
+            self._notify(f"assistant: {self._text}")
             self._text_open = False
+            self._text = ""
 
-    def _write(self, message: str) -> None:
+    def _write(self, message: str, *, notify: bool = True) -> None:
         if self.enabled:
+            line = f"[pi {datetime.now().strftime('%H:%M:%S')}] {message}"
             with self._lock:
-                print(f"[pi {datetime.now().strftime('%H:%M:%S')}] {message}", file=self._stream, flush=True)
+                print(line, file=self._stream, flush=True)
+            if notify:
+                self._notify(message)
 
     def _write_prefix(self, prefix: str) -> None:
         if self.enabled:
@@ -108,6 +127,10 @@ class PiDebug:
         if self.enabled:
             with self._lock:
                 print(text, end="", file=self._stream, flush=True)
+
+    def _notify(self, message: str) -> None:
+        if self.enabled and self._on_line is not None:
+            self._on_line(f"[pi] {message}")
 
 
 def _enabled_from_env() -> bool:
