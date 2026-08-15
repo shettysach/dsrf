@@ -34,6 +34,8 @@ its green region undoes progress.
 - You can push boxes, but you cannot pull them.
 - **forward** and **backward** move along the robot's facing direction.
 - **left** and **right** move laterally; they do not turn the robot around.
+- Use **stand** with a direction to rotate in place before walking or pushing in
+  a new facing direction.
 
 ## Critical alignment rule
 

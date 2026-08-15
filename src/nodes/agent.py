@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from io import BytesIO
@@ -9,8 +8,7 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
-from agent.pi import PiRpcClient
-from agent.waypoint import parse_waypoint_command
+from agent.pi import PiAction, PiRpcClient
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,
@@ -189,7 +187,7 @@ class AgentLoop:
         )
         started_at = time.perf_counter()
         try:
-            command = self.client.complete(
+            action = self.client.complete(
                 self.observation,
                 retry_feedback=retry_feedback,
             )
@@ -213,44 +211,44 @@ class AgentLoop:
         pi_ms = (time.perf_counter() - started_at) * 1000.0
         self.node.log(
             "info",
-            f"[OBS {observation_id}] Pi command: {command!r} "
+            f"[OBS {observation_id}] Pi action: {action.text!r} "
             f"pi_ms={pi_ms:.1f} retry={attempt}",
             target="dsrf.agent.pi",
             fields={
                 "event": "pi_response",
                 "observation_id": str(observation_id),
-                "command": command,
+                "command": action.text,
                 "pi_ms": f"{pi_ms:.1f}",
                 "attempt": str(attempt),
                 "jpeg_kb": f"{len(self.observation.jpeg) / 1024.0:.1f}",
             },
         )
         try:
-            if self.command_mode == "direction":
-                if not _is_waypoint_command(command):
-                    motion, direction = _parse_planner_command(command)
-                    self._send(
-                        command,
-                        motion=motion,
-                        target_xys=(),
-                        direction=direction,
-                    )
-                    return
-            parsed = parse_waypoint_command(command)
-            if not parsed.waypoints_2d:
-                self._send(command, motion=parsed.motion, target_xys=())
-                return
-            request = GroundingRequest(observation_id, parsed.waypoints_2d)
+            self._send_action(observation_id, action)
         except ValueError as exc:
-            self._retry_invalid(command, str(exc))
+            self._retry_invalid(action.text, str(exc))
             return
 
+    def _send_action(self, observation_id: int, action: PiAction) -> None:
+        if self.command_mode == "direction":
+            if action.direction is None:
+                raise ValueError("robot_action requires direction for this motion generator")
+            motion, direction = _parse_planner_action(action)
+            self._send(action.text, motion=motion, target_xys=(), direction=direction)
+            return
+        if action.direction is not None:
+            raise ValueError("robot_action requires waypoints_2d for this motion generator")
+        if not action.waypoints_2d:
+            self._send(action.text, motion=action.motion, target_xys=())
+            return
         self.pending_grounding = _PendingGrounding(
-            command_text=command,
-            motion=parsed.motion,
-            waypoints_2d=parsed.waypoints_2d,
+            command_text=action.text,
+            motion=action.motion,
+            waypoints_2d=action.waypoints_2d,
         )
-        data, metadata = grounding_request_to_arrow(request)
+        data, metadata = grounding_request_to_arrow(
+            GroundingRequest(observation_id, action.waypoints_2d)
+        )
         self.node.send_output("grounding_request", data, metadata=metadata)
 
     def _accept_grounding_result(self, result: GroundingResult) -> None:
@@ -337,7 +335,11 @@ def main() -> None:
             cfg.user_prompt.read_text(encoding="utf-8"),
         )
     )
-    client = PiRpcClient(timeout=cfg.pi_timeout, system_prompt=system_prompt)
+    client = PiRpcClient(
+        timeout=cfg.pi_timeout,
+        system_prompt=system_prompt,
+        command_mode=cfg.command_mode,
+    )
     try:
         AgentLoop(
             node,
@@ -349,28 +351,14 @@ def main() -> None:
         client.close()
 
 
-def _parse_planner_command(text: str) -> tuple[str, str | None]:
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError("Command must be a JSON object") from exc
-    if not isinstance(payload, dict) or set(payload) != {"motion", "direction"}:
-        raise ValueError("Planner command must contain only motion and direction")
-    motion = payload["motion"]
-    direction = payload["direction"]
-    if motion == "stand" and direction == "forward":
-        return "stand", None
+def _parse_planner_action(action: PiAction) -> tuple[str, str | None]:
+    motion = action.motion
+    direction = action.direction
+    if motion == "stand" and direction in {"forward", "backward", "left", "right"}:
+        return "stand", direction
     if motion == "walk" and direction in {"forward", "backward", "left", "right"}:
         return "walk", direction
     raise ValueError("Unsupported planner motion or direction")
-
-
-def _is_waypoint_command(text: str) -> bool:
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return False
-    return isinstance(payload, dict) and "waypoints_2d" in payload
 
 
 if __name__ == "__main__":

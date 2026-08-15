@@ -10,9 +10,27 @@ import uuid
 from base64 import b64encode
 from collections import deque
 from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from shared.messages import VisualObservation
+
+
+@dataclass(frozen=True)
+class PiAction:
+    motion: str
+    direction: str | None
+    waypoints_2d: tuple[tuple[int, int], ...]
+
+    @property
+    def text(self) -> str:
+        payload: dict[str, object] = {"motion": self.motion}
+        if self.direction is not None:
+            payload["direction"] = self.direction
+        else:
+            payload["waypoints_2d"] = [list(point) for point in self.waypoints_2d]
+        return json.dumps(payload, separators=(",", ":"))
 
 
 class PiRpcClient:
@@ -23,6 +41,7 @@ class PiRpcClient:
         *,
         timeout: float,
         system_prompt: str,
+        command_mode: str,
         command: Sequence[str] = ("pi",),
     ) -> None:
         self.timeout = timeout
@@ -32,16 +51,21 @@ class PiRpcClient:
                 *command,
                 "--mode",
                 "rpc",
-                "--no-tools",
+                "--no-builtin-tools",
+                "--no-extensions",
+                "--extension",
+                str(_extension_path()),
                 "--no-context-files",
-                "--append-system-prompt",
+                "--no-skills",
+                "--no-prompt-templates",
+                "--system-prompt",
                 system_prompt,
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=0,
-            env=os.environ.copy(),
+            env={**os.environ, "DSRF_COMMAND_MODE": command_mode},
         )
         assert self._process.stdin is not None
         assert self._process.stdout is not None
@@ -56,7 +80,7 @@ class PiRpcClient:
         observation: VisualObservation,
         *,
         retry_feedback: str | None = None,
-    ) -> str:
+    ) -> PiAction:
         if retry_feedback is None:
             request: dict[str, Any] = {
                 "id": str(uuid.uuid4()),
@@ -76,7 +100,7 @@ class PiRpcClient:
                 "type": "prompt",
                 "message": (
                     f"Your previous response was invalid: {retry_feedback}\n\n"
-                    "Return a corrected command for the current observation."
+                    "Call robot_action with a corrected action for the current observation."
                 ),
             }
         self._send(request)
@@ -99,7 +123,9 @@ class PiRpcClient:
 
     def _send(self, request: dict[str, Any]) -> None:
         if self._process.poll() is not None:
-            raise RuntimeError(self._exit_detail("Pi exited before receiving a request"))
+            raise RuntimeError(
+                self._exit_detail("Pi exited before receiving a request")
+            )
         assert self._process.stdin is not None
         try:
             self._process.stdin.write(
@@ -109,10 +135,10 @@ class PiRpcClient:
         except BrokenPipeError as exc:
             raise RuntimeError(self._exit_detail("Pi RPC stdin closed")) from exc
 
-    def _read_response(self, request_id: str) -> str:
+    def _read_response(self, request_id: str) -> PiAction:
         assert self._process.stdout is not None
         deadline = time.monotonic() + self.timeout
-        final_text: str | None = None
+        action: PiAction | None = None
         accepted = False
         while True:
             remaining = deadline - time.monotonic()
@@ -130,22 +156,23 @@ class PiRpcClient:
                 raise RuntimeError(f"Pi emitted invalid JSONL: {line!r}") from exc
             if event.get("type") == "response" and event.get("id") == request_id:
                 if not event.get("success"):
-                    raise RuntimeError(f"Pi rejected prompt: {event.get('error', event)}")
+                    raise RuntimeError(
+                        f"Pi rejected prompt: {event.get('error', event)}"
+                    )
                 accepted = True
             elif event.get("type") == "extension_error":
                 raise RuntimeError(f"Pi extension error: {event.get('error', event)}")
-            elif event.get("type") == "message_end":
-                message = event.get("message")
-                if isinstance(message, dict) and message.get("role") == "assistant":
-                    text = _assistant_text(message)
-                    if text:
-                        final_text = text
+            elif event.get("type") == "tool_execution_start":
+                if event.get("toolName") == "robot_action":
+                    if action is not None:
+                        raise RuntimeError("Pi invoked robot_action more than once")
+                    action = _action_from_arguments(event.get("args"))
             elif event.get("type") == "agent_settled":
                 if not accepted:
                     raise RuntimeError("Pi settled before accepting the prompt")
-                if final_text is None:
-                    raise RuntimeError("Pi settled without an assistant text response")
-                return final_text
+                if action is None:
+                    raise RuntimeError("Pi settled without invoking robot_action")
+                return action
 
     def _collect_stderr(self) -> None:
         assert self._process.stderr is not None
@@ -167,14 +194,34 @@ def _observation_text(observation: VisualObservation) -> str:
     )
 
 
-def _assistant_text(message: dict[str, Any]) -> str:
-    content = message.get("content")
-    if not isinstance(content, list):
-        return ""
-    return "".join(
-        block["text"]
-        for block in content
-        if isinstance(block, dict)
-        and block.get("type") == "text"
-        and isinstance(block.get("text"), str)
-    ).strip()
+def _action_from_arguments(arguments: object) -> PiAction:
+    if not isinstance(arguments, dict):
+        raise ValueError("robot_action arguments must be an object")
+    motion = arguments.get("motion")
+    if not isinstance(motion, str) or not motion.strip():
+        raise ValueError("robot_action motion must be non-empty text")
+    direction = arguments.get("direction")
+    waypoints = arguments.get("waypoints_2d")
+    if direction is not None and waypoints is not None:
+        raise ValueError("robot_action cannot contain both direction and waypoints_2d")
+    if direction is not None:
+        if not isinstance(direction, str):
+            raise ValueError("robot_action direction must be text")
+        return PiAction(motion.strip(), direction, ())
+    if not isinstance(waypoints, list):
+        raise ValueError("robot_action requires direction or waypoints_2d")
+    normalized: list[tuple[int, int]] = []
+    for waypoint in waypoints:
+        if (
+            not isinstance(waypoint, list)
+            or len(waypoint) != 2
+            or any(type(value) is not int for value in waypoint)
+            or not all(0 <= value <= 1000 for value in waypoint)
+        ):
+            raise ValueError("robot_action waypoints must be [x, y] integers in [0,1000]")
+        normalized.append((waypoint[0], waypoint[1]))
+    return PiAction(motion.strip(), None, tuple(normalized))
+
+
+def _extension_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "pi" / "kinematic_planner.ts"

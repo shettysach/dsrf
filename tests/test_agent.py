@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import numpy as np
 
-from agent.pi import PiRpcClient
+from agent.pi import PiAction, PiRpcClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
     agent_command_from_arrow,
@@ -27,19 +27,22 @@ def test_pi_rpc_client_sends_current_image_and_retries_without_replay(tmp_path) 
         "    request = json.loads(line)\n"
         "    saved.write(json.dumps(request) + '\\n'); saved.flush()\n"
         "    print(json.dumps({'type':'response','id':request['id'],'command':'prompt','success':True}), flush=True)\n"
-        "    print(json.dumps({'type':'message_end','message':{'role':'assistant','content':[{'type':'text','text':'command-' + str(index)}]}}), flush=True)\n"
+        "    print(json.dumps({'type':'tool_execution_start','toolName':'robot_action','args':{'motion':'walk','direction':'forward'}}), flush=True)\n"
         "    print(json.dumps({'type':'agent_settled'}), flush=True)\n"
     )
     client = PiRpcClient(
         timeout=2.0,
         system_prompt="Task prompt",
+        command_mode="direction",
         command=(sys.executable, str(fake_pi), str(received)),
     )
     try:
-        assert client.complete(VisualObservation(0, None, b"jpeg")) == "command-0"
+        assert client.complete(VisualObservation(0, None, b"jpeg")).text == (
+            '{"motion":"walk","direction":"forward"}'
+        )
         assert (
             client.complete(VisualObservation(0, None, b"jpeg"), retry_feedback="bad JSON")
-            == "command-1"
+            == PiAction("walk", "forward", ())
         )
     finally:
         client.close()
@@ -74,9 +77,9 @@ class _Client:
         self.responses = iter(responses)
         self.feedback: list[str | None] = []
 
-    def complete(self, observation, *, retry_feedback=None) -> str:
+    def complete(self, observation, *, retry_feedback=None) -> PiAction:
         self.feedback.append(retry_feedback)
-        return next(self.responses)
+        return _action(next(self.responses))
 
 
 def _observation_event(observation: VisualObservation) -> dict[str, object]:
@@ -87,6 +90,15 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
         "value": value,
         "metadata": metadata,
     }
+
+
+def _action(text: str) -> PiAction:
+    payload = json.loads(text)
+    return PiAction(
+        payload["motion"],
+        payload.get("direction"),
+        tuple(tuple(point) for point in payload.get("waypoints_2d", [])),
+    )
 
 
 def _grounding_event(
@@ -113,14 +125,26 @@ def _error_event(observation_id: int) -> dict[str, object]:
     }
 
 
-def test_agent_retries_three_invalid_responses_then_stands() -> None:
+def test_agent_retries_three_downstream_errors_then_stands() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0),
+            _error_event(0),
+            _grounding_event(0),
+            _error_event(0),
+            _grounding_event(0),
+            _error_event(0),
             {"type": "STOP"},
         ]
     )
-    client = _Client(["invalid one", "invalid two", "invalid three"])
+    client = _Client(
+        [
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+            '{"motion":"walk","waypoints_2d":[[500,500]]}',
+        ]
+    )
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
@@ -130,17 +154,20 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
+        '{"motion":"walk","waypoints_2d":[[500,500]]}',
         '{"motion":"stand","waypoints_2d":[]}',
     ]
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
-    pi_messages = [message for _, message, _ in node.logs if "Pi command" in message]
+    pi_messages = [message for _, message, _ in node.logs if "Pi action" in message]
     assert len(pi_messages) == 3
-    assert "[OBS 0] Pi command: 'invalid one'" in pi_messages[0]
+    assert "[OBS 0] Pi action: '{\"motion\":\"walk\",\"waypoints_2d\":[[500,500]]}'" in pi_messages[0]
     assert pi_messages[0].endswith("retry=0")
-    assert "[OBS 0] Pi command: 'invalid two'" in pi_messages[1]
+    assert "[OBS 0] Pi action: '{\"motion\":\"walk\",\"waypoints_2d\":[[500,500]]}'" in pi_messages[1]
     assert pi_messages[1].endswith("retry=1")
-    assert "[OBS 0] Pi command: 'invalid three'" in pi_messages[2]
+    assert "[OBS 0] Pi action: '{\"motion\":\"walk\",\"waypoints_2d\":[[500,500]]}'" in pi_messages[2]
     assert pi_messages[2].endswith("retry=2")
     assert any(
         'fallback command: \'{"motion":"stand","waypoints_2d":[]}\'' in message
@@ -191,6 +218,24 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     )
     assert command.motion == "stand"
     assert command.target_xys == ()
+
+
+def test_agent_preserves_stand_direction_for_in_place_turn() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(['{"motion":"stand","direction":"left"}'])
+
+    AgentLoop(cast(Any, node), cast(Any, client), command_mode="direction").run()
+
+    command = agent_command_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert command.motion == "stand"
+    assert command.direction == "left"
 
 
 def test_agent_retries_motion_gen_errors() -> None:
