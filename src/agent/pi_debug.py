@@ -27,6 +27,8 @@ class PiDebug:
         self._lock = threading.Lock()
         self._text_open = False
         self._text = ""
+        self._thinking_open = False
+        self._thinking = ""
 
     def started(self, *, command_mode: str, provider: str | None) -> None:
         selection = provider or "Pi default"
@@ -45,6 +47,7 @@ class PiDebug:
             self._message_update(event.get("assistantMessageEvent"))
         elif event_type == "tool_execution_start":
             self._finish_text()
+            self._finish_thinking()
             self._write(
                 f"tool {event.get('toolName', '<unknown>')} "
                 f"{_compact(event.get('args', {}))}"
@@ -54,9 +57,11 @@ class PiDebug:
             self._write(f"tool {event.get('toolName', '<unknown>')} {outcome}")
         elif event_type == "agent_settled":
             self._finish_text()
+            self._finish_thinking()
             self._write("settled")
         elif event_type == "extension_error":
             self._finish_text()
+            self._finish_thinking()
             self._write(f"extension error: {event.get('error', event)}")
         elif event_type == "auto_retry_start":
             self._write(
@@ -71,16 +76,19 @@ class PiDebug:
     def stderr(self, line: str) -> None:
         if line:
             self._finish_text()
+            self._finish_thinking()
             # This runs on the Pi stderr reader thread.  Keep it on stderr
             # instead of calling Dora's Node API from a background thread.
             self._write(f"stderr: {line}", notify=False)
 
     def error(self, detail: str) -> None:
         self._finish_text()
+        self._finish_thinking()
         self._write(f"error: {detail}")
 
     def stopped(self) -> None:
         self._finish_text()
+        self._finish_thinking()
         self._write("stopped")
 
     def _message_update(self, assistant_event: object) -> None:
@@ -101,6 +109,23 @@ class PiDebug:
             self._write_raw(delta)
         elif assistant_event.get("type") == "text_end":
             self._finish_text()
+        elif assistant_event.get("type") == "thinking_start":
+            self._finish_text()
+            self._finish_thinking()
+            self._write_prefix("thinking: ")
+            self._thinking_open = True
+            self._thinking = ""
+        elif assistant_event.get("type") == "thinking_delta":
+            if not self._thinking_open:
+                self._finish_text()
+                self._write_prefix("thinking: ")
+                self._thinking_open = True
+                self._thinking = ""
+            delta = str(assistant_event.get("delta", ""))
+            self._thinking += delta
+            self._write_raw(delta)
+        elif assistant_event.get("type") == "thinking_end":
+            self._finish_thinking()
 
     def _finish_text(self) -> None:
         if self.enabled and self._text_open:
@@ -109,6 +134,14 @@ class PiDebug:
             self._notify(f"assistant: {self._text}")
             self._text_open = False
             self._text = ""
+
+    def _finish_thinking(self) -> None:
+        if self.enabled and self._thinking_open:
+            with self._lock:
+                print(file=self._stream, flush=True)
+            self._notify(f"thinking: {self._thinking}")
+            self._thinking_open = False
+            self._thinking = ""
 
     def _write(self, message: str, *, notify: bool = True) -> None:
         if self.enabled:

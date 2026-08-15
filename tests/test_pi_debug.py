@@ -71,3 +71,35 @@ def test_pi_debug_mirrors_complete_lines_to_callback() -> None:
     debug.event({"type": "agent_settled"})
 
     assert received == ["[pi] assistant: Choosing left.", "[pi] settled"]
+
+
+def test_pi_debug_formats_thinking_stream() -> None:
+    stream = StringIO()
+    received: list[str] = []
+    debug = PiDebug(True, stream=stream, on_line=received.append)
+
+    debug.event(
+        {
+            "type": "message_update",
+            "assistantMessageEvent": {"type": "thinking_start", "contentIndex": 0},
+        }
+    )
+    debug.event(
+        {
+            "type": "message_update",
+            "assistantMessageEvent": {
+                "type": "thinking_delta",
+                "contentIndex": 0,
+                "delta": "The path ahead is clear.",
+            },
+        }
+    )
+    debug.event(
+        {
+            "type": "message_update",
+            "assistantMessageEvent": {"type": "thinking_end", "contentIndex": 0},
+        }
+    )
+
+    assert "thinking: The path ahead is clear." in stream.getvalue()
+    assert received == ["[pi] thinking: The path ahead is clear."]
