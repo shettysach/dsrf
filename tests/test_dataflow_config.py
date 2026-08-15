@@ -69,6 +69,18 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
 
 
+def test_sokoban_state_dataflow_uses_the_stateful_task_prompt() -> None:
+    descriptor = yaml.safe_load(Path("sokoban_state.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert set(nodes) == {"agent", "motion-gen", "sim"}
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == (
+        "tasks/sokoban/TASK_STATE.md"
+    )
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
+    assert nodes["sim"]["env"]["TASK"] == "sokoban"
+
+
 def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
     descriptor = yaml.safe_load(Path("stack_steps.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
@@ -115,6 +127,7 @@ def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
         "tasks/sokoban/TASK.md",
+        "tasks/sokoban/TASK_STATE.md",
         "tasks/sokoban/SYSTEM_2D.md",
         "tasks/stack_steps/TASK.md",
         "tasks/see_saw/TASK.md",
