@@ -40,12 +40,13 @@ def test_agent_command_arrow_round_trip() -> None:
 
 
 def test_observation_arrow_round_trip() -> None:
-    observation = VisualObservation(4, "stand", b"jpeg")
+    observation = VisualObservation(4, "stand", b"jpeg", trajectory_png=b"png")
     value, metadata = observation_to_arrow(observation)
     restored = observation_from_arrow(value, metadata)
     assert restored.observation_id == observation.observation_id
     assert restored.completed_command == observation.completed_command
     assert restored.jpeg == observation.jpeg
+    assert restored.trajectory_png == observation.trajectory_png
 
 
 def test_grounding_messages_arrow_round_trip() -> None:

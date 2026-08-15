@@ -68,6 +68,8 @@ class PiRpcClient:
                 "--no-builtin-tools",
                 "--extension",
                 str(_extension_path()),
+                "--extension",
+                str(_context_extension_path()),
                 "--no-context-files",
                 "--no-skills",
                 "--no-prompt-templates",
@@ -103,28 +105,18 @@ class PiRpcClient:
             completed_command=observation.completed_command,
             retry=retry_feedback is not None,
         )
-        if retry_feedback is None:
-            request: dict[str, Any] = {
-                "id": str(uuid.uuid4()),
-                "type": "prompt",
-                "message": _observation_text(observation),
-                "images": [
-                    {
-                        "type": "image",
-                        "data": b64encode(observation.jpeg).decode("ascii"),
-                        "mimeType": "image/jpeg",
-                    }
-                ],
-            }
-        else:
-            request = {
-                "id": str(uuid.uuid4()),
-                "type": "prompt",
-                "message": (
-                    f"Your previous response was invalid: {retry_feedback}\n\n"
-                    "Call robot_action with a corrected action for the current observation."
-                ),
-            }
+        message = _observation_text(observation)
+        if retry_feedback is not None:
+            message += (
+                f"\n\nYour previous response was invalid: {retry_feedback}\n"
+                "Call robot_action with a corrected action."
+            )
+        request: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "type": "prompt",
+            "message": message,
+            "images": _current_images(observation),
+        }
         self._send(request)
         return self._read_response(str(request["id"]))
 
@@ -255,8 +247,34 @@ def _observation_text(observation: VisualObservation) -> str:
     return (
         f"Observation {observation.observation_id}.\n"
         f"Completed command: {completed}{collision}\n\n"
-        "Choose the robot's next command from this current observation."
+        "The first image is the current robot-camera RGB observation."
+        + (
+            " The second image is only the robot's top-down path so far; it has no "
+            "map, objects, goals, or world-coordinate labels."
+            if observation.trajectory_png is not None
+            else ""
+        )
+        + "\n\nChoose the robot's next command from this current observation."
     )
+
+
+def _current_images(observation: VisualObservation) -> list[dict[str, str]]:
+    images = [
+        {
+            "type": "image",
+            "data": b64encode(observation.jpeg).decode("ascii"),
+            "mimeType": "image/jpeg",
+        }
+    ]
+    if observation.trajectory_png is not None:
+        images.append(
+            {
+                "type": "image",
+                "data": b64encode(observation.trajectory_png).decode("ascii"),
+                "mimeType": "image/png",
+            }
+        )
+    return images
 
 
 def _action_from_arguments(arguments: object) -> PiAction:
@@ -290,3 +308,7 @@ def _action_from_arguments(arguments: object) -> PiAction:
 
 def _extension_path() -> Path:
     return Path(__file__).resolve().parents[2] / "pi" / "kinematic_planner.ts"
+
+
+def _context_extension_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "pi" / "dsrf_context.ts"

@@ -349,6 +349,7 @@ def test_sim_publishes_rgb_without_eager_depth() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert observation.jpeg == b"jpeg-0"
+    assert observation.trajectory_png is not None
 
 
 def test_sim_lazily_caches_depth_for_current_observation() -> None:

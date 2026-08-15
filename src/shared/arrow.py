@@ -82,7 +82,11 @@ def observation_to_arrow(
         metadata["completed_command"] = observation.completed_command
     if observation.collision_detected:
         metadata["collision_detected"] = "true"
-    return pa.array([observation.jpeg], type=pa.binary()), metadata
+    images = [observation.jpeg]
+    if observation.trajectory_png is not None:
+        images.append(observation.trajectory_png)
+        metadata["trajectory_mime_type"] = "image/png"
+    return pa.array(images, type=pa.binary()), metadata
 
 
 def observation_from_arrow(
@@ -91,7 +95,12 @@ def observation_from_arrow(
     mime_type = metadata.get("mime_type")
     if mime_type != "image/jpeg":
         raise ValueError(f"Unsupported observation MIME type: {mime_type!r}")
-    jpeg = _binary_from_arrow(value)
+    images = _binaries_from_arrow(value)
+    if len(images) not in {1, 2}:
+        raise ValueError("Expected an RGB image and optional trajectory image")
+    trajectory_png = images[1] if len(images) == 2 else None
+    if trajectory_png is not None and metadata.get("trajectory_mime_type") != "image/png":
+        raise ValueError("Unsupported trajectory MIME type")
     return VisualObservation(
         observation_id=_observation_id(metadata),
         completed_command=(
@@ -99,10 +108,11 @@ def observation_from_arrow(
             if "completed_command" in metadata
             else None
         ),
-        jpeg=jpeg,
+        jpeg=images[0],
         run_id=int(metadata.get("run_id", 0)),
         collision_detected=str(metadata.get("collision_detected", "false")).lower()
         == "true",
+        trajectory_png=trajectory_png,
     )
 
 
@@ -195,11 +205,11 @@ def _string_from_arrow(value: pa.Array) -> str:
     return values[0]
 
 
-def _binary_from_arrow(value: pa.Array) -> bytes:
+def _binaries_from_arrow(value: pa.Array) -> tuple[bytes, ...]:
     values = value.to_pylist()
-    if len(values) != 1 or not isinstance(values[0], bytes):
-        raise ValueError("Expected one binary value")
-    return values[0]
+    if not values or not all(isinstance(item, bytes) for item in values):
+        raise ValueError("Expected binary values")
+    return tuple(values)
 
 
 def _observation_id(metadata: dict[str, Any]) -> int:

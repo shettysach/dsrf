@@ -16,7 +16,7 @@ from shared.arrow import (
 from shared.messages import GroundingResult, PipelineError, VisualObservation
 
 
-def test_pi_rpc_client_sends_current_image_and_retries_without_replay(tmp_path) -> None:
+def test_pi_rpc_client_sends_current_images_on_every_request(tmp_path) -> None:
     received = tmp_path / "received.jsonl"
     fake_pi = tmp_path / "fake_pi.py"
     fake_pi.write_text(
@@ -37,11 +37,12 @@ def test_pi_rpc_client_sends_current_image_and_retries_without_replay(tmp_path) 
         command=(sys.executable, str(fake_pi), str(received)),
     )
     try:
-        assert client.complete(VisualObservation(0, None, b"jpeg")).text == (
+        observation = VisualObservation(0, None, b"jpeg", trajectory_png=b"png")
+        assert client.complete(observation).text == (
             '{"motion":"walk","direction":"forward"}'
         )
         assert (
-            client.complete(VisualObservation(0, None, b"jpeg"), retry_feedback="bad JSON")
+            client.complete(observation, retry_feedback="bad JSON")
             == PiAction("walk", "forward", ())
         )
     finally:
@@ -49,10 +50,11 @@ def test_pi_rpc_client_sends_current_image_and_retries_without_replay(tmp_path) 
 
     first, retry = [json.loads(line) for line in received.read_text().splitlines()]
     assert first["images"] == [
-        {"type": "image", "data": "anBlZw==", "mimeType": "image/jpeg"}
+        {"type": "image", "data": "anBlZw==", "mimeType": "image/jpeg"},
+        {"type": "image", "data": "cG5n", "mimeType": "image/png"},
     ]
     assert "Completed command: none (initial observation)" in first["message"]
-    assert "images" not in retry
+    assert retry["images"] == first["images"]
     assert "bad JSON" in retry["message"]
 
 
