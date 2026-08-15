@@ -48,7 +48,7 @@ def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
 
     assert len(BOX_STARTS) == 2
     assert len(GOAL_CENTERS) == 2
-    assert ARENA_HALF_WIDTH == 2.5
+    assert ARENA_HALF_WIDTH == 2.8
     assert GOAL_CENTERS[0][0] + GOAL_HALF_SIZE == pytest.approx(
         ARENA_MAX_X - WALL_HALF_THICKNESS
     )
