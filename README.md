@@ -29,10 +29,11 @@ uvx --from huggingface_hub hf download nvidia/GEAR-SONIC \
 Also a configured [`pi`](https://pi.dev) CLI. The agent launches Pi in RPC mode;
 configure Pi's model provider, model, extensions, session storage, and compaction before
 starting Dora. The dataflow supplies only the task-specific system and command prompts.
+Set `PI_DEBUG=1` in the agent environment to print a compact live trace of Pi's assistant
+text, tool calls, retries, errors, and settled events. Image payloads and raw RPC JSON are
+never printed.
 
 ## Run
-
-Run OpenAI compatible VLM inference server.
 
 ```bash
 dora run corridors.yml

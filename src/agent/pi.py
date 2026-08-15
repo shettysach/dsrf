@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from agent.pi_debug import PiDebug
 from shared.messages import VisualObservation
 
 
@@ -47,6 +48,7 @@ class PiRpcClient:
         command: Sequence[str] = ("pi",),
     ) -> None:
         self.timeout = timeout
+        self._debug = PiDebug()
         self._stderr: deque[str] = deque(maxlen=40)
         # Pi owns provider discovery, credentials, endpoint, and model choice.
         # In particular, pi-llama-cpp may register a provider name such as
@@ -80,6 +82,7 @@ class PiRpcClient:
             bufsize=0,
             env={**os.environ, "DSRF_COMMAND_MODE": command_mode},
         )
+        self._debug.started(command_mode=command_mode, provider=selected_provider)
         assert self._process.stdin is not None
         assert self._process.stdout is not None
         assert self._process.stderr is not None
@@ -94,6 +97,11 @@ class PiRpcClient:
         *,
         retry_feedback: str | None = None,
     ) -> PiAction:
+        self._debug.prompt(
+            observation_id=observation.observation_id,
+            completed_command=observation.completed_command,
+            retry=retry_feedback is not None,
+        )
         if retry_feedback is None:
             request: dict[str, Any] = {
                 "id": str(uuid.uuid4()),
@@ -121,6 +129,7 @@ class PiRpcClient:
 
     def close(self) -> None:
         if self._process.poll() is not None:
+            self._debug.stopped()
             return
         assert self._process.stdin is not None
         self._process.stdin.close()
@@ -133,6 +142,7 @@ class PiRpcClient:
             except subprocess.TimeoutExpired:
                 self._process.kill()
                 self._process.wait()
+        self._debug.stopped()
 
     def _send(self, request: dict[str, Any]) -> None:
         if self._process.poll() is not None:
@@ -167,6 +177,7 @@ class PiRpcClient:
                 event = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise RuntimeError(f"Pi emitted invalid JSONL: {line!r}") from exc
+            self._debug.event(event)
             if event.get("type") == "response" and event.get("id") == request_id:
                 if not event.get("success"):
                     raise RuntimeError(
@@ -190,7 +201,9 @@ class PiRpcClient:
     def _collect_stderr(self) -> None:
         assert self._process.stderr is not None
         for line in iter(self._process.stderr.readline, b""):
-            self._stderr.append(line.decode("utf-8", errors="replace").rstrip())
+            detail = line.decode("utf-8", errors="replace").rstrip()
+            self._stderr.append(detail)
+            self._debug.stderr(detail)
 
     def _exit_detail(self, prefix: str) -> str:
         stderr = "\n".join(self._stderr)

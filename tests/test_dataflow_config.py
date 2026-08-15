@@ -10,6 +10,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
 
     assert nodes["agent"]["env"] == {
         "PI_TIMEOUT": "120",
+        "PI_DEBUG": "${PI_DEBUG:-false}",
         "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
         "MOTION_GENERATOR": "kinematic_planner",

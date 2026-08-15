@@ -7,6 +7,7 @@ nodes:
     min_log_level: warn
     env:
       PI_TIMEOUT: "120"
+      PI_DEBUG: "${PI_DEBUG:-false}"
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       MOTION_GENERATOR: kinematic_planner
