@@ -88,36 +88,19 @@ class SimConfig:
 
 @dataclass(frozen=True)
 class AgentConfig:
-    vlm_url: str
-    vlm_timeout: float
+    pi_timeout: float
     system_prompt: Path
     user_prompt: Path
     waypoint_debug: bool
     command_mode: Literal["waypoint", "direction"]
-    history_turns: int = 8
-    history_retain_turns: int = 2
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
-        url = os.environ["VLM_URL"].strip().rstrip("/")
-        if not url:
-            raise ValueError("VLM_URL must not be empty")
-        timeout = float(os.environ["VLM_TIMEOUT"])
+        timeout = float(os.environ["PI_TIMEOUT"])
         if timeout <= 0.0:
-            raise ValueError("VLM_TIMEOUT must be positive")
-        history_turns = _positive_int_default("VLM_HISTORY_TURNS", default=8)
-        history_retain_turns = _positive_int_default(
-            "VLM_HISTORY_RETAIN_TURNS", default=2
-        )
-        if history_turns < 2:
-            raise ValueError("VLM_HISTORY_TURNS must be at least 2")
-        if history_retain_turns >= history_turns:
-            raise ValueError(
-                "VLM_HISTORY_RETAIN_TURNS must be smaller than VLM_HISTORY_TURNS"
-            )
+            raise ValueError("PI_TIMEOUT must be positive")
         return cls(
-            vlm_url=url,
-            vlm_timeout=timeout,
+            pi_timeout=timeout,
             system_prompt=Path(os.environ["VLM_SYSTEM_PROMPT"]),
             user_prompt=Path(os.environ["VLM_USER_PROMPT"]),
             waypoint_debug=_optional_boolean("WAYPOINT_DEBUG", default=False),
@@ -127,8 +110,6 @@ class AgentConfig:
                 == "kinematic_planner"
                 else "waypoint"
             ),
-            history_turns=history_turns,
-            history_retain_turns=history_retain_turns,
         )
 
 
@@ -143,9 +124,7 @@ def _positive_int_default(name: str, *, default: int) -> int:
 
 
 def _positive_float(name: str, *, default: float | None = None) -> float:
-    value = (
-        float(os.environ[name]) if default is None or name in os.environ else default
-    )
+    value = float(os.environ[name]) if default is None or name in os.environ else default
     if value <= 0.0:
         raise ValueError(f"{name} must be positive")
     return value

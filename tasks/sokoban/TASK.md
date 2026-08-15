@@ -57,7 +57,7 @@ Solve the far-wall lane first, then the right-wall lane.
 2. Align at the same forward depth as the box so the robot, box, and goal make
    one horizontal line.
 3. Walk `right` to make centered contact. Once contact begins, use only
-   `walk right`; do not walk forward, backward, or turn during this push.
+   `walk right`; do not walk forward, backward, or rotate during this push.
 4. Near the goal, use short right pushes with an inspection between them.
    Stop immediately when the box is completely inside and centered on the
    green region.
@@ -66,8 +66,9 @@ Solve the far-wall lane first, then the right-wall lane.
 ## Repositioning and recovery
 
 - `forward`/`backward` are along the current facing direction; `left`/`right`
-  are strafes and do not turn the robot. Use a single `turn` only when needed
-  to look toward a safe open route, then inspect again before walking.
+  are strafes and do not turn the robot. Use `stand` with the desired direction
+  to rotate in place when needed to face a safe open route, then inspect again
+  before walking.
 - Do not use the same command repeatedly without checking the updated image,
   especially near a box or wall.
 - If an unfinished box was contacted off-center, stop pushing at once, move

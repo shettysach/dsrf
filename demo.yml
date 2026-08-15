@@ -6,8 +6,9 @@ nodes:
     args: run dsrf-agent
     min_log_level: warn
     env:
-      VLM_URL: http://127.0.0.1:8080
-      VLM_TIMEOUT: "120"
+      PI_TIMEOUT: "120"
+      PI_DEBUG: "${PI_DEBUG:-false}"
+      VLM_SYSTEM_PROMPT: tasks/portrait_corridors/TASK.md
       TASK: portrait-corridors
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       MOTION_GENERATOR: kinematic_planner

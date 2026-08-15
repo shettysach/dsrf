@@ -9,10 +9,8 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"] == {
-        "VLM_URL": "http://127.0.0.1:8080",
-        "VLM_TIMEOUT": "120",
-        "VLM_HISTORY_TURNS": "${VLM_HISTORY_TURNS:-8}",
-        "VLM_HISTORY_RETAIN_TURNS": "${VLM_HISTORY_RETAIN_TURNS:-2}",
+        "PI_TIMEOUT": "120",
+        "PI_DEBUG": "${PI_DEBUG:-false}",
         "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
         "MOTION_GENERATOR": "kinematic_planner",
@@ -76,7 +74,7 @@ def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == ("tasks/stack_steps/TASK.md")
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/stack_steps/TASK.md"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "stack-steps"
 
@@ -97,19 +95,17 @@ def test_seesaw_video_dataflow_has_finite_recording_duration() -> None:
 
     assert set(nodes) == {"capture"}
     assert nodes["capture"]["args"] == "run python scripts/record_seesaw_gif.py"
-    assert nodes["capture"]["env"]["SEESAW_GIF_PATH"] == (
-        "${SEESAW_GIF_PATH:-/tmp/see-saw.gif}"
-    )
-    assert nodes["capture"]["env"]["SEESAW_GIF_SECONDS"] == ("${SEESAW_GIF_SECONDS:-3}")
+    assert nodes["capture"]["env"]["SEESAW_GIF_PATH"] == "${SEESAW_GIF_PATH:-/tmp/see-saw.gif}"
+    assert nodes["capture"]["env"]["SEESAW_GIF_SECONDS"] == "${SEESAW_GIF_SECONDS:-3}"
 
 
-def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
+def test_sokoban_2d_dataflow_uses_direction_tool() -> None:
     descriptor = yaml.safe_load(Path("sokoban_2d.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/SYSTEM_2D.md"
-    assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER_2D.md"
+    assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/PLANNER_USER.md"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
     assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"

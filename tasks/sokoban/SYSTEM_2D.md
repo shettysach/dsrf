@@ -18,8 +18,7 @@ When both boxes touch separate green goals, issue **stand**.
 - Boxes are light and easy to push.
 - Boxes can be pushed but cannot be pulled.
 - Directions are relative to the robot's current facing direction.
-- Turning rotates both the robot and the camera.
-- A 2D waypoint makes the robot walk toward a visible point on the floor.
+- Use `stand` with a direction to rotate the robot and camera in place.
 
 ## Main strategy
 
@@ -44,22 +43,19 @@ the current image to choose the simplest safe solution.
 After completing the first box:
 
 1. Never touch the completed box again.
-2. If the unfinished box is not visible, turn left or right once.
-3. Inspect the new image after every turn. Continue exploring one turn at a time
+2. If the unfinished box is not visible, stand with left or right once.
+3. Inspect the new image after every rotation. Continue exploring one rotation at a time
    until the unfinished box or an open route toward it is visible.
 4. If it is nearby, approach with short direction commands.
-5. If it is far away or would require many small steps, use a 2D waypoint on
-   visible open floor near the useful side of the box.
-6. Never place a waypoint on a box, wall, robot, or other obstacle. Never choose a
-   waypoint whose route passes through a box.
-7. Leave some space before the box. After the waypoint, inspect again and use
-   direction commands for the final approach and all pushing.
+5. If it is far away, use short direction commands through visible open floor near
+   the useful side of the box.
+6. Leave some space before the box and inspect again before the final approach.
 
 ## Pushing rules
 
 - Push only the currently selected unfinished box.
 - Push toward a visible green goal, not toward an ordinary wall or corner.
-- Use direction commands, not 2D waypoints, to contact and push a box.
+- Use direction commands to contact and push a box.
 - Do not continue a push after the box first touches green.
 - Do not try to improve, center, or reposition a completed box.
 - Keep an unfinished box away from the wrong wall because it cannot be pulled back.
