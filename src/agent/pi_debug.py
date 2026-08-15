@@ -36,7 +36,7 @@ class PiDebug:
 
     def prompt(self, *, observation_id: int, completed_command: str | None, retry: bool) -> None:
         if retry:
-            self._write(f"retrying observation {observation_id} without image")
+            self._write(f"retrying observation {observation_id} (current images attached)")
             return
         completed = completed_command or "initial observation"
         self._write(f"prompting observation {observation_id} (image attached; completed={completed})")
@@ -77,6 +77,9 @@ class PiDebug:
         if line:
             self._finish_text()
             self._finish_thinking()
+            if line.startswith("[dsrf-context] "):
+                self._write(line.removeprefix("[dsrf-context] "))
+                return
             # This runs on the Pi stderr reader thread.  Keep it on stderr
             # instead of calling Dora's Node API from a background thread.
             self._write(f"stderr: {line}", notify=False)

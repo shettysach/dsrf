@@ -4,6 +4,9 @@ import { Type } from "typebox";
 
 const MAX_KNOWN_ITEMS = 5;
 const MAX_TEXT_LENGTH = 120;
+const DEBUG_ENABLED = !["", "0", "false", "no", "off"].includes(
+  (process.env.PI_DEBUG ?? "").trim().toLowerCase(),
+);
 
 type Progress = {
   item: string;
@@ -42,6 +45,7 @@ export default function dsrfContext(pi: ExtensionAPI): void {
 
   pi.on("session_start", async () => {
     taskState = emptyTaskState();
+    debugState("state reset", taskState);
     pi.setActiveTools(["robot_action", "update_state"]);
   });
 
@@ -62,6 +66,7 @@ export default function dsrfContext(pi: ExtensionAPI): void {
         known: update.known ?? taskState.known,
         lastResult: update.last_result ?? taskState.lastResult,
       };
+      debugState("state updated", taskState);
       return {
         content: [{ type: "text", text: "Task state updated." }],
         details: taskState,
@@ -75,6 +80,7 @@ export default function dsrfContext(pi: ExtensionAPI): void {
       .find((message) => message.role === "user");
     if (!currentObservation) return { messages: [] };
 
+    debugState("active state", taskState);
     const stateBlock = { type: "text" as const, text: formatTaskState(taskState) };
     const content =
       typeof currentObservation.content === "string"
@@ -98,4 +104,8 @@ function formatTaskState(state: TaskState): string {
   if (state.lastResult) lines.push(`last result: ${state.lastResult}`);
   if (lines.length === 1) lines.push("No task facts recorded yet.");
   return `${lines.join("\n")}\n`;
+}
+
+function debugState(label: string, state: TaskState): void {
+  if (DEBUG_ENABLED) console.error(`[dsrf-context] ${label}: ${JSON.stringify(state)}`);
 }

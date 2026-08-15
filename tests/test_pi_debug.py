@@ -48,6 +48,17 @@ def test_pi_debug_is_silent_when_disabled() -> None:
     assert stream.getvalue() == ""
 
 
+def test_pi_debug_formats_context_state_from_pi_stderr() -> None:
+    stream = StringIO()
+    debug = PiDebug(True, stream=stream)
+
+    debug.stderr('[dsrf-context] active state: {"subgoal":"align behind box"}')
+
+    output = stream.getvalue()
+    assert 'active state: {"subgoal":"align behind box"}' in output
+    assert "stderr:" not in output
+
+
 def test_pi_debug_mirrors_complete_lines_to_callback() -> None:
     received: list[str] = []
     debug = PiDebug(True, stream=StringIO(), on_line=received.append)
