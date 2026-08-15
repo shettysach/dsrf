@@ -64,8 +64,8 @@ export default function dsrfContext(pi: ExtensionAPI): void {
     enableDecisionTools(pi);
   });
 
-  // Each external Dora observation begins a fresh decision.  A successful
-  // update_state call then narrows the remainder of that decision to action.
+  // Each external Dora observation begins a fresh decision.  Stateful runs
+  // require update_state to precede robot_action in the same tool-call batch.
   pi.on("input", async (event) => {
     if (event.source === "rpc") {
       stateUpdateRequested = false;
@@ -74,10 +74,9 @@ export default function dsrfContext(pi: ExtensionAPI): void {
     }
   });
 
-  // A provider may emit duplicate robot_action calls in one assistant message.
-  // Only the first can represent this observation; block later calls before the
-  // local tool executes.  Both calls are still visible in RPC preflight events,
-  // so the Python client also keeps the first action defensively.
+  // Tool calls are preflighted in source order.  Stateful runs therefore use
+  // this gate to require exactly `update_state` followed by one robot_action.
+  // Both tools terminate their result, so Pi settles after that one batch.
   pi.on("tool_call", async (event) => {
     if (event.toolName === "update_state") {
       if (stateUpdateRequested) {
@@ -90,6 +89,12 @@ export default function dsrfContext(pi: ExtensionAPI): void {
       return;
     }
     if (!isToolCallEventType("robot_action", event)) return;
+    if (REQUIRE_STATE_UPDATE && !stateUpdateRequested) {
+      return {
+        block: true,
+        reason: "Call update_state before robot_action for this observation.",
+      };
+    }
     if (robotActionRequested) {
       return {
         block: true,
@@ -118,11 +123,12 @@ export default function dsrfContext(pi: ExtensionAPI): void {
         lastResult: update.last_result ?? taskState.lastResult,
       };
       debugState("state updated", taskState);
-      pi.setActiveTools(["robot_action"]);
-      debugPhase("robot_action");
       return {
         content: [{ type: "text", text: "Task state updated." }],
         details: taskState,
+        // Stateful runs pair this with robot_action in the same batch.  Making
+        // both results terminal prevents another LLM turn after the action.
+        terminate: REQUIRE_STATE_UPDATE,
       };
     },
   });
@@ -165,8 +171,8 @@ function debugState(label: string, state: TaskState): void {
 
 function enableDecisionTools(pi: ExtensionAPI): void {
   if (REQUIRE_STATE_UPDATE) {
-    pi.setActiveTools(["update_state"]);
-    debugPhase("update_state");
+    pi.setActiveTools(["update_state", "robot_action"]);
+    debugPhase("update_state -> robot_action");
   } else {
     pi.setActiveTools(["robot_action", "update_state"]);
     debugPhase("decision");

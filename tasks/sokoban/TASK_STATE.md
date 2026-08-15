@@ -30,10 +30,10 @@ centered inside separate green regions.
 ## Working-memory protocol
 
 The `TASK STATE` block is the only persistent task memory. Keep it factual and
-small. For every observation, the first and only available tool is
-`update_state`. Call it exactly once to record what the current image shows.
-After it returns, the available tool changes to `robot_action`. Only then choose
-one motion. Never try to call both tools together in one response.
+small. For every observation, make exactly two tool calls in this order in one
+response: first `update_state`, then `robot_action`. The first call records what
+the current image shows; the second chooses one motion. Do not emit text between
+these calls, do not call either tool twice, and do not make a third tool call.
 
 Use these fields only:
 
@@ -45,8 +45,7 @@ Use these fields only:
 
 Do not store reasoning, alternatives, or a movement transcript. Preserve facts
 that remain true, update facts that changed, and use `last_result` for the
-observed outcome of the completed command. After `update_state` returns, call
-`robot_action` exactly once for one safe next motion. That action ends the Pi
+observed outcome of the completed command. The `robot_action` call ends the Pi
 turn; wait for the resulting observation before reasoning or acting again.
 
 ## Finish
