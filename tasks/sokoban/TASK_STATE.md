@@ -48,7 +48,8 @@ Use these fields only:
 Do not store reasoning, alternatives, or a movement transcript. If the state
 already matches the current observation, do not update it just to repeat it.
 After an `update_state` call, call `robot_action` for exactly one safe next
-motion.
+motion. Invoke `robot_action` exactly once and wait for the next observation
+before choosing another motion.
 
 ## Finish
 
