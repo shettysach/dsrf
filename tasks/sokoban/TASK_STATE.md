@@ -30,10 +30,12 @@ centered inside separate green regions.
 ## Working-memory protocol
 
 The `TASK STATE` block is the only persistent task memory. Keep it factual and
-small. On the initial observation, call `update_state` before `robot_action` to
-record the first subgoal and the two boxes' progress. Thereafter, call
-`update_state` before `robot_action` whenever the subgoal, box completion, an
-important alignment fact, or the previous result changes.
+small. On the initial observation, call `update_state` once before
+`robot_action` to record the first subgoal and the two boxes' progress.
+Thereafter, call `update_state` once before `robot_action` whenever the
+subgoal, box completion, an important alignment fact, or the previous result
+changes. After a successful state update, only `robot_action` remains available
+for that observation.
 
 Use these fields only:
 

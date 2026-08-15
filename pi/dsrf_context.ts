@@ -46,7 +46,13 @@ export default function dsrfContext(pi: ExtensionAPI): void {
   pi.on("session_start", async () => {
     taskState = emptyTaskState();
     debugState("state reset", taskState);
-    pi.setActiveTools(["robot_action", "update_state"]);
+    enableDecisionTools(pi);
+  });
+
+  // Each external Dora observation begins a fresh decision.  A successful
+  // update_state call then narrows the remainder of that decision to action.
+  pi.on("input", async (event) => {
+    if (event.source === "rpc") enableDecisionTools(pi);
   });
 
   pi.registerTool({
@@ -67,6 +73,7 @@ export default function dsrfContext(pi: ExtensionAPI): void {
         lastResult: update.last_result ?? taskState.lastResult,
       };
       debugState("state updated", taskState);
+      pi.setActiveTools(["robot_action"]);
       return {
         content: [{ type: "text", text: "Task state updated." }],
         details: taskState,
@@ -108,4 +115,8 @@ function formatTaskState(state: TaskState): string {
 
 function debugState(label: string, state: TaskState): void {
   if (DEBUG_ENABLED) console.error(`[dsrf-context] ${label}: ${JSON.stringify(state)}`);
+}
+
+function enableDecisionTools(pi: ExtensionAPI): void {
+  pi.setActiveTools(["robot_action", "update_state"]);
 }
