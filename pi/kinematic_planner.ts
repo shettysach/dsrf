@@ -12,13 +12,12 @@ const waypoint = Type.Tuple([
 export default function (pi: ExtensionAPI) {
   const directionMode = process.env.DSRF_COMMAND_MODE === "direction";
   const parameters = directionMode
-    ? Type.Union([
-        Type.Object({
-          motion: Type.Literal("stand"),
-          direction,
-        }),
-        Type.Object({ motion: Type.Literal("walk"), direction }),
-      ])
+    // Keep this as one flat object.  Some llama.cpp tool-call adapters emit
+    // an empty argument object when the schema is represented as `anyOf`.
+    ? Type.Object({
+        motion: StringEnum(["stand", "walk"] as const),
+        direction,
+      })
     : Type.Object({
         motion,
         waypoints_2d: Type.Array(waypoint),
