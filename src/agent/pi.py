@@ -188,8 +188,9 @@ class PiRpcClient:
             elif event.get("type") == "tool_execution_start":
                 if event.get("toolName") == "robot_action":
                     if action is not None:
-                        raise RuntimeError("Pi invoked robot_action more than once")
-                    action = _action_from_arguments(event.get("args"))
+                        self._debug.duplicate_robot_action()
+                    else:
+                        action = _action_from_arguments(event.get("args"))
             elif event.get("type") == "agent_settled":
                 if not accepted:
                     raise RuntimeError("Pi settled before accepting the prompt")

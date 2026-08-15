@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  isToolCallEventType,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 
@@ -42,9 +45,11 @@ const stateUpdate = Type.Object({
  */
 export default function dsrfContext(pi: ExtensionAPI): void {
   let taskState = emptyTaskState();
+  let robotActionRequested = false;
 
   pi.on("session_start", async () => {
     taskState = emptyTaskState();
+    robotActionRequested = false;
     debugState("state reset", taskState);
     enableDecisionTools(pi);
   });
@@ -52,7 +57,26 @@ export default function dsrfContext(pi: ExtensionAPI): void {
   // Each external Dora observation begins a fresh decision.  A successful
   // update_state call then narrows the remainder of that decision to action.
   pi.on("input", async (event) => {
-    if (event.source === "rpc") enableDecisionTools(pi);
+    if (event.source === "rpc") {
+      robotActionRequested = false;
+      enableDecisionTools(pi);
+    }
+  });
+
+  // A provider may emit duplicate robot_action calls in one assistant message.
+  // Only the first can represent this observation; block later calls before the
+  // local tool executes.  Both calls are still visible in RPC preflight events,
+  // so the Python client also keeps the first action defensively.
+  pi.on("tool_call", async (event) => {
+    if (!isToolCallEventType("robot_action", event)) return;
+    if (robotActionRequested) {
+      return {
+        block: true,
+        reason: "Only one robot action is allowed per observation.",
+        terminate: true,
+      };
+    }
+    robotActionRequested = true;
   });
 
   pi.registerTool({

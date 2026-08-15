@@ -94,6 +94,9 @@ class PiDebug:
         self._finish_thinking()
         self._write("stopped")
 
+    def duplicate_robot_action(self) -> None:
+        self._write("ignoring duplicate robot_action for this observation")
+
     def _message_update(self, assistant_event: object) -> None:
         if not isinstance(assistant_event, Mapping):
             return

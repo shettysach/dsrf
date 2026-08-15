@@ -58,6 +58,31 @@ def test_pi_rpc_client_sends_current_images_on_every_request(tmp_path) -> None:
     assert "bad JSON" in retry["message"]
 
 
+def test_pi_rpc_client_keeps_the_first_of_duplicate_actions(tmp_path) -> None:
+    fake_pi = tmp_path / "fake_pi.py"
+    fake_pi.write_text(
+        "import json, sys\n"
+        "for line in sys.stdin:\n"
+        "  request = json.loads(line)\n"
+        "  print(json.dumps({'type':'response','id':request['id'],'success':True}), flush=True)\n"
+        "  print(json.dumps({'type':'tool_execution_start','toolName':'robot_action','args':{'motion':'walk','direction':'left'}}), flush=True)\n"
+        "  print(json.dumps({'type':'tool_execution_start','toolName':'robot_action','args':{'motion':'walk','direction':'right'}}), flush=True)\n"
+        "  print(json.dumps({'type':'agent_settled'}), flush=True)\n"
+    )
+    client = PiRpcClient(
+        timeout=2.0,
+        system_prompt="Task prompt",
+        command_mode="direction",
+        command=(sys.executable, str(fake_pi)),
+    )
+    try:
+        action = client.complete(VisualObservation(0, None, b"jpeg"))
+    finally:
+        client.close()
+
+    assert action == PiAction("walk", "left", ())
+
+
 class _Node:
     def __init__(self, events: list[dict[str, object]]) -> None:
         self.events = iter(events)
