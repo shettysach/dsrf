@@ -10,6 +10,9 @@ const MAX_TEXT_LENGTH = 120;
 const DEBUG_ENABLED = !["", "0", "false", "no", "off"].includes(
   (process.env.PI_DEBUG ?? "").trim().toLowerCase(),
 );
+const REQUIRE_STATE_UPDATE = !["", "0", "false", "no", "off"].includes(
+  (process.env.PI_REQUIRE_STATE_UPDATE ?? "").trim().toLowerCase(),
+);
 
 type Progress = {
   item: string;
@@ -28,16 +31,21 @@ const progressEntry = Type.Object({
   status: StringEnum(["unknown", "active", "complete"] as const),
 });
 
-const stateUpdate = Type.Object({
-  subgoal: Type.Optional(Type.String({ maxLength: MAX_TEXT_LENGTH })),
-  progress: Type.Optional(Type.Array(progressEntry, { maxItems: MAX_KNOWN_ITEMS })),
-  known: Type.Optional(
-    Type.Array(Type.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }), {
-      maxItems: MAX_KNOWN_ITEMS,
-    }),
-  ),
-  last_result: Type.Optional(Type.String({ maxLength: MAX_TEXT_LENGTH })),
-});
+const stateUpdate = Type.Object(
+  {
+    subgoal: Type.Optional(Type.String({ maxLength: MAX_TEXT_LENGTH })),
+    progress: Type.Optional(
+      Type.Array(progressEntry, { maxItems: MAX_KNOWN_ITEMS }),
+    ),
+    known: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }), {
+        maxItems: MAX_KNOWN_ITEMS,
+      }),
+    ),
+    last_result: Type.Optional(Type.String({ maxLength: MAX_TEXT_LENGTH })),
+  },
+  { minProperties: 1 },
+);
 
 /**
  * Keep Pi's saved session intact while presenting a bounded working context to
@@ -45,10 +53,12 @@ const stateUpdate = Type.Object({
  */
 export default function dsrfContext(pi: ExtensionAPI): void {
   let taskState = emptyTaskState();
+  let stateUpdateRequested = false;
   let robotActionRequested = false;
 
   pi.on("session_start", async () => {
     taskState = emptyTaskState();
+    stateUpdateRequested = false;
     robotActionRequested = false;
     debugState("state reset", taskState);
     enableDecisionTools(pi);
@@ -58,6 +68,7 @@ export default function dsrfContext(pi: ExtensionAPI): void {
   // update_state call then narrows the remainder of that decision to action.
   pi.on("input", async (event) => {
     if (event.source === "rpc") {
+      stateUpdateRequested = false;
       robotActionRequested = false;
       enableDecisionTools(pi);
     }
@@ -68,6 +79,16 @@ export default function dsrfContext(pi: ExtensionAPI): void {
   // local tool executes.  Both calls are still visible in RPC preflight events,
   // so the Python client also keeps the first action defensively.
   pi.on("tool_call", async (event) => {
+    if (event.toolName === "update_state") {
+      if (stateUpdateRequested) {
+        return {
+          block: true,
+          reason: "Only one state update is allowed per observation.",
+        };
+      }
+      stateUpdateRequested = true;
+      return;
+    }
     if (!isToolCallEventType("robot_action", event)) return;
     if (robotActionRequested) {
       return {
@@ -98,6 +119,7 @@ export default function dsrfContext(pi: ExtensionAPI): void {
       };
       debugState("state updated", taskState);
       pi.setActiveTools(["robot_action"]);
+      debugPhase("robot_action");
       return {
         content: [{ type: "text", text: "Task state updated." }],
         details: taskState,
@@ -142,5 +164,15 @@ function debugState(label: string, state: TaskState): void {
 }
 
 function enableDecisionTools(pi: ExtensionAPI): void {
-  pi.setActiveTools(["robot_action", "update_state"]);
+  if (REQUIRE_STATE_UPDATE) {
+    pi.setActiveTools(["update_state"]);
+    debugPhase("update_state");
+  } else {
+    pi.setActiveTools(["robot_action", "update_state"]);
+    debugPhase("decision");
+  }
+}
+
+function debugPhase(phase: string): void {
+  if (DEBUG_ENABLED) console.error(`[dsrf-context] phase: ${phase}`);
 }

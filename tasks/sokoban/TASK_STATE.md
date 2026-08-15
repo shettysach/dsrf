@@ -30,12 +30,10 @@ centered inside separate green regions.
 ## Working-memory protocol
 
 The `TASK STATE` block is the only persistent task memory. Keep it factual and
-small. On the initial observation, call `update_state` once before
-`robot_action` to record the first subgoal and the two boxes' progress.
-Thereafter, call `update_state` once before `robot_action` whenever the
-subgoal, box completion, an important alignment fact, or the previous result
-changes. After a successful state update, only `robot_action` remains available
-for that observation.
+small. For every observation, the first and only available tool is
+`update_state`. Call it exactly once to record what the current image shows.
+After it returns, the available tool changes to `robot_action`. Only then choose
+one motion. Never try to call both tools together in one response.
 
 Use these fields only:
 
@@ -45,11 +43,11 @@ Use these fields only:
 - `known`: up to five verified visual facts, not guesses.
 - `last_result`: the observed outcome of the last completed action.
 
-Do not store reasoning, alternatives, or a movement transcript. If the state
-already matches the current observation, do not update it just to repeat it.
-After an `update_state` call, call `robot_action` for exactly one safe next
-motion. Invoke `robot_action` exactly once and wait for the next observation
-before choosing another motion.
+Do not store reasoning, alternatives, or a movement transcript. Preserve facts
+that remain true, update facts that changed, and use `last_result` for the
+observed outcome of the completed command. After `update_state` returns, call
+`robot_action` exactly once for one safe next motion. That action ends the Pi
+turn; wait for the resulting observation before reasoning or acting again.
 
 ## Finish
 

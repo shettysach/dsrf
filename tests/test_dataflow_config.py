@@ -77,6 +77,7 @@ def test_sokoban_state_dataflow_uses_the_stateful_task_prompt() -> None:
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == (
         "tasks/sokoban/TASK_STATE.md"
     )
+    assert nodes["agent"]["env"]["PI_REQUIRE_STATE_UPDATE"] == "true"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
 
