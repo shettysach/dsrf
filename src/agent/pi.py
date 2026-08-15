@@ -42,17 +42,27 @@ class PiRpcClient:
         timeout: float,
         system_prompt: str,
         command_mode: str,
+        provider: str | None = None,
+        model: str | None = None,
         command: Sequence[str] = ("pi",),
     ) -> None:
         self.timeout = timeout
         self._stderr: deque[str] = deque(maxlen=40)
-        self._process = subprocess.Popen(
-            [
-                *command,
-                "--mode",
-                "rpc",
+        # Pi owns provider discovery, credentials, endpoint, and model choice.
+        # In particular, pi-llama-cpp may register a provider name such as
+        # ``llama-server=http://127.0.0.1:8080`` in settings.json.  Do not
+        # replace that with Pi's built-in ``llama.cpp`` provider: leaving the
+        # flag out lets Pi honor defaultProvider from the user's config.
+        selected_provider = provider or os.environ.get("PI_PROVIDER")
+        selected_model = model or os.environ.get("PI_MODEL")
+        pi_command = [*command, "--mode", "rpc"]
+        if selected_provider:
+            pi_command.extend(("--provider", selected_provider))
+        if selected_model:
+            pi_command.extend(("--model", selected_model))
+        pi_command.extend(
+            (
                 "--no-builtin-tools",
-                "--no-extensions",
                 "--extension",
                 str(_extension_path()),
                 "--no-context-files",
@@ -60,7 +70,10 @@ class PiRpcClient:
                 "--no-prompt-templates",
                 "--system-prompt",
                 system_prompt,
-            ],
+            )
+        )
+        self._process = subprocess.Popen(
+            pi_command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
