@@ -19,13 +19,15 @@ BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.48
 ARENA_MIN_X = -1.5
 ARENA_MAX_X = 5.5
-ARENA_HALF_WIDTH = 3.5
+ARENA_HALF_WIDTH = 2.5
 WALL_HALF_THICKNESS = 0.1
 
 _GOAL_X_AT_FRONT_WALL = ARENA_MAX_X - WALL_HALF_THICKNESS - GOAL_HALF_SIZE
 _GOAL_Y_AT_RIGHT_WALL = -ARENA_HALF_WIDTH + WALL_HALF_THICKNESS + GOAL_HALF_SIZE
-BOX_STARTS = ((1.25, 2.1), (2.0, -1.0))
-GOAL_CENTERS = ((_GOAL_X_AT_FRONT_WALL, 2.1), (2.0, _GOAL_Y_AT_RIGHT_WALL))
+# The first lane pushes forward into the front-wall goal.  The second keeps
+# demovid's lateral challenge: its box must move right into the right-wall goal.
+BOX_STARTS = ((1.25, 0.8), (2.0, -1.0))
+GOAL_CENTERS = ((_GOAL_X_AT_FRONT_WALL, 0.8), (2.0, _GOAL_Y_AT_RIGHT_WALL))
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
 _GOAL_RGBA = (0.15, 0.8, 0.3, 0.55)
