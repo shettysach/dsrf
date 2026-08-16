@@ -146,6 +146,7 @@ def test_dataflow_system_prompts_exist() -> None:
         "tasks/see_saw/TASK.md",
     ):
         assert Path(path).is_file()
+    assert Path("prompt/GRID_SOKOBAN_USER.md").is_file()
 
 
 def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:
