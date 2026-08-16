@@ -149,6 +149,8 @@ class SokobanApp:
             self._move(key_actions[key], source="manual")
         elif key == pygame.K_r:
             self._reset()
+        elif key == pygame.K_n:
+            self._skip_run()
         elif key == pygame.K_v:
             self._start_vlm_request()
         elif key == pygame.K_SPACE:
@@ -191,6 +193,16 @@ class SokobanApp:
             self.vlm.reset()
         self.status = "Board reset"
         self._record_dirty = True
+
+    def _skip_run(self) -> None:
+        if len(self.run_schedule) == 1:
+            self.status = "No scheduled variation to skip"
+            self._record_dirty = True
+            return
+        # Ignore a late response from the abandoned run.
+        self._vlm_request_id += 1
+        self._vlm_in_flight = False
+        self._finish_run("SKIPPED · manual")
 
     def _finish_run(self, outcome: str) -> None:
         self.status = f"Run {self.run_index + 1}/{len(self.run_schedule)} · {outcome}"
@@ -370,7 +382,9 @@ class SokobanApp:
             ),
             (16, panel.y + 14),
         )
-        controls = "R reset · 1–6 boards · V VLM move · Space autoplay · Esc quit"
+        controls = (
+            "R reset · N skip · 1–6 boards · V VLM move · Space autoplay · Esc quit"
+        )
         self.window.blit(
             self.small_font.render(controls, True, MUTED_TEXT), (16, panel.y + 43)
         )
@@ -572,7 +586,7 @@ def main() -> None:
     if args.autoplay and not args.vlm:
         parser.error("--autoplay requires --vlm")
     record_runs = _positive_env_int("GRID_RECORD_RUNS", default=1)
-    max_moves = _positive_env_int("GRID_MAX_MOVES", default=50)
+    max_moves = _positive_env_int("GRID_MAX_MOVES", default=40)
     video_path = _recording_path()
     recorder = (
         GridVideoRecorder(

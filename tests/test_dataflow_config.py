@@ -117,7 +117,7 @@ def test_grid_sokoban_launcher_keeps_runtime_configuration_in_yaml() -> None:
         "GRID_VLM": "${GRID_VLM:-true}",
         "GRID_AUTOPLAY": "${GRID_AUTOPLAY:-true}",
         "GRID_RECORD_RUNS": "${GRID_RECORD_RUNS:-10}",
-        "GRID_MAX_MOVES": "${GRID_MAX_MOVES:-50}",
+        "GRID_MAX_MOVES": "${GRID_MAX_MOVES:-40}",
         "GRID_VIDEO_PATH": "${GRID_VIDEO_PATH:-/tmp/grid-sokoban-10-runs.mp4}",
         "GRID_RECORD_FPS": "${GRID_RECORD_FPS:-8}",
         "GRID_RECORD_HOLD_FRAMES": "${GRID_RECORD_HOLD_FRAMES:-4}",

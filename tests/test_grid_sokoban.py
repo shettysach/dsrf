@@ -232,6 +232,33 @@ def test_vlm_reset_advances_to_the_next_recorded_variation(
         pygame.quit()
 
 
+def test_manual_skip_advances_to_the_next_recorded_variation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    from tasks.grid_sokoban.app import SokobanApp
+
+    schedule = two_box_variations()[:2]
+    app = SokobanApp(
+        layout_name=schedule[0][0],
+        vlm=None,
+        auto_play=False,
+        run_schedule=schedule,
+    )
+    try:
+        app._skip_run()
+
+        assert app._advance_after_frame
+        assert "SKIPPED" in app.status
+        app._advance_run()
+        assert app.run_index == 1
+        assert app.layout_name == schedule[1][0]
+    finally:
+        import pygame
+
+        pygame.quit()
+
+
 def _shortest_solution_length(board: GridSokoban) -> int | None:
     """Small test-only BFS that rejects accidentally unsolvable fixed maps."""
     start = (frozenset(board.boxes), board.player)

@@ -54,15 +54,15 @@ dora run see_saw.yml
 `grid_sokoban.yml` launches a Pygame application and needs no MJLab, SONIC, or
 motion model. Its layout, VLM endpoint, timeout, history, and autoplay settings
 are all configured in that file. Play with arrow keys/WASD; `R` resets, and
-`1`–`6` choose the curriculum boards. The additional `edge-right` board mirrors
-the earlier physical task: push one open-floor box toward a goal at the arena's
-right edge.
+`N` skips to the next recorded variation. Keys `1`–`6` choose the curriculum
+boards. The additional `edge-right` board mirrors the earlier physical task:
+push one open-floor box toward a goal at the arena's right edge.
 
 The default grid configuration records ten two-box variations to
 `/tmp/grid-sokoban-10-runs.mp4`. Each run ends on success, the move limit, a
 terminal VLM error, or a VLM `reset` action; a VLM reset advances to a fresh
 variation instead of replaying the current board. Set `GRID_VIDEO_PATH=none` in
-the YAML to disable recording. The default move limit is 50; a box pushed into a
+the YAML to disable recording. The default move limit is 40; a box pushed into a
 non-goal corner also ends the run as a static deadlock.
 
 Those ten runs are fixed, solver-checked two-box topologies: `two-box`,
