@@ -12,7 +12,12 @@ from shared.arrow import (
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
-from shared.messages import GroundingResult, PipelineError, VisualObservation
+from shared.messages import (
+    EndEffectorTarget,
+    GroundingResult,
+    PipelineError,
+    VisualObservation,
+)
 
 
 class _Response:
@@ -117,10 +122,12 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
 
 
 def _grounding_event(
-    observation_id: int, target_xys: tuple[tuple[float, float], ...] = ((1.0, 0.0),)
+    observation_id: int,
+    target_xys: tuple[tuple[float, float], ...] = ((1.0, 0.0),),
+    end_effectors: tuple[EndEffectorTarget, ...] = (),
 ) -> dict[str, object]:
     value, metadata = grounding_result_to_arrow(
-        GroundingResult(observation_id, target_xys)
+        GroundingResult(observation_id, target_xys, end_effectors)
     )
     return {
         "type": "INPUT",
@@ -157,7 +164,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
-        '{"motion":"stand","waypoints_2d":[]}',
+        '{"motion":"stand"}',
     ]
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
@@ -170,7 +177,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
     assert "[OBS 0] VLM command: 'invalid three'" in vlm_messages[2]
     assert vlm_messages[2].endswith("retry=2")
     assert any(
-        'fallback command: \'{"motion":"stand","waypoints_2d":[]}\'' in message
+        'fallback command: \'{"motion":"stand"}\'' in message
         for _, message, _ in node.logs
     )
 
@@ -219,6 +226,43 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     assert command.motion == "stand"
     assert command.target_xys == ()
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
+
+
+def test_agent_grounds_end_effector_before_sending_command() -> None:
+    target = EndEffectorTarget("right_hand", (0.5, -0.1, 0.8))
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0, (), (target,)),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(
+        [
+            '{"motion":"reach for the cup","end_effectors":'
+            '[{"name":"right_hand","target_2d":[600,400]}]}'
+        ]
+    )
+
+    AgentLoop(cast(Any, node), cast(Any, client)).run()
+
+    request_output = next(
+        output for output in node.outputs if output[0] == "grounding_request"
+    )
+    request = grounding_request_from_arrow(
+        request_output[1], cast(Any, request_output[2]["metadata"])
+    )
+    assert request.waypoints_2d == ()
+    assert request.end_effectors_2d[0].name == "right_hand"
+    assert request.end_effectors_2d[0].target_2d == (600, 400)
+    command_output = next(output for output in node.outputs if output[0] == "command")
+    command = agent_command_from_arrow(
+        command_output[1], cast(Any, command_output[2]["metadata"])
+    )
+    assert command.end_effectors[0].name == target.name
+    np.testing.assert_allclose(
+        command.end_effectors[0].target_xyz, target.target_xyz
+    )
 
 
 def test_agent_retries_motion_gen_errors() -> None:

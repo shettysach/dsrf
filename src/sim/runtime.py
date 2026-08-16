@@ -16,16 +16,17 @@ from shared.arrow import (
 )
 from shared.messages import (
     SONIC_FPS,
+    EndEffectorTarget,
     GroundingResult,
     PipelineError,
     ProjectionContext,
     VisualObservation,
 )
 from sim.env import MjlabEnv
+from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
 from sim.sonic.policy import SonicPolicy
 from sim.viewer import SimViewer
-from sim.waypoint import resolve_waypoint
 
 CONTROL_PERIOD = 1.0 / SONIC_FPS
 
@@ -94,22 +95,34 @@ class SimRuntime:
                 resolve_waypoint(waypoint, self._projection_cache)
                 for waypoint in request.waypoints_2d
             )
+            resolved_end_effectors = tuple(
+                resolve_end_effector(
+                    selection.name, selection.target_2d, self._projection_cache
+                )
+                for selection in request.end_effectors_2d
+            )
         except (KeyError, TypeError, ValueError) as exc:
             self._report_error(str(exc), source="grounding")
             return
 
         self.node.log(
             "info",
-            f"[OBS {self.observation_id}] waypoints grounded: "
-            f"count={len(resolved)} targets={[waypoint.target_xy for waypoint in resolved]}",
+            f"[OBS {self.observation_id}] constraints grounded: "
+            f"waypoints={[waypoint.target_xy for waypoint in resolved]} "
+            f"end_effectors={[(target.name, target.target_xyz) for target in resolved_end_effectors]}",
             target="dsrf.sim.grounding",
             fields={
-                "event": "waypoint_grounded",
+                "event": "constraints_grounded",
                 "observation_id": str(self.observation_id),
             },
         )
         result = GroundingResult(
-            self.observation_id, tuple(waypoint.target_xy for waypoint in resolved)
+            self.observation_id,
+            tuple(waypoint.target_xy for waypoint in resolved),
+            tuple(
+                EndEffectorTarget(target.name, target.target_xyz)
+                for target in resolved_end_effectors
+            ),
         )
         data, result_metadata = grounding_result_to_arrow(result)
         self.node.send_output("grounding_result", data, metadata=result_metadata)

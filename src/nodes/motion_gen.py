@@ -58,6 +58,10 @@ def main() -> None:
         encode_ms: float | None = None
         try:
             if text_encoder is None:
+                if request.end_effectors:
+                    raise ValueError(
+                        "End-effector constraints are only supported by ARDY"
+                    )
                 source_qpos = generator.generate(
                     request.motion,
                     request.target_xys,
@@ -72,7 +76,9 @@ def main() -> None:
                 encode_started_at = time.perf_counter()
                 embedding = text_encoder.encode(request.motion)
                 encode_ms = (time.perf_counter() - encode_started_at) * 1000.0
-                source_qpos = generator.generate(embedding, request.target_xys)
+                source_qpos = generator.generate(
+                    embedding, request.target_xys, request.end_effectors
+                )
 
             chunk = resample_motion(
                 source_qpos,

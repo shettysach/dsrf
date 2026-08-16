@@ -46,9 +46,10 @@ dora run sokoban.yml
 ## ARDY closed loop
 
 The ARDY motion generator encodes each command's `motion` field with a local
-Transformers model and converts the resolved local waypoint into a root-position
-constraint. It generates a five-second reference and carries ARDY's generated
-history into the next request.
+Transformers model. It converts resolved floor waypoints into root-position
+constraints and visible hand or foot targets into ARDY global-joint-position constraints.
+It generates a five-second reference and carries ARDY's generated history into
+the next request.
 
 Set `TEXT_ENCODER_MODEL`, `TEXT_ENCODER_DEVICE`, `DEVICE`, and `CHECKPOINTS_DIR`
 in `ardy.yml`, then run:
@@ -61,14 +62,14 @@ The text model must expose `last_hidden_state` with hidden size 4096. The
 encoder applies attention-mask-aware mean pooling and transfers the resulting
 float32 tensor directly to ARDY's device.
 
-## Waypoint grounding
+## Constraint grounding
 
-The simulator publishes RGB-only observations. When a VLM command contains an
-one or more image waypoints, the agent sends those pixels to the simulator while physics remains
-paused. The simulator renders depth on demand, resolves the pixel into a
-robot-local targets, and returns only those coordinates. The agent then
-sends one complete request containing the motion prompt and ordered resolved targets to
-the motion generator.
+The simulator publishes RGB-only observations. When a VLM command contains one
+or more image waypoints or end-effector targets, the agent sends those pixels to the
+simulator while physics remains paused. The simulator renders depth on demand,
+resolves each pixel into a robot-local target, and returns only those coordinates.
+The agent then sends one complete request containing the motion prompt and
+resolved targets to the motion generator.
 
 Depth is cached for the current observation, so VLM retries and multiple waypoints reuse the same render.
 The cache is discarded when motion begins and the next RGB observation is

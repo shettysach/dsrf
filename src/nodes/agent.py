@@ -21,6 +21,8 @@ from shared.arrow import (
 from shared.config import AgentConfig
 from shared.messages import (
     AgentCommand,
+    EndEffectorSelection,
+    EndEffectorTarget,
     GroundingRequest,
     GroundingResult,
     PipelineError,
@@ -28,7 +30,7 @@ from shared.messages import (
 )
 
 MAX_INVALID_RESPONSES = 3
-FALLBACK_COMMAND = '{"motion":"stand","waypoints_2d":[]}'
+FALLBACK_COMMAND = '{"motion":"stand"}'
 PLANNER_FALLBACK_COMMAND = '{"motion":"stand","direction":"forward"}'
 
 
@@ -37,6 +39,7 @@ class _PendingGrounding:
     command_text: str
     motion: str
     waypoints_2d: tuple[tuple[int, int], ...]
+    end_effectors_2d: tuple[EndEffectorSelection, ...]
 
 
 class AgentLoop:
@@ -228,7 +231,7 @@ class AgentLoop:
         )
         try:
             if self.command_mode == "direction":
-                if not _is_waypoint_command(command):
+                if not _is_constraint_command(command):
                     motion, direction = _parse_planner_command(command)
                     self._send(
                         command,
@@ -238,10 +241,13 @@ class AgentLoop:
                     )
                     return
             parsed = parse_constraint_command(command)
-            if not parsed.waypoints_2d:
+            if not parsed.waypoints_2d and not parsed.end_effectors:
                 self._send(command, motion=parsed.motion, target_xys=())
                 return
-            request = GroundingRequest(observation_id, parsed.waypoints_2d)
+            end_effectors_2d = parsed.end_effectors
+            request = GroundingRequest(
+                observation_id, parsed.waypoints_2d, end_effectors_2d
+            )
         except ValueError as exc:
             self._retry_invalid(command, str(exc))
             return
@@ -250,6 +256,7 @@ class AgentLoop:
             command_text=command,
             motion=parsed.motion,
             waypoints_2d=parsed.waypoints_2d,
+            end_effectors_2d=end_effectors_2d,
         )
         data, metadata = grounding_request_to_arrow(request)
         self.node.send_output("grounding_request", data, metadata=metadata)
@@ -267,7 +274,8 @@ class AgentLoop:
             self.node.log(
                 "info",
                 f"VLM waypoints: normalized={pending.waypoints_2d} "
-                f"local_targets={result.target_xys}",
+                f"local_targets={result.target_xys} "
+                f"end_effectors={result.end_effectors}",
                 target="dsrf.agent.waypoint",
                 fields={
                     "event": "waypoint_grounded",
@@ -278,11 +286,13 @@ class AgentLoop:
                 self.observation.jpeg,
                 result.observation_id,
                 pending.waypoints_2d,
+                tuple(selection.target_2d for selection in pending.end_effectors_2d),
             )
         self._send(
             pending.command_text,
             motion=pending.motion,
             target_xys=result.target_xys,
+            end_effectors=result.end_effectors,
         )
 
     def _send(
@@ -292,6 +302,7 @@ class AgentLoop:
         motion: str,
         target_xys: tuple[tuple[float, float], ...],
         direction: str | None = None,
+        end_effectors: tuple[EndEffectorTarget, ...] = (),
     ) -> None:
         assert self.observation is not None
         command = AgentCommand(
@@ -300,6 +311,7 @@ class AgentLoop:
             motion,
             target_xys,
             direction,
+            end_effectors,
         )
         data, metadata = agent_command_to_arrow(command)
         self.node.send_output("command", data, metadata=metadata)
@@ -315,7 +327,10 @@ class AgentLoop:
 
 
 def _write_debug_image(
-    jpeg: bytes, observation_id: int, waypoints_2d: tuple[tuple[int, int], ...]
+    jpeg: bytes,
+    observation_id: int,
+    waypoints_2d: tuple[tuple[int, int], ...],
+    end_effectors_2d: tuple[tuple[int, int], ...],
 ) -> None:
     image = iio.imread(BytesIO(jpeg), extension=".jpg")
     height, width = image.shape[:2]
@@ -324,6 +339,11 @@ def _write_debug_image(
         v = round(y / 1000 * (height - 1))
         image[max(0, v - 5) : v + 6, u] = (255, 0, 0)
         image[v, max(0, u - 5) : u + 6] = (255, 0, 0)
+    for x, y in end_effectors_2d:
+        u = round(x / 1000 * (width - 1))
+        v = round(y / 1000 * (height - 1))
+        image[max(0, v - 5) : v + 6, u] = (0, 255, 255)
+        image[v, max(0, u - 5) : u + 6] = (0, 255, 255)
     output_dir = Path("/tmp/dsrf-waypoint-debug")
     output_dir.mkdir(parents=True, exist_ok=True)
     iio.imwrite(output_dir / f"observation-{observation_id}.jpg", image)
@@ -362,12 +382,14 @@ def _parse_planner_command(text: str) -> tuple[str, str | None]:
     raise ValueError("Unsupported planner motion or direction")
 
 
-def _is_waypoint_command(text: str) -> bool:
+def _is_constraint_command(text: str) -> bool:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
         return False
-    return isinstance(payload, dict) and "waypoints_2d" in payload
+    return isinstance(payload, dict) and bool(
+        {"waypoints_2d", "end_effectors"} & payload.keys()
+    )
 
 
 if __name__ == "__main__":

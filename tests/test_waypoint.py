@@ -5,7 +5,7 @@ import pytest
 
 from agent.constraint import parse_constraint_command
 from shared.messages import GroundingRequest, ProjectionContext
-from sim.waypoint import resolve_waypoint
+from sim.grounding import resolve_end_effector, resolve_waypoint
 
 
 def _floor_projection() -> ProjectionContext:
@@ -94,6 +94,43 @@ def test_command_without_waypoints_defaults_to_no_grounding() -> None:
     assert command.waypoints_2d == ()
 
 
+def test_end_effector_command_parses_without_waypoints() -> None:
+    command = parse_constraint_command(
+        '{"motion":"reach for the cup","end_effectors":'
+        '[{"name":"right_hand","target_2d":[600,400]}]}'
+    )
+    assert command.waypoints_2d == ()
+    assert [(target.name, target.target_2d) for target in command.end_effectors] == [
+        ("right_hand", (600, 400))
+    ]
+
+
+def test_foot_end_effector_command_parses_without_waypoints() -> None:
+    command = parse_constraint_command(
+        '{"motion":"step onto the platform","end_effectors":'
+        '[{"name":"left_foot","target_2d":[500,700]}]}'
+    )
+    assert [(target.name, target.target_2d) for target in command.end_effectors] == [
+        ("left_foot", (500, 700))
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"motion":"reach","end_effectors":null}',
+        '{"motion":"reach","end_effectors":'
+        '[{"name":"head","target_2d":[500,500]}]}',
+        '{"motion":"reach","waypoints_2d":[[500,700]],"end_effectors":'
+        '[{"name":"left_hand","target_2d":[500,400]}]}',
+        '{"motion":"reach","target_2d":[500,400]}',
+    ],
+)
+def test_invalid_end_effector_commands_fail(text: str) -> None:
+    with pytest.raises(ValueError):
+        parse_constraint_command(text)
+
+
 def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:
     grounded = parse_constraint_command(
         '{"motion":"sidestep carefully toward the doorway","waypoints_2d":[[400,600],[600,500]]}'
@@ -111,3 +148,22 @@ def test_invalid_depth_fails() -> None:
     projection.depth[:] = np.nan
     with pytest.raises(ValueError, match="No valid depth"):
         resolve_waypoint((500, 500), projection)
+
+
+def test_end_effector_pixel_resolves_to_local_3d_target() -> None:
+    projection = ProjectionContext(
+        depth=np.full((101, 101), 0.5, dtype=np.float32),
+        camera_pos_w=np.array([0.0, 0.0, 0.8]),
+        camera_forward_w=np.array([1.0, 0.0, 0.0]),
+        camera_up_w=np.array([0.0, 0.0, 1.0]),
+        frustum_height=1.0,
+        root_pos_w=np.zeros(3),
+        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
+        near=0.01,
+        far=100.0,
+    )
+
+    result = resolve_end_effector("right_hand", (500, 500), projection)
+
+    assert result.pixel == (50, 50)
+    assert result.target_xyz == pytest.approx((0.5, 0.0, 0.8), abs=0.01)
