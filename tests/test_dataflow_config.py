@@ -141,6 +141,7 @@ def test_dataflow_system_prompts_exist() -> None:
         "tasks/sokoban/TASK.md",
         "tasks/sokoban/SYSTEM_2D.md",
         "tasks/grid_sokoban/SYSTEM.md",
+        "tasks/grid_sokoban/TASK.md",
         "tasks/stack_steps/TASK.md",
         "tasks/see_saw/TASK.md",
     ):

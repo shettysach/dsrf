@@ -69,6 +69,7 @@ def test_pygame_front_end_draws_the_playable_board(
 
         assert app.window.get_size() == (504, 608)
         assert image.shape == (504, 504, 3)
+        assert app.board_surface.get_at((4 * 72 + 1, 3 * 72 + 1))[:3] == (75, 176, 104)
     finally:
         import pygame
 

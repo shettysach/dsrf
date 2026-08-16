@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import queue
+import threading
 import time
 from io import BytesIO
 from pathlib import Path
@@ -45,6 +47,11 @@ class SokobanApp:
         self.previous_observation: VisualObservation | None = None
         self.pending_command: str | None = None
         self.last_auto_at = time.monotonic()
+        self._vlm_request_id = 0
+        self._vlm_in_flight = False
+        self._vlm_results: queue.SimpleQueue[
+            tuple[int, VisualObservation, str | Exception]
+        ] = queue.SimpleQueue()
         pygame.init()
         pygame.display.set_caption("Grid Sokoban")
         self.font = pygame.font.Font(None, 28)
@@ -61,18 +68,22 @@ class SokobanApp:
     def run(self) -> None:
         clock = pygame.time.Clock()
         running = True
+        self._draw()
+        pygame.display.flip()
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     running = self._handle_key(event.key)
+            self._consume_vlm_result()
             if (
                 self.auto_play
                 and not self.board.solved
+                and not self._vlm_in_flight
                 and time.monotonic() - self.last_auto_at >= AUTO_DELAY_SECONDS
             ):
-                self._ask_vlm()
+                self._start_vlm_request()
             self._draw()
             pygame.display.flip()
             clock.tick(FPS)
@@ -97,7 +108,7 @@ class SokobanApp:
         elif key == pygame.K_r:
             self._reset()
         elif key == pygame.K_v:
-            self._ask_vlm()
+            self._start_vlm_request()
         elif key == pygame.K_SPACE:
             if self.vlm is None:
                 self.status = "Start with --vlm to enable VLM control"
@@ -120,6 +131,7 @@ class SokobanApp:
         self.observation_id = 0
         self.previous_observation = None
         self.pending_command = None
+        self._vlm_request_id += 1
         if self.vlm is not None:
             self.vlm.reset()
         self.status = f"Loaded {layout_name} board"
@@ -130,6 +142,7 @@ class SokobanApp:
         self.observation_id = 0
         self.previous_observation = None
         self.pending_command = None
+        self._vlm_request_id += 1
         if self.vlm is not None:
             self.vlm.reset()
         self.status = "Board reset"
@@ -150,8 +163,8 @@ class SokobanApp:
         else:
             self.status = f"{source.title()} moved"
 
-    def _ask_vlm(self) -> None:
-        if self.vlm is None or self.board.solved:
+    def _start_vlm_request(self) -> None:
+        if self.vlm is None or self.board.solved or self._vlm_in_flight:
             return
         self._draw_board()
         observation = VisualObservation(
@@ -159,15 +172,45 @@ class SokobanApp:
         )
         if self.previous_observation is not None and self.pending_command is not None:
             self.vlm.commit(self.previous_observation, self.pending_command)
+        self._vlm_in_flight = True
+        request_id = self._vlm_request_id
+        self.status = "VLM is deciding…"
+        threading.Thread(
+            target=self._complete_vlm_request,
+            args=(request_id, observation),
+            daemon=True,
+        ).start()
+
+    def _complete_vlm_request(
+        self, request_id: int, observation: VisualObservation
+    ) -> None:
+        assert self.vlm is not None
         try:
-            response = self.vlm.complete(observation)
-            action = parse_action(str(response))
+            result: str | Exception = str(self.vlm.complete(observation))
         except Exception as exc:
+            result = exc
+        self._vlm_results.put((request_id, observation, result))
+
+    def _consume_vlm_result(self) -> None:
+        try:
+            request_id, observation, result = self._vlm_results.get_nowait()
+        except queue.Empty:
+            return
+        self._vlm_in_flight = False
+        if request_id != self._vlm_request_id:
+            return
+        if isinstance(result, Exception):
             self.auto_play = False
-            self.status = f"VLM error: {type(exc).__name__}: {exc}"
+            self.status = f"VLM error: {type(result).__name__}: {result}"
+            return
+        try:
+            action = parse_action(result)
+        except ValueError as exc:
+            self.auto_play = False
+            self.status = f"VLM response error: {exc}"
             return
         self.previous_observation = observation
-        self.pending_command = str(response).strip()
+        self.pending_command = result
         self.observation_id += 1
         self.last_auto_at = time.monotonic()
         self._move(action, source="VLM")
@@ -221,17 +264,13 @@ class SokobanApp:
                 else:
                     pygame.draw.rect(self.board_surface, GRID, rect, width=1)
         for row, col in self.board.goals:
-            inset = round(CELL_PIXELS * 0.21)
             rect = pygame.Rect(
-                col * CELL_PIXELS + inset,
-                row * CELL_PIXELS + inset,
-                CELL_PIXELS - 2 * inset,
-                CELL_PIXELS - 2 * inset,
+                col * CELL_PIXELS,
+                row * CELL_PIXELS,
+                CELL_PIXELS,
+                CELL_PIXELS,
             )
-            pygame.draw.rect(self.board_surface, GOAL, rect, border_radius=5)
-            pygame.draw.rect(
-                self.board_surface, (38, 119, 65), rect, width=3, border_radius=5
-            )
+            pygame.draw.rect(self.board_surface, GOAL, rect)
         for row, col in self.board.boxes:
             inset = round(CELL_PIXELS * 0.16)
             rect = pygame.Rect(
@@ -240,10 +279,8 @@ class SokobanApp:
                 CELL_PIXELS - 2 * inset,
                 CELL_PIXELS - 2 * inset,
             )
-            pygame.draw.rect(self.board_surface, BOX, rect, border_radius=8)
-            pygame.draw.rect(
-                self.board_surface, BOX_EDGE, rect, width=4, border_radius=8
-            )
+            pygame.draw.rect(self.board_surface, BOX, rect)
+            pygame.draw.rect(self.board_surface, BOX_EDGE, rect, width=4)
         row, col = self.board.player
         center = ((col + 0.5) * CELL_PIXELS, (row + 0.5) * CELL_PIXELS)
         pygame.draw.circle(
@@ -272,7 +309,7 @@ def _make_vlm_client() -> OAIChatClient:
     return OAIChatClient(
         base_url=url,
         timeout=float(os.environ.get("VLM_TIMEOUT", "120")),
-        system_prompt=Path(__file__).with_name("SYSTEM.md").read_text(encoding="utf-8"),
+        system_prompt=Path(__file__).with_name("TASK.md").read_text(encoding="utf-8"),
         user_prompt=(
             Path(__file__).parents[2] / "prompt" / "GRID_SOKOBAN_USER.md"
         ).read_text(encoding="utf-8"),
