@@ -65,32 +65,9 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
+    assert nodes["agent"]["env"]["PI_CONTEXT_WINDOW"] == "${PI_CONTEXT_WINDOW:-6}"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
-
-
-def test_sokoban_state_dataflow_uses_the_stateful_task_prompt() -> None:
-    descriptor = yaml.safe_load(Path("sokoban_state.yml").read_text())
-    nodes = {node["id"]: node for node in descriptor["nodes"]}
-
-    assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == (
-        "tasks/sokoban/TASK_STATE.md"
-    )
-    assert nodes["agent"]["env"]["PI_REQUIRE_STATE_UPDATE"] == "true"
-    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
-    assert nodes["sim"]["env"]["TASK"] == "sokoban"
-
-
-def test_sokoban_state_prompt_uses_stable_subtasks_not_scene_scratchpad() -> None:
-    prompt = Path("tasks/sokoban/TASK_STATE.md").read_text()
-
-    assert "place_box_1" in prompt
-    assert "place_box_2" in prompt
-    assert "active_subtask" in prompt
-    assert "subtasks" in prompt
-    assert "last_result" not in prompt
-    assert "known:" not in prompt
 
 
 def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
@@ -129,6 +106,7 @@ def test_sokoban_2d_dataflow_uses_direction_tool() -> None:
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/SYSTEM_2D.md"
+    assert nodes["agent"]["env"]["PI_CONTEXT_WINDOW"] == "${PI_CONTEXT_WINDOW:-6}"
     assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/PLANNER_USER.md"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
@@ -139,7 +117,6 @@ def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
         "tasks/sokoban/TASK.md",
-        "tasks/sokoban/TASK_STATE.md",
         "tasks/sokoban/SYSTEM_2D.md",
         "tasks/stack_steps/TASK.md",
         "tasks/see_saw/TASK.md",

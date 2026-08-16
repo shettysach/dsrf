@@ -77,8 +77,8 @@ class PiDebug:
         if line:
             self._finish_text()
             self._finish_thinking()
-            if line.startswith("[dsrf-context] "):
-                self._write(line.removeprefix("[dsrf-context] "))
+            if line.startswith("[sliding-context] "):
+                self._write(line.removeprefix("[sliding-context] "))
                 return
             # This runs on the Pi stderr reader thread.  Keep it on stderr
             # instead of calling Dora's Node API from a background thread.

@@ -8,6 +8,7 @@ nodes:
     env:
       PI_TIMEOUT: "120"
       PI_DEBUG: "${PI_DEBUG:-false}"
+      PI_CONTEXT_WINDOW: "${PI_CONTEXT_WINDOW:-6}"
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       MOTION_GENERATOR: kinematic_planner

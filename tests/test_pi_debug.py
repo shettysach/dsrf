@@ -48,14 +48,14 @@ def test_pi_debug_is_silent_when_disabled() -> None:
     assert stream.getvalue() == ""
 
 
-def test_pi_debug_formats_context_state_from_pi_stderr() -> None:
+def test_pi_debug_formats_sliding_context_from_pi_stderr() -> None:
     stream = StringIO()
     debug = PiDebug(True, stream=stream)
 
-    debug.stderr('[dsrf-context] active state: {"subgoal":"align behind box"}')
+    debug.stderr("[sliding-context] retaining 12/20 messages for the latest 4 observation turns (window=4)")
 
     output = stream.getvalue()
-    assert 'active state: {"subgoal":"align behind box"}' in output
+    assert "retaining 12/20 messages" in output
     assert "stderr:" not in output
 
 

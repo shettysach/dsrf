@@ -12,7 +12,7 @@ def _make_scene(*, goal_index: int | None = None) -> SceneSpecFn:
 
 TASK = TaskSpec(
     name="sokoban",
-    objective="Push both boxes onto the two marked goal regions.",
+    objective="Push the yellow box onto the marked green goal region.",
     make_scene=_make_scene,
     viewer=ViewerSpec(distance=6.5, elevation=-50.0),
 )

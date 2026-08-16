@@ -69,7 +69,7 @@ class PiRpcClient:
                 "--extension",
                 str(_extension_path()),
                 "--extension",
-                str(_context_extension_path()),
+                str(_sliding_context_extension_path()),
                 "--no-context-files",
                 "--no-skills",
                 "--no-prompt-templates",
@@ -311,5 +311,5 @@ def _extension_path() -> Path:
     return Path(__file__).resolve().parents[2] / "pi" / "kinematic_planner.ts"
 
 
-def _context_extension_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "pi" / "dsrf_context.ts"
+def _sliding_context_extension_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "pi" / "sliding_context.ts"
