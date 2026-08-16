@@ -54,6 +54,19 @@ def test_box_cannot_be_pulled_or_pushed_into_a_wall() -> None:
     assert board.solved
 
 
+def test_box_in_a_non_goal_corner_is_a_static_deadlock() -> None:
+    board = GridSokoban(
+        (
+            "#####",
+            "#$ @#",
+            "# . #",
+            "#####",
+        )
+    )
+
+    assert board.has_non_goal_corner_box()
+
+
 def test_reset_restores_the_initial_state() -> None:
     board = GridSokoban(make_layout("straight"))
     board.step("right")

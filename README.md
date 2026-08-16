@@ -62,7 +62,8 @@ The default grid configuration records ten two-box variations to
 `/tmp/grid-sokoban-10-runs.mp4`. Each run ends on success, the move limit, a
 terminal VLM error, or a VLM `reset` action; a VLM reset advances to a fresh
 variation instead of replaying the current board. Set `GRID_VIDEO_PATH=none` in
-the YAML to disable recording.
+the YAML to disable recording. The default move limit is 50; a box pushed into a
+non-goal corner also ends the run as a static deadlock.
 
 Those ten runs are fixed, solver-checked two-box topologies: `two-box`,
 `two-edge`, and `two-topology-01` through `two-topology-08`. They differ in

@@ -191,6 +191,17 @@ class GridSokoban:
     def solved(self) -> bool:
         return self.boxes == self.goals
 
+    def has_non_goal_corner_box(self) -> bool:
+        """Whether a box is permanently stuck in a wall corner away from a goal."""
+        for row, col in self.boxes - self.goals:
+            blocked_up = (row - 1, col) in self.walls
+            blocked_down = (row + 1, col) in self.walls
+            blocked_left = (row, col - 1) in self.walls
+            blocked_right = (row, col + 1) in self.walls
+            if (blocked_up or blocked_down) and (blocked_left or blocked_right):
+                return True
+        return False
+
     def reset(self) -> StepResult:
         self.player = self._initial_player
         self.boxes = set(self._initial_boxes)

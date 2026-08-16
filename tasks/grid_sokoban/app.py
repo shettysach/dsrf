@@ -244,6 +244,8 @@ class SokobanApp:
         self.moves += 1
         if result.solved:
             self._finish_run(f"SOLVED · {self.moves} moves")
+        elif self.board.has_non_goal_corner_box():
+            self._finish_run("FAILED · box in non-goal corner")
         elif self.moves >= self.max_moves:
             self._finish_run(f"FAILED · move limit ({self.max_moves})")
         elif not result.moved:
@@ -570,7 +572,7 @@ def main() -> None:
     if args.autoplay and not args.vlm:
         parser.error("--autoplay requires --vlm")
     record_runs = _positive_env_int("GRID_RECORD_RUNS", default=1)
-    max_moves = _positive_env_int("GRID_MAX_MOVES", default=60)
+    max_moves = _positive_env_int("GRID_MAX_MOVES", default=50)
     video_path = _recording_path()
     recorder = (
         GridVideoRecorder(
