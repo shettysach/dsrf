@@ -13,8 +13,9 @@ _OFFSETS: dict[str, Position] = {
     "right": (0, 1),
 }
 
-# The early boards deliberately avoid irreversible corner pushes.  They form a
-# curriculum: direct push, reposition-and-push, then two independently placed boxes.
+# The boards deliberately avoid irreversible corner pushes. They progress from
+# direct pushes to repositioning, then reproduce the earlier physical task's
+# open-floor box with a goal at an arena edge.
 _LAYOUTS: dict[str, tuple[str, ...]] = {
     "straight": (
         "#######",
@@ -40,6 +41,35 @@ _LAYOUTS: dict[str, tuple[str, ...]] = {
         "# $ $ #",
         "#  @  #",
         "#     #",
+        "#     #",
+        "#######",
+    ),
+    # Analogous to the prior physical Sokoban task: a free box must be pushed
+    # across open floor onto a goal at the right arena edge.
+    "edge-right": (
+        "#######",
+        "#     #",
+        "#     #",
+        "#@ $ .#",
+        "#     #",
+        "#     #",
+        "#######",
+    ),
+    "edge-top": (
+        "#######",
+        "#  .  #",
+        "#     #",
+        "#  $  #",
+        "#  @  #",
+        "#     #",
+        "#######",
+    ),
+    "two-edge": (
+        "#######",
+        "#.   .#",
+        "#     #",
+        "#$   $#",
+        "#@    #",
         "#     #",
         "#######",
     ),

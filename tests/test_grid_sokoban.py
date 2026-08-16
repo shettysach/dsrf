@@ -18,6 +18,17 @@ def test_straight_layout_solves_with_one_push() -> None:
     assert board.solved
 
 
+def test_edge_right_recreates_the_open_floor_edge_goal_push() -> None:
+    board = GridSokoban(make_layout("edge-right"))
+
+    for action in ("right", "right", "right"):
+        board.step(action)
+
+    assert board.solved
+    assert board.goals == {(3, 5)}
+    assert board.boxes == {(3, 5)}
+
+
 def test_box_cannot_be_pulled_or_pushed_into_a_wall() -> None:
     board = GridSokoban(
         (
@@ -85,7 +96,14 @@ def test_grid_action_parser_requires_one_allowed_action() -> None:
 
 
 def test_grid_layouts_cover_the_curriculum() -> None:
-    assert available_layouts() == ("straight", "turn", "two-box")
+    assert available_layouts() == (
+        "straight",
+        "turn",
+        "two-box",
+        "edge-right",
+        "edge-top",
+        "two-edge",
+    )
     for name in available_layouts():
         board = GridSokoban(make_layout(name))
         assert (board.rows - 2, board.cols - 2) == (5, 5)

@@ -117,7 +117,14 @@ class SokobanApp:
                 self.status = (
                     "VLM autoplay enabled" if self.auto_play else "VLM autoplay paused"
                 )
-        elif key in {pygame.K_1, pygame.K_2, pygame.K_3}:
+        elif key in {
+            pygame.K_1,
+            pygame.K_2,
+            pygame.K_3,
+            pygame.K_4,
+            pygame.K_5,
+            pygame.K_6,
+        }:
             names = available_layouts()
             index = key - pygame.K_1
             if index < len(names):
@@ -149,7 +156,7 @@ class SokobanApp:
 
     def _move(self, action: str, *, source: str) -> None:
         if self.board.solved:
-            self.status = "Solved — press R or 1/2/3 for another board"
+            self.status = "Solved — press R or 1–6 for another board"
             return
         result = self.board.step(action)
         self.moves += 1
@@ -229,7 +236,7 @@ class SokobanApp:
             ),
             (16, panel.y + 14),
         )
-        controls = "R reset · 1/2/3 boards · V VLM move · Space autoplay · Esc quit"
+        controls = "R reset · 1–6 boards · V VLM move · Space autoplay · Esc quit"
         self.window.blit(
             self.small_font.render(controls, True, MUTED_TEXT), (16, panel.y + 43)
         )

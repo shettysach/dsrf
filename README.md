@@ -54,7 +54,9 @@ dora run see_saw.yml
 `grid_sokoban.yml` launches a Pygame application and needs no MJLab, SONIC, or
 motion model. Its layout, VLM endpoint, timeout, history, and autoplay settings
 are all configured in that file. Play with arrow keys/WASD; `R` resets, and
-`1`/`2`/`3` choose the curriculum boards.
+`1`–`6` choose the curriculum boards. The additional `edge-right` board mirrors
+the earlier physical task: push one open-floor box toward a goal at the arena's
+right edge.
 
 ## ARDY closed loop
 
