@@ -139,6 +139,8 @@ def test_invalid_vlm_json_is_retried_without_moving_the_board(
 
 def test_grid_action_parser_requires_one_allowed_action() -> None:
     assert parse_action('{"action":"left"}') == "left"
+    assert parse_action('```json\n{"action":"right"}\n```') == "right"
+    assert parse_action('```\n{"action":"down"}\n```') == "down"
     with pytest.raises(ValueError, match="exactly"):
         parse_action('{"action":"left","note":"extra"}')
     with pytest.raises(ValueError, match="Unsupported"):

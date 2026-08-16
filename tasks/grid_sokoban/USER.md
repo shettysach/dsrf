@@ -1,9 +1,12 @@
-Choose exactly one next one-cell action from the current board image. Reply with exactly one line of raw JSON. The first character of your response must be `{`. The last character must be `}`. Do not put the JSON in a code fence. Do not write any words before or after it.
+Choose exactly one next one-cell action from the current board image.
 
-Your response must parse as JSON and must contain exactly this one key:
+Prefer raw JSON on one line:
 
 {"action":"up"}
 
-You can use with one of: `up`, `down`, `left`, `right`, or `reset`, for the "action" field values. No other keys, values, arrays, explanations, reasoning, labels, Markdown, or backticks are allowed. An invalid response is rejected and does not move the board.
+The `action` value must be one of `up`, `down`, `left`, `right`, or `reset`. Do
+not add fields, prose, reasoning, labels, arrays, or a second JSON object.
 
-Use `reset` only after a prior push has made the board unsolvable.
+Raw JSON is preferred. For compatibility, one outer JSON Markdown fence is also
+accepted, but it must contain only the JSON object and nothing else. Use `reset`
+only after a prior push has made the board unsolvable.
