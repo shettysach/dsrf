@@ -44,8 +44,8 @@ def test_reset_restores_the_initial_state() -> None:
 
     assert result.reset
     assert not board.solved
-    assert board.player == (2, 2)
-    assert board.boxes == {(2, 3)}
+    assert board.player == (3, 2)
+    assert board.boxes == {(3, 3)}
 
 
 def test_renderer_produces_a_top_down_jpeg() -> None:
@@ -67,8 +67,8 @@ def test_pygame_front_end_draws_the_playable_board(
         app._draw()
         image = iio.imread(BytesIO(_surface_jpeg(app.board_surface)), extension=".jpg")
 
-        assert app.window.get_size() == (504, 464)
-        assert image.shape == (360, 504, 3)
+        assert app.window.get_size() == (504, 608)
+        assert image.shape == (504, 504, 3)
     finally:
         import pygame
 
@@ -85,3 +85,6 @@ def test_grid_action_parser_requires_one_allowed_action() -> None:
 
 def test_grid_layouts_cover_the_curriculum() -> None:
     assert available_layouts() == ("straight", "turn", "two-box")
+    for name in available_layouts():
+        board = GridSokoban(make_layout(name))
+        assert (board.rows - 2, board.cols - 2) == (5, 5)

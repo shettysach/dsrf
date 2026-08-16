@@ -221,16 +221,16 @@ class SokobanApp:
                 else:
                     pygame.draw.rect(self.board_surface, GRID, rect, width=1)
         for row, col in self.board.goals:
-            center = ((col + 0.5) * CELL_PIXELS, (row + 0.5) * CELL_PIXELS)
-            pygame.draw.circle(
-                self.board_surface, GOAL, center, round(CELL_PIXELS * 0.27)
+            inset = round(CELL_PIXELS * 0.21)
+            rect = pygame.Rect(
+                col * CELL_PIXELS + inset,
+                row * CELL_PIXELS + inset,
+                CELL_PIXELS - 2 * inset,
+                CELL_PIXELS - 2 * inset,
             )
-            pygame.draw.circle(
-                self.board_surface,
-                (38, 119, 65),
-                center,
-                round(CELL_PIXELS * 0.27),
-                width=3,
+            pygame.draw.rect(self.board_surface, GOAL, rect, border_radius=5)
+            pygame.draw.rect(
+                self.board_surface, (38, 119, 65), rect, width=3, border_radius=5
             )
         for row, col in self.board.boxes:
             inset = round(CELL_PIXELS * 0.16)
@@ -276,16 +276,42 @@ def _make_vlm_client() -> OAIChatClient:
         user_prompt=(
             Path(__file__).parents[2] / "prompt" / "GRID_SOKOBAN_USER.md"
         ).read_text(encoding="utf-8"),
+        history_turns=int(os.environ.get("VLM_HISTORY_TURNS", "16")),
+        history_retain_turns=int(os.environ.get("VLM_HISTORY_RETAIN_TURNS", "4")),
     )
+
+
+def _env_flag(name: str, *, default: bool) -> bool:
+    """Read an optional boolean application setting from the launcher."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    if value.strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    if value.strip().lower() in {"0", "false", "no", "off", ""}:
+        return False
+    raise ValueError(f"{name} must be a boolean")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive visual 2D Sokoban")
-    parser.add_argument("--layout", choices=available_layouts(), default="straight")
     parser.add_argument(
-        "--vlm", action="store_true", help="enable VLM moves with V / Space"
+        "--layout",
+        choices=available_layouts(),
+        default=os.environ.get("GRID_LAYOUT", "straight"),
     )
-    parser.add_argument("--autoplay", action="store_true", help="start VLM autoplay")
+    parser.add_argument(
+        "--vlm",
+        action="store_true",
+        default=_env_flag("GRID_VLM", default=False),
+        help="enable VLM moves with V / Space",
+    )
+    parser.add_argument(
+        "--autoplay",
+        action="store_true",
+        default=_env_flag("GRID_AUTOPLAY", default=False),
+        help="start VLM autoplay",
+    )
     args = parser.parse_args()
     if args.autoplay and not args.vlm:
         parser.error("--autoplay requires --vlm")

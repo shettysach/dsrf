@@ -29,7 +29,7 @@ def render_jpeg(
                 tile[0:2, :] = (210, 206, 194)
                 tile[:, 0:2] = (210, 206, 194)
     for goal in board.goals:
-        _circle(image, goal, cell_pixels, (71, 166, 94), radius=0.31)
+        _box(image, goal, cell_pixels, (71, 166, 94), inset_ratio=0.22)
     for box in board.boxes:
         _box(image, box, cell_pixels, (224, 156, 43))
     _circle(image, board.player, cell_pixels, (52, 119, 204), radius=0.27)
@@ -58,10 +58,15 @@ def _circle(
 
 
 def _box(
-    image: np.ndarray, position: Position, cell_pixels: int, color: tuple[int, int, int]
+    image: np.ndarray,
+    position: Position,
+    cell_pixels: int,
+    color: tuple[int, int, int],
+    *,
+    inset_ratio: float = 0.19,
 ) -> None:
     row, col = position
-    inset = round(cell_pixels * 0.19)
+    inset = round(cell_pixels * inset_ratio)
     top, left = row * cell_pixels + inset, col * cell_pixels + inset
     image[
         top : top + cell_pixels - 2 * inset, left : left + cell_pixels - 2 * inset

@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dora-rs/dora/v1.0.0-rc.4/dora-schema.json
+
+nodes:
+  - id: grid-sokoban
+    path: uv
+    args: run dsrf-grid-sokoban
+    env:
+      GRID_LAYOUT: "${GRID_LAYOUT:-straight}"
+      GRID_VLM: "${GRID_VLM:-true}"
+      GRID_AUTOPLAY: "${GRID_AUTOPLAY:-true}"
+      VLM_URL: "${VLM_URL:-http://127.0.0.1:8080}"
+      VLM_TIMEOUT: "${VLM_TIMEOUT:-120}"
+      VLM_HISTORY_TURNS: "${VLM_HISTORY_TURNS:-16}"
+      VLM_HISTORY_RETAIN_TURNS: "${VLM_HISTORY_RETAIN_TURNS:-4}"

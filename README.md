@@ -37,7 +37,7 @@ dora run corridors.yml
 # or
 dora run sokoban.yml
 # or: interactive graphical 2D Sokoban
-uv run dsrf-grid-sokoban --layout turn
+dora run grid_sokoban.yml
 # or
 dora run stack_steps.yml
 # or
@@ -51,10 +51,10 @@ dora run see_saw.yml
 - Set `CAMERA_YAW: "false"` to keep the camera heading fixed while the robot turns.
 - Set `DEMO_VIDEO_DIR: "none"` to disable demo video recording.
 
-`dsrf-grid-sokoban` is a Pygame application and needs no MJLab, SONIC, or motion
-model. Play with arrow keys/WASD; `R` resets, and `1`/`2`/`3` choose the
-curriculum boards. To let the VLM play the visible board, start it with
-`VLM_URL=http://127.0.0.1:8080 uv run dsrf-grid-sokoban --vlm --autoplay`.
+`grid_sokoban.yml` launches a Pygame application and needs no MJLab, SONIC, or
+motion model. Its layout, VLM endpoint, timeout, history, and autoplay settings
+are all configured in that file. Play with arrow keys/WASD; `R` resets, and
+`1`/`2`/`3` choose the curriculum boards.
 
 ## ARDY closed loop
 

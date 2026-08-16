@@ -119,6 +119,22 @@ def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
     assert nodes["sim"]["env"]["GOAL_INDEX"] == "${GOAL_INDEX:-0}"
 
 
+def test_grid_sokoban_launcher_keeps_runtime_configuration_in_yaml() -> None:
+    descriptor = yaml.safe_load(Path("grid_sokoban.yml").read_text())
+    node = descriptor["nodes"][0]
+
+    assert node["args"] == "run dsrf-grid-sokoban"
+    assert node["env"] == {
+        "GRID_LAYOUT": "${GRID_LAYOUT:-straight}",
+        "GRID_VLM": "${GRID_VLM:-true}",
+        "GRID_AUTOPLAY": "${GRID_AUTOPLAY:-true}",
+        "VLM_URL": "${VLM_URL:-http://127.0.0.1:8080}",
+        "VLM_TIMEOUT": "${VLM_TIMEOUT:-120}",
+        "VLM_HISTORY_TURNS": "${VLM_HISTORY_TURNS:-16}",
+        "VLM_HISTORY_RETAIN_TURNS": "${VLM_HISTORY_RETAIN_TURNS:-4}",
+    }
+
+
 def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
