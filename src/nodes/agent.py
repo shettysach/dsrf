@@ -9,8 +9,8 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
+from agent.constraint import parse_constraint_command
 from agent.vlm import OAIChatClient
-from agent.waypoint import parse_waypoint_command
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,
@@ -237,7 +237,7 @@ class AgentLoop:
                         direction=direction,
                     )
                     return
-            parsed = parse_waypoint_command(command)
+            parsed = parse_constraint_command(command)
             if not parsed.waypoints_2d:
                 self._send(command, motion=parsed.motion, target_xys=())
                 return

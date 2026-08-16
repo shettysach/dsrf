@@ -10,7 +10,7 @@ class ConstraintCommand:
     waypoints_2d: tuple[tuple[int, int], ...]
 
 
-def parse_waypoint_command(text: str) -> ConstraintCommand:
+def parse_constraint_command(text: str) -> ConstraintCommand:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
