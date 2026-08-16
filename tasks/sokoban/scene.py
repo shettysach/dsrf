@@ -24,23 +24,33 @@ WALL_HALF_THICKNESS = 0.1
 
 _GOAL_X_AT_FRONT_WALL = ARENA_MAX_X - WALL_HALF_THICKNESS - GOAL_HALF_SIZE
 _GOAL_Y_AT_RIGHT_WALL = -ARENA_HALF_WIDTH + WALL_HALF_THICKNESS + GOAL_HALF_SIZE
-BOX_STARTS = ((1.25, 2.1), (2.0, -1.0))
-GOAL_CENTERS = ((_GOAL_X_AT_FRONT_WALL, 2.1), (2.0, _GOAL_Y_AT_RIGHT_WALL))
+# Each variation has one box and one goal.  Goals stay near a wall while the
+# box begins in open floor, so the robot must choose an approach from its RGB
+# observation rather than memorizing one push direction.
+SOKOBAN_VARIANTS = (
+    ((1.25, 0.8), (_GOAL_X_AT_FRONT_WALL, 0.8)),
+    ((2.0, -1.0), (2.0, _GOAL_Y_AT_RIGHT_WALL)),
+    ((2.0, 1.0), (2.0, -_GOAL_Y_AT_RIGHT_WALL)),
+)
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
 _GOAL_RGBA = (0.15, 0.8, 0.3, 0.55)
 _WALL_RGBA = (0.35, 0.4, 0.45, 1.0)
 
 
-def make_sokoban_spec_fn() -> SceneSpecFn:
-    """Create a compact two-box Sokoban arena without scouting cameras."""
+def make_sokoban_spec_fn(*, variant_index: int = 0) -> SceneSpecFn:
+    """Create a square, single-box Sokoban arena for one layout variation."""
+    try:
+        box_start, goal_center = SOKOBAN_VARIANTS[variant_index]
+    except IndexError as exc:
+        raise ValueError(
+            f"variant_index must be in 0..{len(SOKOBAN_VARIANTS) - 1}, got {variant_index}"
+        ) from exc
 
     def add_sokoban(spec: MjSpec) -> None:
         _add_arena_walls(spec)
-        for index, center in enumerate(GOAL_CENTERS, 1):
-            _add_goal(spec, index=index, center=center)
-        for index, center in enumerate(BOX_STARTS, 1):
-            _add_box(spec, index=index, center=center)
+        _add_goal(spec, index=1, center=goal_center)
+        _add_box(spec, index=1, center=box_start)
 
     return add_sokoban
 

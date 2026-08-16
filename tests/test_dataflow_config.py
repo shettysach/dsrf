@@ -69,6 +69,7 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
+    assert nodes["sim"]["env"]["GOAL_INDEX"] == "${GOAL_INDEX:-0}"
 
 
 def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
@@ -113,6 +114,7 @@ def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
     assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
+    assert nodes["sim"]["env"]["GOAL_INDEX"] == "${GOAL_INDEX:-0}"
 
 
 def test_dataflow_system_prompts_exist() -> None:

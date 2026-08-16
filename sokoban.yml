@@ -50,6 +50,7 @@ nodes:
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
       CAMERA_YAW: "${CAMERA_YAW:-true}"
+      GOAL_INDEX: "${GOAL_INDEX:-0}"
     inputs:
       motion: motion-gen/motion
       grounding_request: agent/grounding_request
