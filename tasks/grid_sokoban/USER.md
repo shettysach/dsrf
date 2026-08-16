@@ -4,20 +4,16 @@ image directions: `up` moves toward the top edge, `right` toward the right edge,
 attempts exactly one player move. The next image is authoritative; reassess it
 before selecting another action.
 
-## Required response schema
+Respond with raw JSON only. Your first character must be `{` and your last
+character must be `}`. Do not use a Markdown code fence or any backticks. Do not
+include an explanation, reasoning, commentary, an
+array, a second JSON object, or any field besides `action`.
 
-Your entire response must be a valid JSON object with exactly one field named
-`action`:
+The response has exactly this shape:
 
-```json
 {"action":"up"}
-```
 
-The allowed values are `up`, `down`, `left`, `right`, and `reset`. Do not return
-Markdown, a code fence, explanation, reasoning, commentary, an array, a second
-JSON object, or any field besides `action`. For example,
-`{"action":"right","reason":"push box"}` is invalid.
-
-Use `reset` only when a prior push has made the board unsolvable. Do not reset
-merely because the next move is uncertain; make the safest useful one-cell move
-and inspect the next board image.
+The allowed values are `up`, `down`, `left`, `right`, and `reset`. Use `reset`
+only when a prior push has made the board unsolvable. Do not reset merely because
+the next move is uncertain; make the safest useful one-cell move and inspect the
+next board image.
