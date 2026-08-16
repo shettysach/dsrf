@@ -40,13 +40,3 @@ far side is blocked has no effect.
    blocked move changed the board.
 6. Use `reset` only after the board has become unsolvable; it restores the
    original layout.
-
-## Response format
-
-Return exactly one JSON object and no other text:
-
-```json
-{"action":"up"}
-```
-
-Allowed actions are `up`, `down`, `left`, `right`, and `reset`.

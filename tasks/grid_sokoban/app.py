@@ -21,6 +21,7 @@ CELL_PIXELS = 72
 PANEL_HEIGHT = 104
 FPS = 60
 AUTO_DELAY_SECONDS = 0.2
+MAX_INVALID_VLM_RESPONSES = 3
 BACKGROUND = (24, 29, 38)
 FLOOR = (235, 229, 213)
 GRID = (205, 198, 181)
@@ -46,6 +47,8 @@ class SokobanApp:
         self.observation_id = 0
         self.previous_observation: VisualObservation | None = None
         self.pending_command: str | None = None
+        self._previous_turn_committed = False
+        self._invalid_response_count = 0
         self.last_auto_at = time.monotonic()
         self._vlm_request_id = 0
         self._vlm_in_flight = False
@@ -138,6 +141,8 @@ class SokobanApp:
         self.observation_id = 0
         self.previous_observation = None
         self.pending_command = None
+        self._previous_turn_committed = False
+        self._invalid_response_count = 0
         self._vlm_request_id += 1
         if self.vlm is not None:
             self.vlm.reset()
@@ -149,6 +154,8 @@ class SokobanApp:
         self.observation_id = 0
         self.previous_observation = None
         self.pending_command = None
+        self._previous_turn_committed = False
+        self._invalid_response_count = 0
         self._vlm_request_id += 1
         if self.vlm is not None:
             self.vlm.reset()
@@ -170,30 +177,40 @@ class SokobanApp:
         else:
             self.status = f"{source.title()} moved"
 
-    def _start_vlm_request(self) -> None:
+    def _start_vlm_request(self, *, retry_feedback: str | None = None) -> None:
         if self.vlm is None or self.board.solved or self._vlm_in_flight:
             return
         self._draw_board()
         observation = VisualObservation(
             self.observation_id, self.pending_command, _surface_jpeg(self.board_surface)
         )
-        if self.previous_observation is not None and self.pending_command is not None:
+        if (
+            self.previous_observation is not None
+            and self.pending_command is not None
+            and not self._previous_turn_committed
+        ):
             self.vlm.commit(self.previous_observation, self.pending_command)
+            self._previous_turn_committed = True
         self._vlm_in_flight = True
         request_id = self._vlm_request_id
         self.status = "VLM is deciding…"
         threading.Thread(
             target=self._complete_vlm_request,
-            args=(request_id, observation),
+            args=(request_id, observation, retry_feedback),
             daemon=True,
         ).start()
 
     def _complete_vlm_request(
-        self, request_id: int, observation: VisualObservation
+        self,
+        request_id: int,
+        observation: VisualObservation,
+        retry_feedback: str | None,
     ) -> None:
         assert self.vlm is not None
         try:
-            result: str | Exception = str(self.vlm.complete(observation))
+            result: str | Exception = str(
+                self.vlm.complete(observation, retry_feedback=retry_feedback)
+            )
         except Exception as exc:
             result = exc
         self._vlm_results.put((request_id, observation, result))
@@ -213,11 +230,26 @@ class SokobanApp:
         try:
             action = parse_action(result)
         except ValueError as exc:
-            self.auto_play = False
-            self.status = f"VLM response error: {exc}"
+            self._invalid_response_count += 1
+            if self._invalid_response_count >= MAX_INVALID_VLM_RESPONSES:
+                self.auto_play = False
+                self.status = f"VLM response error after {MAX_INVALID_VLM_RESPONSES} attempts: {exc}"
+                return
+            self.status = (
+                f"Invalid VLM JSON; retrying "
+                f"({self._invalid_response_count + 1}/{MAX_INVALID_VLM_RESPONSES})…"
+            )
+            self._start_vlm_request(
+                retry_feedback=(
+                    f"Your previous response was invalid: {exc}. "
+                    "Return only the required JSON object."
+                )
+            )
             return
         self.previous_observation = observation
         self.pending_command = result
+        self._previous_turn_committed = False
+        self._invalid_response_count = 0
         self.observation_id += 1
         self.last_auto_at = time.monotonic()
         self._move(action, source="VLM")
@@ -313,16 +345,24 @@ def _make_vlm_client() -> OAIChatClient:
     url = os.environ.get("VLM_URL", "").strip().rstrip("/")
     if not url:
         raise ValueError("VLM_URL is required when using --vlm")
+    task_dir = Path(__file__).parent
     return OAIChatClient(
         base_url=url,
         timeout=float(os.environ.get("VLM_TIMEOUT", "120")),
-        system_prompt=Path(__file__).with_name("TASK.md").read_text(encoding="utf-8"),
-        user_prompt=(
-            Path(__file__).parents[2] / "prompt" / "GRID_SOKOBAN_USER.md"
-        ).read_text(encoding="utf-8"),
+        system_prompt=_prompt_path("VLM_SYSTEM_PROMPT", task_dir / "TASK.md").read_text(
+            encoding="utf-8"
+        ),
+        user_prompt=_prompt_path("VLM_USER_PROMPT", task_dir / "USER.md").read_text(
+            encoding="utf-8"
+        ),
         history_turns=int(os.environ.get("VLM_HISTORY_TURNS", "16")),
         history_retain_turns=int(os.environ.get("VLM_HISTORY_RETAIN_TURNS", "4")),
     )
+
+
+def _prompt_path(name: str, default: Path) -> Path:
+    """Resolve a prompt path supplied by the launcher."""
+    return Path(os.environ.get(name, str(default)))
 
 
 def _env_flag(name: str, *, default: bool) -> bool:

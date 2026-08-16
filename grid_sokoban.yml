@@ -12,3 +12,5 @@ nodes:
       VLM_TIMEOUT: "${VLM_TIMEOUT:-120}"
       VLM_HISTORY_TURNS: "${VLM_HISTORY_TURNS:-16}"
       VLM_HISTORY_RETAIN_TURNS: "${VLM_HISTORY_RETAIN_TURNS:-4}"
+      VLM_SYSTEM_PROMPT: tasks/grid_sokoban/TASK.md
+      VLM_USER_PROMPT: tasks/grid_sokoban/USER.md

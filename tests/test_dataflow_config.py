@@ -120,6 +120,8 @@ def test_grid_sokoban_launcher_keeps_runtime_configuration_in_yaml() -> None:
         "VLM_TIMEOUT": "${VLM_TIMEOUT:-120}",
         "VLM_HISTORY_TURNS": "${VLM_HISTORY_TURNS:-16}",
         "VLM_HISTORY_RETAIN_TURNS": "${VLM_HISTORY_RETAIN_TURNS:-4}",
+        "VLM_SYSTEM_PROMPT": "tasks/grid_sokoban/TASK.md",
+        "VLM_USER_PROMPT": "tasks/grid_sokoban/USER.md",
     }
 
 
@@ -134,7 +136,7 @@ def test_dataflow_system_prompts_exist() -> None:
         "tasks/see_saw/TASK.md",
     ):
         assert Path(path).is_file()
-    assert Path("prompt/GRID_SOKOBAN_USER.md").is_file()
+    assert Path("tasks/grid_sokoban/USER.md").is_file()
 
 
 def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:
