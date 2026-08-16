@@ -5,6 +5,7 @@ import os
 import queue
 import threading
 import time
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from tasks.grid_sokoban.protocol import parse_action
 
 CELL_PIXELS = 72
 PANEL_HEIGHT = 104
+DEBUG_PANEL_WIDTH = 420
 FPS = 60
 AUTO_DELAY_SECONDS = 0.2
 MAX_INVALID_VLM_RESPONSES = 3
@@ -32,6 +34,12 @@ BOX_EDGE = (170, 111, 25)
 PLAYER = (67, 135, 222)
 TEXT = (238, 242, 248)
 MUTED_TEXT = (175, 185, 200)
+
+
+@dataclass(frozen=True)
+class _VlmResponse:
+    output: str
+    reasoning: str | None
 
 
 class SokobanApp:
@@ -53,19 +61,22 @@ class SokobanApp:
         self._vlm_request_id = 0
         self._vlm_in_flight = False
         self._vlm_results: queue.SimpleQueue[
-            tuple[int, VisualObservation, str | Exception]
+            tuple[int, VisualObservation, _VlmResponse | Exception]
         ] = queue.SimpleQueue()
+        self.last_vlm_output = "No VLM response yet."
+        self.last_vlm_reasoning = "No reasoning field returned yet."
+        self.last_retry_feedback = "None"
         pygame.init()
         pygame.display.set_caption("Grid Sokoban")
         self.font = pygame.font.Font(None, 28)
         self.small_font = pygame.font.Font(None, 22)
         window_size = (
-            self.board.cols * CELL_PIXELS,
+            self.board.cols * CELL_PIXELS + DEBUG_PANEL_WIDTH,
             self.board.rows * CELL_PIXELS + PANEL_HEIGHT,
         )
         self.window = pygame.display.set_mode(window_size)
         self.board_surface = pygame.Surface(
-            (window_size[0], window_size[1] - PANEL_HEIGHT)
+            (self.board.cols * CELL_PIXELS, window_size[1] - PANEL_HEIGHT)
         )
 
     def run(self) -> None:
@@ -194,6 +205,8 @@ class SokobanApp:
         self._vlm_in_flight = True
         request_id = self._vlm_request_id
         self.status = "VLM is deciding…"
+        if retry_feedback is not None:
+            self.last_retry_feedback = retry_feedback
         threading.Thread(
             target=self._complete_vlm_request,
             args=(request_id, observation, retry_feedback),
@@ -208,8 +221,10 @@ class SokobanApp:
     ) -> None:
         assert self.vlm is not None
         try:
-            result: str | Exception = str(
-                self.vlm.complete(observation, retry_feedback=retry_feedback)
+            response = self.vlm.complete(observation, retry_feedback=retry_feedback)
+            result: _VlmResponse | Exception = _VlmResponse(
+                output=str(response),
+                reasoning=getattr(response, "reasoning", None),
             )
         except Exception as exc:
             result = exc
@@ -225,10 +240,14 @@ class SokobanApp:
             return
         if isinstance(result, Exception):
             self.auto_play = False
+            self.last_vlm_output = f"ERROR: {type(result).__name__}: {result}"
+            self.last_vlm_reasoning = "No reasoning: VLM request failed."
             self.status = f"VLM error: {type(result).__name__}: {result}"
             return
+        self.last_vlm_output = result.output
+        self.last_vlm_reasoning = result.reasoning or "No reasoning field returned."
         try:
-            action = parse_action(result)
+            action = parse_action(result.output)
         except ValueError as exc:
             self._invalid_response_count += 1
             if self._invalid_response_count >= MAX_INVALID_VLM_RESPONSES:
@@ -247,7 +266,7 @@ class SokobanApp:
             )
             return
         self.previous_observation = observation
-        self.pending_command = result
+        self.pending_command = result.output
         self._previous_turn_committed = False
         self._invalid_response_count = 0
         self.observation_id += 1
@@ -275,6 +294,7 @@ class SokobanApp:
         self.window.blit(
             self.small_font.render(self.status, True, TEXT), (16, panel.y + 69)
         )
+        self._draw_debug_panel()
         if self.board.solved:
             overlay = pygame.Surface(self.board_surface.get_size(), pygame.SRCALPHA)
             overlay.fill((21, 94, 49, 118))
@@ -289,6 +309,42 @@ class SokobanApp:
                     )
                 ),
             )
+
+    def _draw_debug_panel(self) -> None:
+        left = self.board.cols * CELL_PIXELS
+        panel = pygame.Rect(left, 0, DEBUG_PANEL_WIDTH, self.window.get_height())
+        pygame.draw.rect(self.window, (28, 34, 45), panel)
+        pygame.draw.line(self.window, (77, 89, 107), (left, 0), (left, panel.height), 2)
+        y = 18
+        self.window.blit(self.font.render("VLM DEBUG", True, TEXT), (left + 16, y))
+        y += 38
+        y = self._draw_debug_value(
+            "Raw output", self.last_vlm_output, left + 16, y, max_lines=4
+        )
+        y += 8
+        y = self._draw_debug_value(
+            "Reasoning", self.last_vlm_reasoning, left + 16, y, max_lines=10
+        )
+        y += 8
+        self._draw_debug_value(
+            "Retry feedback", self.last_retry_feedback, left + 16, y, max_lines=4
+        )
+
+    def _draw_debug_value(
+        self, label: str, value: str, left: int, y: int, *, max_lines: int
+    ) -> int:
+        self.window.blit(
+            self.small_font.render(label, True, (118, 204, 255)), (left, y)
+        )
+        y += 23
+        lines = _wrap_debug_text(value, self.small_font, DEBUG_PANEL_WIDTH - 32)
+        for line in lines[:max_lines]:
+            self.window.blit(self.small_font.render(line, True, TEXT), (left, y))
+            y += 20
+        if len(lines) > max_lines:
+            self.window.blit(self.small_font.render("…", True, MUTED_TEXT), (left, y))
+            y += 20
+        return y
 
     def _draw_board(self) -> None:
         self.board_surface.fill(FLOOR)
@@ -332,6 +388,22 @@ class SokobanApp:
             round(CELL_PIXELS * 0.25),
             width=3,
         )
+
+
+def _wrap_debug_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
+    """Wrap debug text to the panel width while preserving explicit newlines."""
+    lines: list[str] = []
+    for paragraph in text.splitlines() or [""]:
+        current = ""
+        for word in paragraph.split() or [""]:
+            candidate = word if not current else f"{current} {word}"
+            if current and font.size(candidate)[0] > max_width:
+                lines.append(current)
+                current = word
+            else:
+                current = candidate
+        lines.append(current)
+    return lines
 
 
 def _surface_jpeg(surface: pygame.Surface) -> bytes:
