@@ -11,6 +11,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     assert nodes["agent"]["env"] == {
         "VLM_URL": "http://127.0.0.1:8080",
         "VLM_TIMEOUT": "120",
+        "AGENT_DEBUG": "${AGENT_DEBUG:-false}",
         "VLM_HISTORY_TURNS": "${VLM_HISTORY_TURNS:-8}",
         "VLM_HISTORY_RETAIN_TURNS": "${VLM_HISTORY_RETAIN_TURNS:-2}",
         "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
@@ -67,6 +68,7 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
+    assert nodes["agent"]["env"]["AGENT_DEBUG"] == "${AGENT_DEBUG:-false}"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
     assert nodes["sim"]["env"]["GOAL_INDEX"] == "${GOAL_INDEX:-0}"

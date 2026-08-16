@@ -93,6 +93,7 @@ class AgentConfig:
     system_prompt: Path
     user_prompt: Path
     waypoint_debug: bool
+    agent_debug: bool
     command_mode: Literal["waypoint", "direction"]
     history_turns: int = 8
     history_retain_turns: int = 2
@@ -121,6 +122,7 @@ class AgentConfig:
             system_prompt=Path(os.environ["VLM_SYSTEM_PROMPT"]),
             user_prompt=Path(os.environ["VLM_USER_PROMPT"]),
             waypoint_debug=_optional_boolean("WAYPOINT_DEBUG", default=False),
+            agent_debug=_debug_boolean("AGENT_DEBUG", default=False),
             command_mode=(
                 "direction"
                 if os.environ.get("MOTION_GENERATOR", "").strip().lower()
@@ -209,3 +211,14 @@ def _optional_boolean(name: str, *, default: bool) -> bool:
     if name not in os.environ:
         return default
     return _boolean(name)
+
+
+def _debug_boolean(name: str, *, default: bool) -> bool:
+    if name not in os.environ:
+        return default
+    value = os.environ[name].strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off", ""}:
+        return False
+    raise ValueError(f"{name} must be a boolean value, got {os.environ[name]!r}")

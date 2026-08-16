@@ -9,6 +9,7 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
+from agent.debug import AgentDebug
 from agent.vlm import OAIChatClient
 from agent.waypoint import parse_waypoint_command
 from shared.arrow import (
@@ -47,6 +48,7 @@ class AgentLoop:
         client: OAIChatClient,
         *,
         waypoint_debug: bool = False,
+        agent_debug: AgentDebug | None = None,
         command_mode: str = "waypoint",
     ) -> None:
         self.node = node
@@ -57,6 +59,7 @@ class AgentLoop:
         self.pending_grounding: _PendingGrounding | None = None
         self.invalid_responses = 0
         self.waypoint_debug = waypoint_debug
+        self.agent_debug = agent_debug or AgentDebug()
         self.command_mode = command_mode
 
     def run(self) -> None:
@@ -224,6 +227,12 @@ class AgentLoop:
         vlm_ms = (time.perf_counter() - started_at) * 1000.0
         command = str(result)
         reasoning = getattr(result, "reasoning", None)
+        self.agent_debug.response(
+            self.node,
+            observation_id=observation_id,
+            reasoning=reasoning,
+            command=command,
+        )
         self.node.log(
             "info",
             f"[OBS {observation_id}] VLM command: {command!r} "
@@ -363,6 +372,7 @@ def main() -> None:
         node,
         client,
         waypoint_debug=cfg.waypoint_debug,
+        agent_debug=AgentDebug(cfg.agent_debug),
         command_mode=cfg.command_mode,
     ).run()
 

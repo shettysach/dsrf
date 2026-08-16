@@ -136,6 +136,7 @@ def test_agent_config_from_env(monkeypatch) -> None:
         system_prompt=Path("/prompts/system.md"),
         user_prompt=Path("/prompts/user.md"),
         waypoint_debug=False,
+        agent_debug=False,
         command_mode="waypoint",
     )
 
@@ -152,6 +153,16 @@ def test_agent_config_reads_bounded_history(monkeypatch) -> None:
 
     assert config.history_turns == 12
     assert config.history_retain_turns == 3
+
+
+def test_agent_config_accepts_numeric_debug_flag(monkeypatch) -> None:
+    monkeypatch.setenv("VLM_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("VLM_TIMEOUT", "120")
+    monkeypatch.setenv("VLM_SYSTEM_PROMPT", "/prompts/system.md")
+    monkeypatch.setenv("VLM_USER_PROMPT", "/prompts/user.md")
+    monkeypatch.setenv("AGENT_DEBUG", "1")
+
+    assert AgentConfig.from_env().agent_debug is True
 
 
 def test_agent_config_rejects_invalid_history_retain(monkeypatch) -> None:
