@@ -209,7 +209,7 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
             {"type": "STOP"},
         ]
     )
-    client = _Client(['{"motion":"stand","waypoints_2d":[]}'])
+    client = _Client(['{"motion":"stand"}'])
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
@@ -218,6 +218,7 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     )
     assert command.motion == "stand"
     assert command.target_xys == ()
+    assert [output_id for output_id, _, _ in node.outputs] == ["command"]
 
 
 def test_agent_retries_motion_gen_errors() -> None:

@@ -5,12 +5,12 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class WaypointCommand:
+class ConstraintCommand:
     motion: str
     waypoints_2d: tuple[tuple[int, int], ...]
 
 
-def parse_waypoint_command(text: str) -> WaypointCommand:
+def parse_waypoint_command(text: str) -> ConstraintCommand:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
@@ -18,11 +18,15 @@ def parse_waypoint_command(text: str) -> WaypointCommand:
 
     match payload:
         case {"motion": str(motion), "waypoints_2d": list(waypoints)} if motion.strip():
-            return WaypointCommand(
+            return ConstraintCommand(
                 motion.strip(), tuple(_waypoint(waypoint) for waypoint in waypoints)
             )
+        case {"motion": str(motion)} if (
+            motion.strip() and "waypoints_2d" not in payload
+        ):
+            return ConstraintCommand(motion.strip(), ())
         case _:
-            raise ValueError("Expected {motion: <text>, waypoints_2d: [[x, y], ...]}")
+            raise ValueError("Expected {motion: <text>, waypoints_2d?: [[x, y], ...]}")
 
 
 def _waypoint(value: object) -> tuple[int, int]:

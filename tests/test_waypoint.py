@@ -88,6 +88,12 @@ def test_stand_parses_without_resolving_depth() -> None:
     assert command.waypoints_2d == ()
 
 
+def test_command_without_waypoints_defaults_to_no_grounding() -> None:
+    command = parse_waypoint_command('{"motion":"wave with the right hand"}')
+    assert command.motion == "wave with the right hand"
+    assert command.waypoints_2d == ()
+
+
 def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:
     grounded = parse_waypoint_command(
         '{"motion":"sidestep carefully toward the doorway","waypoints_2d":[[400,600],[600,500]]}'
