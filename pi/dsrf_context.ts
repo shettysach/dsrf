@@ -5,7 +5,7 @@ import {
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 
-const MAX_KNOWN_ITEMS = 5;
+const MAX_SUBTASKS = 8;
 const MAX_TEXT_LENGTH = 120;
 const DEBUG_ENABLED = !["", "0", "false", "no", "off"].includes(
   (process.env.PI_DEBUG ?? "").trim().toLowerCase(),
@@ -14,35 +14,31 @@ const REQUIRE_STATE_UPDATE = !["", "0", "false", "no", "off"].includes(
   (process.env.PI_REQUIRE_STATE_UPDATE ?? "").trim().toLowerCase(),
 );
 
-type Progress = {
-  item: string;
-  status: "unknown" | "active" | "complete";
+type Subtask = {
+  id: string;
+  status: "pending" | "active" | "complete" | "blocked";
+  objective: string;
 };
 
 type TaskState = {
+  activeSubtask: string | null;
+  subtasks: Subtask[];
   subgoal: string | null;
-  progress: Progress[];
-  known: string[];
-  lastResult: string | null;
 };
 
-const progressEntry = Type.Object({
-  item: Type.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }),
-  status: StringEnum(["unknown", "active", "complete"] as const),
+const subtaskUpdate = Type.Object({
+  id: Type.String({ minLength: 1, maxLength: 64 }),
+  status: StringEnum(["pending", "active", "complete", "blocked"] as const),
+  objective: Type.Optional(Type.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH })),
 });
 
 const stateUpdate = Type.Object(
   {
+    active_subtask: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    subtasks: Type.Optional(
+      Type.Array(subtaskUpdate, { maxItems: MAX_SUBTASKS }),
+    ),
     subgoal: Type.Optional(Type.String({ maxLength: MAX_TEXT_LENGTH })),
-    progress: Type.Optional(
-      Type.Array(progressEntry, { maxItems: MAX_KNOWN_ITEMS }),
-    ),
-    known: Type.Optional(
-      Type.Array(Type.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }), {
-        maxItems: MAX_KNOWN_ITEMS,
-      }),
-    ),
-    last_result: Type.Optional(Type.String({ maxLength: MAX_TEXT_LENGTH })),
   },
   { minProperties: 1 },
 );
@@ -109,18 +105,25 @@ export default function dsrfContext(pi: ExtensionAPI): void {
     name: "update_state",
     label: "Update Task State",
     description:
-      "Replace the bounded task facts after a meaningful discovery or progress change. " +
-      "Do not store reasoning, speculation, or an action transcript. Then call robot_action.",
+      "Update the bounded subtask plan. Keep completed subtasks complete; store only " +
+      "the active subtask, subtask statuses, stable objectives, and immediate subgoal. " +
+      "Do not store reasoning, scene narration, or an action transcript. Then call robot_action.",
     parameters: stateUpdate,
     async execute(_toolCallId, update) {
       if (Object.keys(update).length === 0) {
         throw new Error("update_state requires at least one field");
       }
+      const subtasks = update.subtasks
+        ? mergeSubtasks(taskState.subtasks, update.subtasks)
+        : taskState.subtasks;
+      const activeSubtask = update.active_subtask ?? taskState.activeSubtask;
+      if (activeSubtask && !subtasks.some(({ id }) => id === activeSubtask)) {
+        throw new Error("active_subtask must refer to a known subtask");
+      }
       taskState = {
+        activeSubtask,
+        subtasks,
         subgoal: update.subgoal ?? taskState.subgoal,
-        progress: update.progress ?? taskState.progress,
-        known: update.known ?? taskState.known,
-        lastResult: update.last_result ?? taskState.lastResult,
       };
       debugState("state updated", taskState);
       return {
@@ -150,19 +153,47 @@ export default function dsrfContext(pi: ExtensionAPI): void {
 }
 
 function emptyTaskState(): TaskState {
-  return { subgoal: null, progress: [], known: [], lastResult: null };
+  return { activeSubtask: null, subtasks: [], subgoal: null };
 }
 
 function formatTaskState(state: TaskState): string {
   const lines = ["TASK STATE"];
-  if (state.subgoal) lines.push(`subgoal: ${state.subgoal}`);
-  for (const entry of state.progress) {
-    lines.push(`progress: ${entry.item} = ${entry.status}`);
+  if (state.activeSubtask) lines.push(`active subtask: ${state.activeSubtask}`);
+  for (const subtask of state.subtasks) {
+    lines.push(`${subtask.id} [${subtask.status}]: ${subtask.objective}`);
   }
-  for (const fact of state.known) lines.push(`known: ${fact}`);
-  if (state.lastResult) lines.push(`last result: ${state.lastResult}`);
+  if (state.subgoal) lines.push(`subgoal: ${state.subgoal}`);
   if (lines.length === 1) lines.push("No task facts recorded yet.");
   return `${lines.join("\n")}\n`;
+}
+
+function mergeSubtasks(
+  current: Subtask[],
+  updates: Array<Omit<Subtask, "objective"> & { objective?: string }>,
+): Subtask[] {
+  const byId = new Map(current.map((subtask) => [subtask.id, subtask]));
+  const order = current.map(({ id }) => id);
+  const seen = new Set<string>();
+  for (const update of updates) {
+    if (seen.has(update.id)) {
+      throw new Error(`Subtask ${update.id} was supplied more than once`);
+    }
+    seen.add(update.id);
+    const existing = byId.get(update.id);
+    if (!existing && !update.objective) {
+      throw new Error(`New subtask ${update.id} requires an objective`);
+    }
+    if (existing?.status === "complete" && update.status !== "complete") {
+      throw new Error(`Completed subtask ${update.id} cannot be reopened`);
+    }
+    byId.set(update.id, {
+      id: update.id,
+      status: update.status,
+      objective: update.objective ?? existing!.objective,
+    });
+    if (!existing) order.push(update.id);
+  }
+  return order.map((id) => byId.get(id)!);
 }
 
 function debugState(label: string, state: TaskState): void {

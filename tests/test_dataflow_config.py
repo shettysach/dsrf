@@ -82,6 +82,17 @@ def test_sokoban_state_dataflow_uses_the_stateful_task_prompt() -> None:
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
 
 
+def test_sokoban_state_prompt_uses_stable_subtasks_not_scene_scratchpad() -> None:
+    prompt = Path("tasks/sokoban/TASK_STATE.md").read_text()
+
+    assert "place_box_1" in prompt
+    assert "place_box_2" in prompt
+    assert "active_subtask" in prompt
+    assert "subtasks" in prompt
+    assert "last_result" not in prompt
+    assert "known:" not in prompt
+
+
 def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
     descriptor = yaml.safe_load(Path("stack_steps.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}

@@ -29,24 +29,39 @@ centered inside separate green regions.
 
 ## Working-memory protocol
 
-The `TASK STATE` block is the only persistent task memory. Keep it factual and
-small. For every observation, make exactly two tool calls in this order in one
-response: first `update_state`, then `robot_action`. The first call records what
-the current image shows; the second chooses one motion. Do not emit text between
-these calls, do not call either tool twice, and do not make a third tool call.
+The `TASK STATE` block is the only persistent task memory. It contains a small
+subtask plan, not a scene description.
 
-Use these fields only:
+On the initial observation, assign `box_1` and `box_2` using one stable visible
+convention, such as left-to-right. Never swap these labels later. Initialize
+these two subtasks with concise, visually grounded objectives:
 
-- `subgoal`: the immediate actionable objective, such as `align behind far box`.
-- `progress`: one entry for each box, with status `unknown`, `active`, or
-  `complete`.
-- `known`: up to five verified visual facts, not guesses.
-- `last_result`: the observed outcome of the last completed action.
+```text
+place_box_1: place box_1 onto its matched green goal
+place_box_2: place box_2 onto its matched green goal
+```
 
-Do not store reasoning, alternatives, or a movement transcript. Preserve facts
-that remain true, update facts that changed, and use `last_result` for the
-observed outcome of the completed command. The `robot_action` call ends the Pi
-turn; wait for the resulting observation before reasoning or acting again.
+Every observation must make exactly two tool calls in one response: first
+`update_state`, then `robot_action`. State has only:
+
+- `active_subtask`: the one subtask currently being worked on.
+- `subtasks`: updates to `place_box_1` or `place_box_2`, each with status
+  `pending`, `active`, `complete`, or `blocked` and its stable objective.
+- `subgoal`: one immediate visual action objective.
+
+Do not store reasoning, scene narration, robot position, directions, collision
+summaries, or an action transcript. The current observation already supplies
+the completed command and collision outcome. A completed subtask is permanent:
+never reopen it or approach that completed box again.
+
+When the first subtask becomes complete, set the other subtask active and make
+the next subgoal specifically reach the goal-opposite side of its box through
+visible clear floor. Do not alternate `forward` and `backward` as a generic
+recovery. For a right-side goal, move to the left side of the active box and
+use `walk right` to push; `left` and `right` already strafe without rotating.
+
+The `robot_action` call ends the Pi turn; wait for the resulting observation
+before reasoning or acting again.
 
 ## Finish
 
