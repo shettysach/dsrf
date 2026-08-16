@@ -313,7 +313,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     runtime.run()
 
     assert simulation.steps == 2
-    assert viewer.sync_steps == [1, 2]
+    assert viewer.sync_steps == [0, 1, 2]
     assert renderer.jpeg_steps == [0, 2]
     assert renderer.depth_steps == []
     observations = [output for output in node.outputs if output[0] == "observation"]
@@ -349,7 +349,6 @@ def test_sim_publishes_rgb_without_eager_depth() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert observation.jpeg == b"jpeg-0"
-    assert observation.trajectory_png is not None
 
 
 def test_sim_lazily_caches_depth_for_current_observation() -> None:

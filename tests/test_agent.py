@@ -1,10 +1,9 @@
 import json
-import sys
 from typing import Any, cast
 
 import numpy as np
 
-from agent.pi import PiAction, PiRpcClient
+from agent.vlm import OAIChatClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
     agent_command_from_arrow,
@@ -16,71 +15,108 @@ from shared.arrow import (
 from shared.messages import GroundingResult, PipelineError, VisualObservation
 
 
-def test_pi_rpc_client_sends_current_images_on_every_request(tmp_path) -> None:
-    received = tmp_path / "received.jsonl"
-    fake_pi = tmp_path / "fake_pi.py"
-    fake_pi.write_text(
-        "import json, pathlib, sys\n"
-        "output = pathlib.Path(sys.argv[1])\n"
-        "with output.open('w') as saved:\n"
-        "  for index, line in enumerate(sys.stdin):\n"
-        "    request = json.loads(line)\n"
-        "    saved.write(json.dumps(request) + '\\n'); saved.flush()\n"
-        "    print(json.dumps({'type':'response','id':request['id'],'command':'prompt','success':True}), flush=True)\n"
-        "    print(json.dumps({'type':'tool_execution_start','toolName':'robot_action','args':{'motion':'walk','direction':'forward'}}), flush=True)\n"
-        "    print(json.dumps({'type':'agent_settled'}), flush=True)\n"
-    )
-    client = PiRpcClient(
-        timeout=2.0,
-        system_prompt="Task prompt",
-        command_mode="direction",
-        command=(sys.executable, str(fake_pi), str(received)),
-    )
-    try:
-        observation = VisualObservation(0, None, b"jpeg", trajectory_png=b"png")
-        assert client.complete(observation).text == (
-            '{"motion":"walk","direction":"forward"}'
-        )
-        assert (
-            client.complete(observation, retry_feedback="bad JSON")
-            == PiAction("walk", "forward", ())
-        )
-    finally:
-        client.close()
+class _Response:
+    def __init__(self, command: str) -> None:
+        self.payload = json.dumps(
+            {"choices": [{"message": {"content": command}}]}
+        ).encode()
 
-    first, retry = [json.loads(line) for line in received.read_text().splitlines()]
-    assert first["images"] == [
-        {"type": "image", "data": "anBlZw==", "mimeType": "image/jpeg"},
-        {"type": "image", "data": "cG5n", "mimeType": "image/png"},
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args) -> None:
+        pass
+
+    def read(self) -> bytes:
+        return self.payload
+
+
+def test_llama_client_uses_blank_model_and_replays_history(monkeypatch) -> None:
+    posted: list[dict[str, Any]] = []
+    responses = iter(["stand", "walk forward 0.4"])
+
+    def urlopen(request, timeout):
+        posted.append(
+            {
+                "url": request.full_url,
+                "timeout": timeout,
+                "payload": json.loads(request.data),
+            }
+        )
+        return _Response(next(responses))
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080/",
+        timeout=12.0,
+        system_prompt="System file prompt.\n",
+        user_prompt="User file prompt.\n",
+    )
+    first = VisualObservation(0, None, b"first", collision_detected=True)
+    assert client.complete(first) == "stand"
+    client.commit(first, "stand")
+
+    second = VisualObservation(1, "stand", b"second")
+    assert client.complete(second) == "walk forward 0.4"
+
+    assert posted[0]["url"] == "http://127.0.0.1:8080/v1/chat/completions"
+    assert posted[0]["timeout"] == 12.0
+    assert posted[0]["payload"]["model"] == ""
+    assert posted[0]["payload"]["cache_prompt"] is True
+    messages = posted[1]["payload"]["messages"]
+    assert [message["role"] for message in messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
     ]
-    assert "Completed command: none (initial observation)" in first["message"]
-    assert retry["images"] == first["images"]
-    assert "bad JSON" in retry["message"]
-
-
-def test_pi_rpc_client_keeps_the_first_of_duplicate_actions(tmp_path) -> None:
-    fake_pi = tmp_path / "fake_pi.py"
-    fake_pi.write_text(
-        "import json, sys\n"
-        "for line in sys.stdin:\n"
-        "  request = json.loads(line)\n"
-        "  print(json.dumps({'type':'response','id':request['id'],'success':True}), flush=True)\n"
-        "  print(json.dumps({'type':'tool_execution_start','toolName':'robot_action','args':{'motion':'walk','direction':'left'}}), flush=True)\n"
-        "  print(json.dumps({'type':'tool_execution_start','toolName':'robot_action','args':{'motion':'walk','direction':'right'}}), flush=True)\n"
-        "  print(json.dumps({'type':'agent_settled'}), flush=True)\n"
+    assert messages[0]["content"] == "System file prompt.\n"
+    assert messages[1]["content"][0]["text"].endswith("User file prompt.\n")
+    assert messages[2]["content"] == "stand"
+    assert messages[1]["content"][1]["image_url"]["url"].endswith("Zmlyc3Q=")
+    assert messages[3]["content"][1]["image_url"]["url"].endswith("c2Vjb25k")
+    assert (
+        "Collision happened during the completed command."
+        in messages[1]["content"][0]["text"]
     )
-    client = PiRpcClient(
-        timeout=2.0,
-        system_prompt="Task prompt",
-        command_mode="direction",
-        command=(sys.executable, str(fake_pi)),
-    )
-    try:
-        action = client.complete(VisualObservation(0, None, b"jpeg"))
-    finally:
-        client.close()
+    assert "Collision happened" not in messages[3]["content"][0]["text"]
 
-    assert action == PiAction("walk", "left", ())
+
+def test_llama_client_rebases_bounded_history_in_epochs(monkeypatch) -> None:
+    posted: list[dict[str, Any]] = []
+
+    def urlopen(request, timeout):
+        posted.append(json.loads(request.data))
+        return _Response("stand")
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="System prompt.",
+        user_prompt="User prompt.",
+        history_turns=4,
+        history_retain_turns=1,
+    )
+    for observation_id in range(5):
+        client.commit(
+            VisualObservation(
+                observation_id, "walk", f"image-{observation_id}".encode()
+            ),
+            "walk",
+        )
+
+    client.complete(VisualObservation(5, "walk", b"current"))
+
+    messages = posted[0]["messages"]
+    assert [message["role"] for message in messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    retained_image = messages[1]["content"][1]["image_url"]["url"]
+    assert retained_image.endswith("aW1hZ2UtNA==")
 
 
 class _Node:
@@ -103,10 +139,14 @@ class _Client:
     def __init__(self, responses: list[str]) -> None:
         self.responses = iter(responses)
         self.feedback: list[str | None] = []
+        self.commits: list[tuple[int, str]] = []
 
-    def complete(self, observation, *, retry_feedback=None) -> PiAction:
+    def complete(self, observation, *, retry_feedback=None) -> str:
         self.feedback.append(retry_feedback)
-        return _action(next(self.responses))
+        return next(self.responses)
+
+    def commit(self, observation, command) -> None:
+        self.commits.append((observation.observation_id, command))
 
 
 def _observation_event(observation: VisualObservation) -> dict[str, object]:
@@ -117,15 +157,6 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
         "value": value,
         "metadata": metadata,
     }
-
-
-def _action(text: str) -> PiAction:
-    payload = json.loads(text)
-    return PiAction(
-        payload["motion"],
-        payload.get("direction"),
-        tuple(tuple(point) for point in payload.get("waypoints_2d", [])),
-    )
 
 
 def _grounding_event(
@@ -152,26 +183,14 @@ def _error_event(observation_id: int) -> dict[str, object]:
     }
 
 
-def test_agent_retries_three_downstream_errors_then_stands() -> None:
+def test_agent_retries_three_invalid_responses_then_stands() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg")),
-            _grounding_event(0),
-            _error_event(0),
-            _grounding_event(0),
-            _error_event(0),
-            _grounding_event(0),
-            _error_event(0),
             {"type": "STOP"},
         ]
     )
-    client = _Client(
-        [
-            '{"motion":"walk","waypoints_2d":[[500,500]]}',
-            '{"motion":"walk","waypoints_2d":[[500,500]]}',
-            '{"motion":"walk","waypoints_2d":[[500,500]]}',
-        ]
-    )
+    client = _Client(["invalid one", "invalid two", "invalid three"])
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
@@ -181,28 +200,25 @@ def test_agent_retries_three_downstream_errors_then_stands() -> None:
         if output_id == "command"
     ]
     assert [command.text for command in commands] == [
-        '{"motion":"walk","waypoints_2d":[[500,500]]}',
-        '{"motion":"walk","waypoints_2d":[[500,500]]}',
-        '{"motion":"walk","waypoints_2d":[[500,500]]}',
         '{"motion":"stand","waypoints_2d":[]}',
     ]
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
-    pi_messages = [message for _, message, _ in node.logs if "Pi action" in message]
-    assert len(pi_messages) == 3
-    assert "[OBS 0] Pi action: '{\"motion\":\"walk\",\"waypoints_2d\":[[500,500]]}'" in pi_messages[0]
-    assert pi_messages[0].endswith("retry=0")
-    assert "[OBS 0] Pi action: '{\"motion\":\"walk\",\"waypoints_2d\":[[500,500]]}'" in pi_messages[1]
-    assert pi_messages[1].endswith("retry=1")
-    assert "[OBS 0] Pi action: '{\"motion\":\"walk\",\"waypoints_2d\":[[500,500]]}'" in pi_messages[2]
-    assert pi_messages[2].endswith("retry=2")
+    vlm_messages = [message for _, message, _ in node.logs if "VLM command" in message]
+    assert len(vlm_messages) == 3
+    assert "[OBS 0] VLM command: 'invalid one'" in vlm_messages[0]
+    assert vlm_messages[0].endswith("retry=0")
+    assert "[OBS 0] VLM command: 'invalid two'" in vlm_messages[1]
+    assert vlm_messages[1].endswith("retry=1")
+    assert "[OBS 0] VLM command: 'invalid three'" in vlm_messages[2]
+    assert vlm_messages[2].endswith("retry=2")
     assert any(
         'fallback command: \'{"motion":"stand","waypoints_2d":[]}\'' in message
         for _, message, _ in node.logs
     )
 
 
-def test_agent_accepts_exact_completed_command_without_client_commit() -> None:
+def test_agent_commits_exact_completed_command() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"first")),
@@ -226,7 +242,7 @@ def test_agent_accepts_exact_completed_command_without_client_commit() -> None:
 
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
-    assert client.feedback == [None, None]
+    assert client.commits == [(0, '{"motion":"walk","waypoints_2d":[[500,500]]}')]
 
 
 def test_agent_command_without_waypoint_bypasses_grounding() -> None:
@@ -247,7 +263,26 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     assert command.target_xys == ()
 
 
-def test_agent_preserves_stand_direction_for_in_place_turn() -> None:
+def test_agent_accepts_directional_turn_without_projection() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(['{"motion":"turn","direction":"right"}'])
+
+    AgentLoop(cast(Any, node), cast(Any, client), command_mode="direction").run()
+
+    command = agent_command_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert command.motion == "turn"
+    assert command.direction == "right"
+    assert command.target_xys == ()
+
+
+def test_agent_accepts_stand_with_non_forward_direction() -> None:
     node = _Node(
         [
             _observation_event(VisualObservation(0, None, b"jpeg")),
@@ -262,7 +297,8 @@ def test_agent_preserves_stand_direction_for_in_place_turn() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert command.motion == "stand"
-    assert command.direction == "left"
+    assert command.direction is None
+    assert command.target_xys == ()
 
 
 def test_agent_retries_motion_gen_errors() -> None:

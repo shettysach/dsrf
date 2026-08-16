@@ -20,8 +20,8 @@ def build_planner_inputs(
 ) -> dict[str, np.ndarray]:
     """Build kinematic-planner ONNX inputs from robot-local navigation controls."""
     mode = planner_mode(motion)
-    if motion == "stand" and target_xy is not None:
-        raise ValueError("stand requires no position target")
+    if motion == "stand" and (target_xy is not None or direction is not None):
+        raise ValueError("stand requires no target")
     if motion == "walk" and (target_xy is None) == (direction is None):
         raise ValueError("walk requires exactly one target")
     if motion == "turn" and (
@@ -46,13 +46,7 @@ def build_planner_inputs(
         facing = _planar_vector(local_forward, local_left, yaw)
     elif direction is not None:
         local_forward, local_left = planner_direction(direction)
-        requested_direction = _planar_vector(local_forward, local_left, yaw)
-        if motion == "stand":
-            # The planner turns in place when movement is zero and the desired
-            # facing direction differs from the current heading.
-            facing = requested_direction
-        else:
-            movement = requested_direction
+        movement = _planar_vector(local_forward, local_left, yaw)
     elif target_xy is not None:
         forward, left = target_xy
         world_delta = _planar_vector(forward, left, yaw)

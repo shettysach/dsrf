@@ -92,13 +92,10 @@ class VisualObservation:
     jpeg: bytes
     run_id: int = 0
     collision_detected: bool = False
-    trajectory_png: bytes | None = None
 
     def __post_init__(self) -> None:
         if not self.jpeg:
             raise ValueError("Observation JPEG is empty")
-        if self.trajectory_png is not None and not self.trajectory_png:
-            raise ValueError("Observation trajectory PNG is empty")
 
 
 @dataclass(frozen=True)

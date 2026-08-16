@@ -6,8 +6,8 @@ from tasks.sokoban.scene import (
     ARENA_HALF_WIDTH,
     ARENA_MAX_X,
     BOX_MASS,
-    BOX_START,
-    GOAL_CENTER,
+    BOX_STARTS,
+    GOAL_CENTERS,
     GOAL_HALF_SIZE,
     MJ_JOINT_SLIDE,
     WALL_HALF_THICKNESS,
@@ -21,7 +21,7 @@ def test_catalog_contains_sokoban() -> None:
     task = get_task("sokoban")
 
     assert task is TASKS["sokoban"]
-    assert task.objective == "Push the yellow box onto the marked green goal region."
+    assert task.objective == "Push both boxes onto the two marked goal regions."
     assert task.viewer.distance == 6.5
     assert task.viewer.elevation == -50.0
 
@@ -34,32 +34,42 @@ def test_sokoban_uses_elevated_viewer_framing() -> None:
     assert cfg.viewer.elevation == -50.0
 
 
-def test_sokoban_scene_has_one_pushable_box_and_one_edge_goal() -> None:
+def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
     make_sokoban_spec_fn()(spec)
     model = spec.compile()
 
-    box_body = model.body("sokoban_box_1")
-    box_geom = model.geom("sokoban_box_1_pushable")
-    goal_geom = model.geom("sokoban_goal_1")
+    box_bodies = [model.body(name) for name in ("sokoban_box_1", "sokoban_box_2")]
+    box_geoms = [
+        model.geom(name)
+        for name in ("sokoban_box_1_pushable", "sokoban_box_2_pushable")
+    ]
+    goal_geoms = [model.geom(name) for name in ("sokoban_goal_1", "sokoban_goal_2")]
 
-    assert ARENA_HALF_WIDTH == pytest.approx(3.5)
-    assert BOX_START == pytest.approx((0.75, 0.8))
-    assert GOAL_CENTER[0] + GOAL_HALF_SIZE == pytest.approx(
+    assert len(BOX_STARTS) == 2
+    assert len(GOAL_CENTERS) == 2
+    assert ARENA_HALF_WIDTH == 3.5
+    assert GOAL_CENTERS[0][0] + GOAL_HALF_SIZE == pytest.approx(
         ARENA_MAX_X - WALL_HALF_THICKNESS
     )
-    assert model.body_mass[box_body.id] == pytest.approx(BOX_MASS)
-    assert not box_geom.name.endswith("_collision")
-    assert model.geom_contype[goal_geom.id] == 0
-    assert model.geom_conaffinity[goal_geom.id] == 0
+    assert GOAL_CENTERS[1][1] - GOAL_HALF_SIZE == pytest.approx(
+        -ARENA_HALF_WIDTH + WALL_HALF_THICKNESS
+    )
+    assert [model.body_mass[body.id] for body in box_bodies] == pytest.approx(
+        [BOX_MASS, BOX_MASS]
+    )
+    assert all(not box.name.endswith("_collision") for box in box_geoms)
+    assert all(model.geom_contype[goal.id] == 0 for goal in goal_geoms)
+    assert all(model.geom_conaffinity[goal.id] == 0 for goal in goal_geoms)
     assert model.ncam == 0
 
-    x_joint = model.joint("sokoban_box_1_x")
-    y_joint = model.joint("sokoban_box_1_y")
-    assert model.jnt_type[x_joint.id] == MJ_JOINT_SLIDE
-    assert model.jnt_type[y_joint.id] == MJ_JOINT_SLIDE
-    np.testing.assert_array_equal(model.jnt_axis[x_joint.id], (1.0, 0.0, 0.0))
-    np.testing.assert_array_equal(model.jnt_axis[y_joint.id], (0.0, 1.0, 0.0))
+    for box_index in (1, 2):
+        x_joint = model.joint(f"sokoban_box_{box_index}_x")
+        y_joint = model.joint(f"sokoban_box_{box_index}_y")
+        assert model.jnt_type[x_joint.id] == MJ_JOINT_SLIDE
+        assert model.jnt_type[y_joint.id] == MJ_JOINT_SLIDE
+        np.testing.assert_array_equal(model.jnt_axis[x_joint.id], (1.0, 0.0, 0.0))
+        np.testing.assert_array_equal(model.jnt_axis[y_joint.id], (0.0, 1.0, 0.0))
 
 
 def test_sokoban_box_moves_under_a_small_planar_force() -> None:

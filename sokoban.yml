@@ -6,9 +6,10 @@ nodes:
     args: run dsrf-agent
     min_log_level: warn
     env:
-      PI_TIMEOUT: "120"
-      PI_DEBUG: "${PI_DEBUG:-false}"
-      PI_CONTEXT_WINDOW: "${PI_CONTEXT_WINDOW:-6}"
+      VLM_URL: http://127.0.0.1:8080
+      VLM_TIMEOUT: "120"
+      VLM_HISTORY_TURNS: "${VLM_HISTORY_TURNS:-32}"
+      VLM_HISTORY_RETAIN_TURNS: "${VLM_HISTORY_RETAIN_TURNS:-8}"
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       MOTION_GENERATOR: kinematic_planner

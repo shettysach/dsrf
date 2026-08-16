@@ -29,7 +29,6 @@ from shared.messages import (
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.sonic.policy import SonicPolicy
-from sim.trajectory import TrajectoryRenderer
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
 from sim.waypoint import resolve_waypoint
@@ -97,7 +96,6 @@ class SimRuntime:
         self.simulation = simulation
         self.policy = policy
         self.renderer = renderer
-        self.trajectory = TrajectoryRenderer()
         self.viewer = viewer
         self.recorder = recorder
         self.stop_recording_at_corridor = stop_recording_at_corridor
@@ -140,7 +138,6 @@ class SimRuntime:
         self.demo_vlm_state = DemoVlmState()
         self._last_command_signature = None
         self._repeated_command_count = 0
-        self.trajectory.reset()
         if self.viewer is not None:
             self.viewer.sync()
         render_ms, jpeg_size = self._publish_observation(completed_command=None)
@@ -292,7 +289,10 @@ class SimRuntime:
                     state = self.simulation.robot_state()
                     action, completed = self.policy.infer(state)
                 self.simulation.step(action)
-                collision_detected |= self.simulation.task_collision_detected()
+                collision_detector = getattr(self.simulation, "task_collision_detected", None)
+                collision_detected |= (
+                    bool(collision_detector()) if collision_detector is not None else False
+                )
                 if self.viewer is not None:
                     self.viewer.sync()
                 if self.recorder is not None:
@@ -449,12 +449,6 @@ class SimRuntime:
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
         jpeg = self.renderer.capture_jpeg()
-        with self.simulation.compute_context():
-            root_pos = self.simulation.robot_state().root_pos_w
-            self.trajectory.append(
-                (float(root_pos[0].item()), float(root_pos[1].item()))
-            )
-        trajectory_png = self.trajectory.render_png()
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,
@@ -462,7 +456,6 @@ class SimRuntime:
             jpeg=jpeg,
             run_id=self.run_index,
             collision_detected=collision_detected,
-            trajectory_png=trajectory_png,
         )
         data, metadata = observation_to_arrow(observation)
         self.node.send_output("observation", data, metadata=metadata)
