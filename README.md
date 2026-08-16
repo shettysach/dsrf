@@ -58,6 +58,17 @@ are all configured in that file. Play with arrow keys/WASD; `R` resets, and
 the earlier physical task: push one open-floor box toward a goal at the arena's
 right edge.
 
+The default grid configuration records ten two-box variations to
+`/tmp/grid-sokoban-10-runs.mp4`. Each run ends on success, the move limit, a
+terminal VLM error, or a VLM `reset` action; a VLM reset advances to a fresh
+variation instead of replaying the current board. Set `GRID_VIDEO_PATH=none` in
+the YAML to disable recording.
+
+Those ten runs are fixed, solver-checked two-box topologies: `two-box`,
+`two-edge`, and `two-topology-01` through `two-topology-08`. They differ in
+interior-wall structure and box/goal placement; they are not rotations or
+reflections of one another.
+
 ## ARDY closed loop
 
 The ARDY motion generator encodes each command's `motion` field with a local

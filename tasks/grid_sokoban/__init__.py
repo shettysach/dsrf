@@ -5,6 +5,13 @@ from tasks.grid_sokoban.env import (
     StepResult,
     available_layouts,
     make_layout,
+    two_box_variations,
 )
 
-__all__ = ["GridSokoban", "StepResult", "available_layouts", "make_layout"]
+__all__ = [
+    "GridSokoban",
+    "StepResult",
+    "available_layouts",
+    "make_layout",
+    "two_box_variations",
+]

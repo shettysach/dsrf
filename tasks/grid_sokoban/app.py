@@ -15,8 +15,14 @@ import pygame
 
 from agent.vlm import OAIChatClient
 from shared.messages import VisualObservation
-from tasks.grid_sokoban.env import GridSokoban, available_layouts, make_layout
+from tasks.grid_sokoban.env import (
+    GridSokoban,
+    available_layouts,
+    make_layout,
+    two_box_variations,
+)
 from tasks.grid_sokoban.protocol import parse_action
+from tasks.grid_sokoban.video import GridVideoRecorder
 
 CELL_PIXELS = 72
 PANEL_HEIGHT = 104
@@ -44,12 +50,27 @@ class _VlmResponse:
 
 class SokobanApp:
     def __init__(
-        self, *, layout_name: str, vlm: OAIChatClient | None, auto_play: bool
+        self,
+        *,
+        layout_name: str,
+        vlm: OAIChatClient | None,
+        auto_play: bool,
+        run_schedule: tuple[tuple[str, tuple[str, ...]], ...] = (),
+        max_moves: int = 60,
+        recorder: GridVideoRecorder | None = None,
     ) -> None:
-        self.layout_name = layout_name
-        self.board = GridSokoban(make_layout(layout_name))
+        if max_moves < 1:
+            raise ValueError("max_moves must be positive")
+        self.run_schedule = run_schedule or ((layout_name, make_layout(layout_name)),)
+        self.run_index = 0
+        self.layout_name, layout = self.run_schedule[0]
+        self.board = GridSokoban(layout)
         self.vlm = vlm
         self.auto_play = auto_play and vlm is not None
+        self.max_moves = max_moves
+        self.recorder = recorder
+        self._record_dirty = recorder is not None
+        self._advance_after_frame = False
         self.moves = 0
         self.status = "Arrow keys / WASD to move · R to reset"
         self.observation_id = 0
@@ -84,6 +105,7 @@ class SokobanApp:
         running = True
         self._draw()
         pygame.display.flip()
+        self._record_if_needed()
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -100,7 +122,13 @@ class SokobanApp:
                 self._start_vlm_request()
             self._draw()
             pygame.display.flip()
+            self._record_if_needed()
+            if self._advance_after_frame:
+                self._advance_after_frame = False
+                self._advance_run()
             clock.tick(FPS)
+        if self.recorder is not None:
+            self.recorder.close()
         pygame.quit()
 
     def _handle_key(self, key: int) -> bool:
@@ -146,18 +174,9 @@ class SokobanApp:
         return True
 
     def _select_layout(self, layout_name: str) -> None:
-        self.layout_name = layout_name
-        self.board = GridSokoban(make_layout(layout_name))
-        self.moves = 0
-        self.observation_id = 0
-        self.previous_observation = None
-        self.pending_command = None
-        self._previous_turn_committed = False
-        self._invalid_response_count = 0
-        self._vlm_request_id += 1
-        if self.vlm is not None:
-            self.vlm.reset()
-        self.status = f"Loaded {layout_name} board"
+        self.run_schedule = ((layout_name, make_layout(layout_name)),)
+        self.run_index = 0
+        self._load_run(status=f"Loaded {layout_name} board")
 
     def _reset(self) -> None:
         self.board.reset()
@@ -171,22 +190,69 @@ class SokobanApp:
         if self.vlm is not None:
             self.vlm.reset()
         self.status = "Board reset"
+        self._record_dirty = True
+
+    def _finish_run(self, outcome: str) -> None:
+        self.status = f"Run {self.run_index + 1}/{len(self.run_schedule)} · {outcome}"
+        self._advance_after_frame = len(self.run_schedule) > 1
+        self._record_dirty = True
+
+    def _advance_run(self) -> None:
+        if self.run_index + 1 >= len(self.run_schedule):
+            self.auto_play = False
+            self.status = "Recording complete"
+            self._record_dirty = True
+            if self.recorder is not None:
+                self.recorder.close()
+                self.recorder = None
+            return
+        self.run_index += 1
+        self._load_run(
+            status=f"Run {self.run_index + 1}/{len(self.run_schedule)} · starting"
+        )
+
+    def _load_run(self, *, status: str) -> None:
+        self.layout_name, layout = self.run_schedule[self.run_index]
+        self.board = GridSokoban(layout)
+        self.moves = 0
+        self.observation_id = 0
+        self.previous_observation = None
+        self.pending_command = None
+        self._previous_turn_committed = False
+        self._invalid_response_count = 0
+        self._vlm_request_id += 1
+        if self.vlm is not None:
+            self.vlm.reset()
+        self.status = status
+        self._record_dirty = True
+
+    def _record_if_needed(self) -> None:
+        if self.recorder is None or not self._record_dirty:
+            return
+        rgb = pygame.surfarray.array3d(self.window).swapaxes(0, 1)
+        self.recorder.write(np.ascontiguousarray(rgb))
+        self._record_dirty = False
 
     def _move(self, action: str, *, source: str) -> None:
         if self.board.solved:
             self.status = "Solved — press R or 1–6 for another board"
             return
+        if action == "reset" and source == "VLM" and len(self.run_schedule) > 1:
+            self._finish_run("RESET REQUESTED")
+            return
         result = self.board.step(action)
         self.moves += 1
         if result.solved:
-            self.auto_play = False
-            self.status = f"Solved in {self.moves} moves!"
+            self._finish_run(f"SOLVED · {self.moves} moves")
+        elif self.moves >= self.max_moves:
+            self._finish_run(f"FAILED · move limit ({self.max_moves})")
         elif not result.moved:
             self.status = f"{source.title()} move blocked"
         elif result.pushed:
             self.status = f"{source.title()} pushed a box"
         else:
             self.status = f"{source.title()} moved"
+        self._record_dirty = True
 
     def _start_vlm_request(self, *, retry_feedback: str | None = None) -> None:
         if self.vlm is None or self.board.solved or self._vlm_in_flight:
@@ -205,6 +271,7 @@ class SokobanApp:
         self._vlm_in_flight = True
         request_id = self._vlm_request_id
         self.status = "VLM is deciding…"
+        self._record_dirty = True
         if retry_feedback is not None:
             self.last_retry_feedback = retry_feedback
         threading.Thread(
@@ -239,10 +306,14 @@ class SokobanApp:
         if request_id != self._vlm_request_id:
             return
         if isinstance(result, Exception):
-            self.auto_play = False
             self.last_vlm_output = f"ERROR: {type(result).__name__}: {result}"
             self.last_vlm_reasoning = "No reasoning: VLM request failed."
-            self.status = f"VLM error: {type(result).__name__}: {result}"
+            if len(self.run_schedule) > 1:
+                self._finish_run(f"FAILED · VLM error: {type(result).__name__}")
+            else:
+                self.auto_play = False
+                self.status = f"VLM error: {type(result).__name__}: {result}"
+                self._record_dirty = True
             return
         self.last_vlm_output = result.output
         self.last_vlm_reasoning = result.reasoning or "No reasoning field returned."
@@ -251,8 +322,14 @@ class SokobanApp:
         except ValueError as exc:
             self._invalid_response_count += 1
             if self._invalid_response_count >= MAX_INVALID_VLM_RESPONSES:
-                self.auto_play = False
-                self.status = f"VLM response error after {MAX_INVALID_VLM_RESPONSES} attempts: {exc}"
+                if len(self.run_schedule) > 1:
+                    self._finish_run(
+                        f"FAILED · invalid JSON after {MAX_INVALID_VLM_RESPONSES} attempts"
+                    )
+                else:
+                    self.auto_play = False
+                    self.status = f"VLM response error after {MAX_INVALID_VLM_RESPONSES} attempts: {exc}"
+                    self._record_dirty = True
                 return
             self.status = (
                 f"Invalid VLM JSON; retrying "
@@ -264,6 +341,7 @@ class SokobanApp:
                     "Return only the required JSON object."
                 )
             )
+            self._record_dirty = True
             return
         self.previous_observation = observation
         self.pending_command = result.output
@@ -283,7 +361,10 @@ class SokobanApp:
         pygame.draw.rect(self.window, (34, 41, 53), panel)
         self.window.blit(
             self.font.render(
-                f"Grid Sokoban · {self.layout_name} · moves {self.moves}", True, TEXT
+                f"Run {self.run_index + 1}/{len(self.run_schedule)} · "
+                f"{self.layout_name} · moves {self.moves}",
+                True,
+                TEXT,
             ),
             (16, panel.y + 14),
         )
@@ -449,6 +530,23 @@ def _env_flag(name: str, *, default: bool) -> bool:
     raise ValueError(f"{name} must be a boolean")
 
 
+def _positive_env_int(name: str, *, default: int) -> int:
+    value = int(os.environ.get(name, str(default)))
+    if value < 1:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def _recording_path() -> Path | None:
+    value = os.environ.get("GRID_VIDEO_PATH", "").strip()
+    return None if value.lower() in {"", "none"} else Path(value)
+
+
+def _two_box_schedule(count: int) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    variations = two_box_variations()
+    return tuple(variations[index % len(variations)] for index in range(count))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive visual 2D Sokoban")
     parser.add_argument(
@@ -471,10 +569,30 @@ def main() -> None:
     args = parser.parse_args()
     if args.autoplay and not args.vlm:
         parser.error("--autoplay requires --vlm")
+    record_runs = _positive_env_int("GRID_RECORD_RUNS", default=1)
+    max_moves = _positive_env_int("GRID_MAX_MOVES", default=60)
+    video_path = _recording_path()
+    recorder = (
+        GridVideoRecorder(
+            video_path,
+            fps=_positive_env_int("GRID_RECORD_FPS", default=8),
+            hold_frames=_positive_env_int("GRID_RECORD_HOLD_FRAMES", default=4),
+        )
+        if video_path is not None
+        else None
+    )
+    schedule = (
+        _two_box_schedule(record_runs)
+        if record_runs > 1
+        else ((args.layout, make_layout(args.layout)),)
+    )
     SokobanApp(
         layout_name=args.layout,
         vlm=_make_vlm_client() if args.vlm else None,
         auto_play=args.autoplay,
+        run_schedule=schedule,
+        max_moves=max_moves,
+        recorder=recorder,
     ).run()
 
 

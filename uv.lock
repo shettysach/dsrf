@@ -590,6 +590,7 @@ source = { editable = "." }
 dependencies = [
     { name = "dora-rs" },
     { name = "imageio" },
+    { name = "imageio-ffmpeg" },
     { name = "numpy" },
     { name = "pyarrow" },
     { name = "pygame-ce" },
@@ -638,6 +639,7 @@ requires-dist = [
     { name = "bitsandbytes", marker = "extra == 'ardy'", specifier = ">=0.50.0" },
     { name = "dora-rs", specifier = "==1.0.0rc4" },
     { name = "imageio", specifier = ">=2.37,<3" },
+    { name = "imageio-ffmpeg", specifier = ">=0.6,<0.7" },
     { name = "mcp", marker = "extra == 'scout'", specifier = ">=1.28,<2" },
     { name = "mjlab", marker = "extra == 'cpu'", git = "https://github.com/mujocolab/mjlab?rev=15ebce8840ee2205f4c62d0c20df65dd1794cab4" },
     { name = "mjlab", marker = "extra == 'cu128'", git = "https://github.com/mujocolab/mjlab?rev=15ebce8840ee2205f4c62d0c20df65dd1794cab4" },

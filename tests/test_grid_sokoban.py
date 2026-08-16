@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from io import BytesIO
 
 import imageio.v3 as iio
 import pytest
-from tasks.grid_sokoban import GridSokoban, available_layouts, make_layout
+from tasks.grid_sokoban import (
+    GridSokoban,
+    available_layouts,
+    make_layout,
+    two_box_variations,
+)
 from tasks.grid_sokoban.protocol import parse_action
 from tasks.grid_sokoban.render import render_jpeg
 
@@ -147,7 +153,97 @@ def test_grid_layouts_cover_the_curriculum() -> None:
         "edge-right",
         "edge-top",
         "two-edge",
+        "two-topology-01",
+        "two-topology-02",
+        "two-topology-03",
+        "two-topology-04",
+        "two-topology-05",
+        "two-topology-06",
+        "two-topology-07",
+        "two-topology-08",
     )
     for name in available_layouts():
         board = GridSokoban(make_layout(name))
         assert (board.rows - 2, board.cols - 2) == (5, 5)
+
+
+def test_two_box_variations_provide_at_least_ten_distinct_runs() -> None:
+    variations = two_box_variations()
+
+    assert [name for name, _ in variations] == [
+        "two-box",
+        "two-edge",
+        "two-topology-01",
+        "two-topology-02",
+        "two-topology-03",
+        "two-topology-04",
+        "two-topology-05",
+        "two-topology-06",
+        "two-topology-07",
+        "two-topology-08",
+    ]
+    assert len({layout for _, layout in variations}) == len(variations)
+    for _, layout in variations:
+        board = GridSokoban(layout)
+        assert len(board.boxes) == len(board.goals) == 2
+        assert _shortest_solution_length(board) is not None
+
+
+def test_vlm_reset_advances_to_the_next_recorded_variation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    from tasks.grid_sokoban.app import SokobanApp
+
+    schedule = two_box_variations()[:2]
+    app = SokobanApp(
+        layout_name=schedule[0][0],
+        vlm=None,
+        auto_play=False,
+        run_schedule=schedule,
+    )
+    try:
+        app._move("reset", source="VLM")
+
+        assert app._advance_after_frame
+        assert "RESET REQUESTED" in app.status
+        app._advance_run()
+        assert app.run_index == 1
+        assert app.layout_name == schedule[1][0]
+        assert app.moves == 0
+    finally:
+        import pygame
+
+        pygame.quit()
+
+
+def _shortest_solution_length(board: GridSokoban) -> int | None:
+    """Small test-only BFS that rejects accidentally unsolvable fixed maps."""
+    start = (frozenset(board.boxes), board.player)
+    frontier = deque([(start, 0)])
+    visited = {start}
+    while frontier:
+        (boxes, player), length = frontier.popleft()
+        if boxes == board.goals:
+            return length
+        for row_delta, col_delta in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            next_player = (player[0] + row_delta, player[1] + col_delta)
+            if next_player in board.walls:
+                continue
+            if next_player in boxes:
+                box_destination = (
+                    next_player[0] + row_delta,
+                    next_player[1] + col_delta,
+                )
+                if box_destination in board.walls or box_destination in boxes:
+                    continue
+                next_boxes = set(boxes)
+                next_boxes.remove(next_player)
+                next_boxes.add(box_destination)
+                state = (frozenset(next_boxes), next_player)
+            else:
+                state = (boxes, next_player)
+            if state not in visited:
+                visited.add(state)
+                frontier.append((state, length + 1))
+    return None

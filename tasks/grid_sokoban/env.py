@@ -13,6 +13,13 @@ _OFFSETS: dict[str, Position] = {
     "right": (0, 1),
 }
 
+
+def _with_walls(*rows: str) -> tuple[str, ...]:
+    if len(rows) != 5 or any(len(row) != 5 for row in rows):
+        raise ValueError("A grid Sokoban interior must be 5 by 5")
+    return ("#######", *(f"#{row}#" for row in rows), "#######")
+
+
 # The boards deliberately avoid irreversible corner pushes. They progress from
 # direct pushes to repositioning, then reproduce the earlier physical task's
 # open-floor box with a goal at an arena edge.
@@ -72,6 +79,62 @@ _LAYOUTS: dict[str, tuple[str, ...]] = {
         "#@    #",
         "#     #",
         "#######",
+    ),
+    "two-topology-01": _with_walls(
+        " .$  ",
+        ".    ",
+        "  @$ ",
+        "     ",
+        "  ## ",
+    ),
+    "two-topology-02": _with_walls(
+        " ##  ",
+        ".    ",
+        " ##  ",
+        "$  $#",
+        ".   @",
+    ),
+    "two-topology-03": _with_walls(
+        ".    ",
+        " $  @",
+        " # ##",
+        " $  .",
+        "     ",
+    ),
+    "two-topology-04": _with_walls(
+        "  $ .",
+        "   ##",
+        " #$  ",
+        "   . ",
+        "@   #",
+    ),
+    "two-topology-05": _with_walls(
+        "   .#",
+        " .   ",
+        "  ## ",
+        " $$ #",
+        "@    ",
+    ),
+    "two-topology-06": _with_walls(
+        "#   .",
+        "@   $",
+        " . # ",
+        "  $# ",
+        "     ",
+    ),
+    "two-topology-07": _with_walls(
+        " @   ",
+        "    #",
+        "#  $ ",
+        " $ . ",
+        ".   #",
+    ),
+    "two-topology-08": _with_walls(
+        "     ",
+        "@  $ ",
+        ". .$ ",
+        " #   ",
+        "#    ",
     ),
 }
 
@@ -171,6 +234,23 @@ class GridSokoban:
 
 def available_layouts() -> tuple[str, ...]:
     return tuple(_LAYOUTS)
+
+
+def two_box_variations() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return the ten fixed two-box topologies used by the video recorder."""
+    names = (
+        "two-box",
+        "two-edge",
+        "two-topology-01",
+        "two-topology-02",
+        "two-topology-03",
+        "two-topology-04",
+        "two-topology-05",
+        "two-topology-06",
+        "two-topology-07",
+        "two-topology-08",
+    )
+    return tuple((name, _LAYOUTS[name]) for name in names)
 
 
 def make_layout(name: str) -> tuple[str, ...]:
