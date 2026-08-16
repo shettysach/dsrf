@@ -121,14 +121,20 @@ def test_foot_end_effector_command_parses_without_waypoints() -> None:
         '{"motion":"reach","end_effectors":null}',
         '{"motion":"reach","end_effectors":'
         '[{"name":"head","target_2d":[500,500]}]}',
-        '{"motion":"reach","waypoints_2d":[[500,700]],"end_effectors":'
-        '[{"name":"left_hand","target_2d":[500,400]}]}',
-        '{"motion":"reach","target_2d":[500,400]}',
     ],
 )
 def test_invalid_end_effector_commands_fail(text: str) -> None:
     with pytest.raises(ValueError):
         parse_constraint_command(text)
+
+
+def test_command_can_combine_waypoints_and_end_effectors() -> None:
+    command = parse_constraint_command(
+        '{"motion":"walk to the box and reach","waypoints_2d":[[500,700]],'
+        '"end_effectors":[{"name":"left_hand","target_2d":[550,400]}]}'
+    )
+    assert command.waypoints_2d == ((500, 700),)
+    assert command.end_effectors[0].name == "left_hand"
 
 
 def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:

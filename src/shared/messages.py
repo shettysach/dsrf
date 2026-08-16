@@ -116,8 +116,6 @@ class AgentCommand:
             raise ValueError("Command is empty")
         _validate_navigation(self.motion, self.target_xys, self.direction)
         _validate_end_effectors(self.end_effectors)
-        if self.target_xys and self.end_effectors:
-            raise ValueError("Motion command cannot combine waypoints and end effectors")
         object.__setattr__(self, "text", normalized)
 
 
@@ -150,8 +148,6 @@ class GroundingRequest:
         names = [selection.name for selection in self.end_effectors_2d]
         if len(names) != len(set(names)):
             raise ValueError("Each end effector may be grounded once")
-        if self.waypoints_2d and self.end_effectors_2d:
-            raise ValueError("Grounding cannot combine waypoints and end effectors")
 
 
 @dataclass(frozen=True)
@@ -166,8 +162,6 @@ class GroundingResult:
         ):
             raise ValueError("target_xys must be finite")
         _validate_end_effectors(self.end_effectors)
-        if self.target_xys and self.end_effectors:
-            raise ValueError("Grounding cannot combine waypoints and end effectors")
 
 
 @dataclass(frozen=True)

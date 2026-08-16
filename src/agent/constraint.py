@@ -5,7 +5,55 @@ from dataclasses import dataclass
 
 from shared.messages import END_EFFECTOR_NAMES, EndEffectorSelection
 
-_FIELDS = {"motion", "waypoints_2d", "end_effectors"}
+MOTION_CONSTRAINT_TOOL_NAME = "submit_motion_constraint"
+MOTION_CONSTRAINT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": MOTION_CONSTRAINT_TOOL_NAME,
+        "description": "Submit the robot's next motion and optional image constraints.",
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["motion"],
+            "properties": {
+                "motion": {"type": "string"},
+                "waypoints_2d": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0, "maximum": 1000},
+                        "minItems": 2,
+                        "maxItems": 2,
+                    },
+                },
+                "end_effectors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["name", "target_2d"],
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "enum": sorted(END_EFFECTOR_NAMES),
+                            },
+                            "target_2d": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 1000,
+                                },
+                                "minItems": 2,
+                                "maxItems": 2,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -21,36 +69,28 @@ def parse_constraint_command(text: str) -> ConstraintCommand:
     except json.JSONDecodeError as exc:
         raise ValueError("Command is not valid JSON") from exc
 
-    match payload:
-        case {"motion": str(motion)} if motion.strip() and payload.keys() <= _FIELDS:
-            match (
-                payload.get("waypoints_2d", []),
-                payload.get("end_effectors", []),
-            ):
-                case (list(waypoints), list(end_effectors)):
-                    parsed_waypoints = tuple(_point(waypoint) for waypoint in waypoints)
-                    parsed_end_effectors = tuple(
-                        _end_effector(end_effector) for end_effector in end_effectors
-                    )
-                    if parsed_waypoints and parsed_end_effectors:
-                        raise ValueError(
-                            "A command cannot combine waypoints and end effectors"
-                        )
-                    names = [end_effector.name for end_effector in parsed_end_effectors]
-                    if len(names) != len(set(names)):
-                        raise ValueError("Each end effector may be constrained once")
-                    return ConstraintCommand(
-                        motion.strip(), parsed_waypoints, parsed_end_effectors
-                    )
-                case _:
-                    raise ValueError(
-                        "waypoints_2d and end_effectors must be lists when provided"
-                    )
-        case _:
-            raise ValueError(
-                "Expected {motion: <text>, waypoints_2d?: [[x, y], ...], "
-                "end_effectors?: [{name, target_2d}, ...]}"
-            )
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("motion"), str
+    ):
+        raise ValueError("Command must include motion")
+
+    waypoints = payload.get("waypoints_2d", [])
+    end_effectors = payload.get("end_effectors", [])
+    if not isinstance(waypoints, list) or not isinstance(end_effectors, list):
+        raise ValueError("Constraints must be lists")
+
+    parsed_waypoints = tuple(map(_point, waypoints))
+    parsed_end_effectors = tuple(map(_end_effector, end_effectors))
+
+    names = [e.name for e in parsed_end_effectors]
+    if len(names) != len(set(names)):
+        raise ValueError("Each end effector may be constrained once")
+
+    return ConstraintCommand(
+        payload["motion"],
+        parsed_waypoints,
+        parsed_end_effectors,
+    )
 
 
 def _point(value: object) -> tuple[int, int]:

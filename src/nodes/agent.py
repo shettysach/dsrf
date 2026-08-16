@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from io import BytesIO
@@ -9,8 +8,9 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
-from agent.constraint import parse_constraint_command
-from agent.vlm import OAIChatClient
+from agent.constraint import MOTION_CONSTRAINT_TOOL, parse_constraint_command
+from agent.planner import KINEMATIC_COMMAND_TOOL, parse_kinematic_command
+from agent.vlm import CommandCompletion, OAIChatClient
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,
@@ -40,6 +40,7 @@ class _PendingGrounding:
     motion: str
     waypoints_2d: tuple[tuple[int, int], ...]
     end_effectors_2d: tuple[EndEffectorSelection, ...]
+    completion: CommandCompletion
 
 
 class AgentLoop:
@@ -55,6 +56,7 @@ class AgentLoop:
         self.client = client
         self.observation: VisualObservation | None = None
         self.pending_command: str | None = None
+        self.pending_completion: CommandCompletion | None = None
         self.pending_grounding: _PendingGrounding | None = None
         self.invalid_responses = 0
         self.waypoint_debug = waypoint_debug
@@ -102,10 +104,12 @@ class AgentLoop:
                     "previous observation"
                 )
             assert self.pending_command is not None
-            self.client.commit(self.observation, self.pending_command)
+            assert self.pending_completion is not None
+            self.client.commit(self.observation, self.pending_completion)
 
         self.observation = observation
         self.pending_command = None
+        self.pending_completion = None
         self.pending_grounding = None
         self.invalid_responses = 0
         self._query_and_send()
@@ -193,7 +197,7 @@ class AgentLoop:
         )
         started_at = time.perf_counter()
         try:
-            command = self.client.complete(
+            completion = self.client.complete(
                 self.observation,
                 retry_feedback=retry_feedback,
             )
@@ -214,6 +218,7 @@ class AgentLoop:
             )
             raise
 
+        command = completion.command
         vlm_ms = (time.perf_counter() - started_at) * 1000.0
         self.node.log(
             "info",
@@ -231,18 +236,23 @@ class AgentLoop:
         )
         try:
             if self.command_mode == "direction":
-                if not _is_constraint_command(command):
-                    motion, direction = _parse_planner_command(command)
-                    self._send(
-                        command,
-                        motion=motion,
-                        target_xys=(),
-                        direction=direction,
-                    )
-                    return
+                motion, direction = parse_kinematic_command(command)
+                self._send(
+                    command,
+                    motion=motion,
+                    target_xys=(),
+                    direction=direction,
+                    completion=completion,
+                )
+                return
             parsed = parse_constraint_command(command)
             if not parsed.waypoints_2d and not parsed.end_effectors:
-                self._send(command, motion=parsed.motion, target_xys=())
+                self._send(
+                    command,
+                    motion=parsed.motion,
+                    target_xys=(),
+                    completion=completion,
+                )
                 return
             end_effectors_2d = parsed.end_effectors
             request = GroundingRequest(
@@ -257,6 +267,7 @@ class AgentLoop:
             motion=parsed.motion,
             waypoints_2d=parsed.waypoints_2d,
             end_effectors_2d=end_effectors_2d,
+            completion=completion,
         )
         data, metadata = grounding_request_to_arrow(request)
         self.node.send_output("grounding_request", data, metadata=metadata)
@@ -293,6 +304,7 @@ class AgentLoop:
             motion=pending.motion,
             target_xys=result.target_xys,
             end_effectors=result.end_effectors,
+            completion=pending.completion,
         )
 
     def _send(
@@ -303,6 +315,7 @@ class AgentLoop:
         target_xys: tuple[tuple[float, float], ...],
         direction: str | None = None,
         end_effectors: tuple[EndEffectorTarget, ...] = (),
+        completion: CommandCompletion | None = None,
     ) -> None:
         assert self.observation is not None
         command = AgentCommand(
@@ -316,6 +329,11 @@ class AgentLoop:
         data, metadata = agent_command_to_arrow(command)
         self.node.send_output("command", data, metadata=metadata)
         self.pending_command = command.text
+        self.pending_completion = completion or CommandCompletion(
+            command_text,
+            {"role": "assistant", "content": command_text},
+            None,
+        )
 
     @property
     def _fallback_command(self) -> str:
@@ -357,6 +375,11 @@ def main() -> None:
         timeout=cfg.vlm_timeout,
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
+        tool=(
+            KINEMATIC_COMMAND_TOOL
+            if cfg.command_mode == "direction"
+            else MOTION_CONSTRAINT_TOOL
+        ),
     )
     AgentLoop(
         node,
@@ -364,32 +387,6 @@ def main() -> None:
         waypoint_debug=cfg.waypoint_debug,
         command_mode=cfg.command_mode,
     ).run()
-
-
-def _parse_planner_command(text: str) -> tuple[str, str | None]:
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError("Command must be a JSON object") from exc
-    if not isinstance(payload, dict) or set(payload) != {"motion", "direction"}:
-        raise ValueError("Planner command must contain only motion and direction")
-    motion = payload["motion"]
-    direction = payload["direction"]
-    if motion == "stand" and direction == "forward":
-        return "stand", None
-    if motion == "walk" and direction in {"forward", "backward", "left", "right"}:
-        return "walk", direction
-    raise ValueError("Unsupported planner motion or direction")
-
-
-def _is_constraint_command(text: str) -> bool:
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return False
-    return isinstance(payload, dict) and bool(
-        {"waypoints_2d", "end_effectors"} & payload.keys()
-    )
 
 
 if __name__ == "__main__":

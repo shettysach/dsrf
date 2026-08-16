@@ -75,13 +75,17 @@ def test_grounding_messages_arrow_round_trip() -> None:
     np.testing.assert_allclose(restored.target_xys, result.target_xys)
 
     request = GroundingRequest(
-        5, (), (EndEffectorSelection("left_hand", (400, 300)),)
+        5,
+        ((300, 700),),
+        (EndEffectorSelection("left_hand", (400, 300)),),
     )
     value, metadata = grounding_request_to_arrow(request)
     assert grounding_request_from_arrow(value, metadata) == request
 
     result = GroundingResult(
-        5, (), (EndEffectorTarget("left_hand", (0.5, 0.2, 0.7)),)
+        5,
+        ((1.0, 0.0),),
+        (EndEffectorTarget("left_hand", (0.5, 0.2, 0.7)),),
     )
     value, metadata = grounding_result_to_arrow(result)
     restored = grounding_result_from_arrow(value, metadata)

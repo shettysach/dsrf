@@ -3,7 +3,9 @@ from typing import Any, cast
 
 import numpy as np
 
-from agent.vlm import OAIChatClient
+from agent.constraint import MOTION_CONSTRAINT_TOOL, MOTION_CONSTRAINT_TOOL_NAME
+from agent.planner import KINEMATIC_COMMAND_TOOL, KINEMATIC_COMMAND_TOOL_NAME
+from agent.vlm import CommandCompletion, OAIChatClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
     agent_command_from_arrow,
@@ -21,10 +23,10 @@ from shared.messages import (
 
 
 class _Response:
-    def __init__(self, command: str) -> None:
-        self.payload = json.dumps(
-            {"choices": [{"message": {"content": command}}]}
-        ).encode()
+    def __init__(self, message: dict[str, object] | str) -> None:
+        if isinstance(message, str):
+            message = {"content": message}
+        self.payload = json.dumps({"choices": [{"message": message}]}).encode()
 
     def __enter__(self):
         return self
@@ -36,49 +38,111 @@ class _Response:
         return self.payload
 
 
-def test_llama_client_uses_blank_model_and_replays_history(monkeypatch) -> None:
+def test_llama_client_submits_and_replays_motion_tool_calls(monkeypatch) -> None:
     posted: list[dict[str, Any]] = []
-    responses = iter(["stand", "walk forward 0.4"])
+    responses = iter(
+        [
+            {
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": MOTION_CONSTRAINT_TOOL_NAME,
+                            "arguments": '{"motion":"stand"}',
+                        },
+                    }
+                ]
+            },
+            {
+                "tool_calls": [
+                    {
+                        "id": "call_2",
+                        "type": "function",
+                        "function": {
+                            "name": MOTION_CONSTRAINT_TOOL_NAME,
+                            "arguments": '{"motion":"walk"}',
+                        },
+                    }
+                ]
+            },
+        ]
+    )
 
     def urlopen(request, timeout):
-        posted.append(
-            {
-                "url": request.full_url,
-                "timeout": timeout,
-                "payload": json.loads(request.data),
-            }
-        )
+        posted.append(json.loads(request.data))
         return _Response(next(responses))
 
     monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
     client = OAIChatClient(
-        base_url="http://127.0.0.1:8080/",
+        base_url="http://127.0.0.1:8080",
         timeout=12.0,
-        system_prompt="System file prompt.\n",
-        user_prompt="User file prompt.\n",
+        system_prompt="system",
+        user_prompt="user",
+        tool=MOTION_CONSTRAINT_TOOL,
     )
     first = VisualObservation(0, None, b"first")
-    assert client.complete(first) == "stand"
-    client.commit(first, "stand")
+    completion = client.complete(first)
 
-    second = VisualObservation(1, "stand", b"second")
-    assert client.complete(second) == "walk forward 0.4"
+    assert completion.command == '{"motion":"stand"}'
+    client.commit(first, completion)
+    client.complete(VisualObservation(1, "stand", b"second"))
 
-    assert posted[0]["url"] == "http://127.0.0.1:8080/v1/chat/completions"
-    assert posted[0]["timeout"] == 12.0
-    assert posted[0]["payload"]["model"] == ""
-    messages = posted[1]["payload"]["messages"]
+    assert posted[0]["tool_choice"] == {
+        "type": "function",
+        "function": {"name": MOTION_CONSTRAINT_TOOL_NAME},
+    }
+    assert posted[0]["parallel_tool_calls"] is False
+    assert posted[0]["tools"][0]["function"]["name"] == MOTION_CONSTRAINT_TOOL_NAME
+    messages = posted[1]["messages"]
     assert [message["role"] for message in messages] == [
         "system",
         "user",
         "assistant",
+        "tool",
         "user",
     ]
-    assert messages[0]["content"] == "System file prompt.\n"
-    assert messages[1]["content"][0]["text"].endswith("User file prompt.\n")
-    assert messages[2]["content"] == "stand"
-    assert messages[1]["content"][1]["image_url"]["url"].endswith("Zmlyc3Q=")
-    assert messages[3]["content"][1]["image_url"]["url"].endswith("c2Vjb25k")
+    assert messages[2]["tool_calls"][0]["id"] == "call_1"
+    assert messages[3] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "Motion completed.",
+    }
+
+
+def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
+    response = {
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": KINEMATIC_COMMAND_TOOL_NAME,
+                    "arguments": '{"motion":"walk","direction":"left"}',
+                },
+            }
+        ]
+    }
+    posted: list[dict[str, Any]] = []
+
+    def urlopen(request, timeout):
+        posted.append(json.loads(request.data))
+        return _Response(response)
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="system",
+        user_prompt="user",
+        tool=KINEMATIC_COMMAND_TOOL,
+    )
+
+    completion = client.complete(VisualObservation(0, None, b"jpeg"))
+
+    assert completion.command == '{"motion":"walk","direction":"left"}'
+    assert posted[0]["tools"] == [KINEMATIC_COMMAND_TOOL]
+    assert posted[0]["tool_choice"]["function"]["name"] == KINEMATIC_COMMAND_TOOL_NAME
 
 
 class _Node:
@@ -98,17 +162,26 @@ class _Node:
 
 
 class _Client:
-    def __init__(self, responses: list[str]) -> None:
+    def __init__(self, responses: list[str | CommandCompletion]) -> None:
         self.responses = iter(responses)
         self.feedback: list[str | None] = []
         self.commits: list[tuple[int, str]] = []
+        self.completions: list[CommandCompletion] = []
 
-    def complete(self, observation, *, retry_feedback=None) -> str:
+    def complete(self, observation, *, retry_feedback=None) -> CommandCompletion:
         self.feedback.append(retry_feedback)
-        return next(self.responses)
+        response = next(self.responses)
+        if isinstance(response, CommandCompletion):
+            return response
+        return CommandCompletion(
+            response,
+            {"role": "assistant", "content": response},
+            None,
+        )
 
-    def commit(self, observation, command) -> None:
-        self.commits.append((observation.observation_id, command))
+    def commit(self, observation, completion) -> None:
+        self.commits.append((observation.observation_id, completion.command))
+        self.completions.append(completion)
 
 
 def _observation_event(observation: VisualObservation) -> dict[str, object]:
@@ -207,6 +280,39 @@ def test_agent_commits_exact_completed_command() -> None:
     AgentLoop(cast(Any, node), cast(Any, client)).run()
 
     assert client.commits == [(0, '{"motion":"walk","waypoints_2d":[[500,500]]}')]
+
+
+def test_agent_commits_tool_call_for_conversation_replay() -> None:
+    assistant_message: dict[str, Any] = {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": MOTION_CONSTRAINT_TOOL_NAME,
+                    "arguments": '{"motion":"stand"}',
+                },
+            }
+        ],
+    }
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"first")),
+            _observation_event(VisualObservation(1, '{"motion":"stand"}', b"second")),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(
+        [
+            CommandCompletion('{"motion":"stand"}', assistant_message, "call_1"),
+            '{"motion":"stand"}',
+        ]
+    )
+
+    AgentLoop(cast(Any, node), cast(Any, client)).run()
+
+    assert client.completions[0].assistant_message == assistant_message
 
 
 def test_agent_command_without_waypoint_bypasses_grounding() -> None:

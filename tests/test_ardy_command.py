@@ -143,6 +143,35 @@ def test_end_effector_becomes_final_global_joint_position() -> None:
     )
 
 
+def test_waypoint_and_end_effector_share_the_final_constraint_frame() -> None:
+    motion_rep, received = _conditions()
+    root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])
+
+    build_constraints(
+        motion_rep,
+        root_history,
+        torch.tensor(0.0),
+        ((1.0, 0.0),),
+        (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
+        generated_frames=125,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+    assert received["index"]["root_2d"][0].tolist() == [128]
+    assert received["index"]["global_joints_positions"][0].tolist() == [
+        [128, 0],
+        [128, 2],
+    ]
+    torch.testing.assert_close(
+        received["data"]["root_2d"][0], torch.tensor([[1.0, 3.0]])
+    )
+    torch.testing.assert_close(
+        received["data"]["global_joints_positions"][0],
+        torch.tensor([[1.0, 0.8, 3.0], [1.2, 1.1, 2.4]]),
+    )
+
+
 def test_foot_becomes_final_toe_position() -> None:
     motion_rep, received = _conditions()
     root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])
