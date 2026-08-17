@@ -109,12 +109,23 @@ def test_stairs_dataflow_uses_ardy() -> None:
     assert nodes["sim"]["env"]["TASK"] == "stairs"
 
 
+def test_endtest_dataflow_uses_ardy() -> None:
+    descriptor = yaml.safe_load(Path("endtest.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/endtest/TASK.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["sim"]["env"]["TASK"] == "endtest"
+
+
 def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
         "tasks/sokoban/TASK.md",
         "tasks/seesaw/TASK.md",
         "tasks/stairs/TASK.md",
+        "tasks/endtest/TASK.md",
     ):
         assert Path(path).is_file()
 
