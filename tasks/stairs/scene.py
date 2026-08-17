@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 MJGEOM_BOX = mujoco.mjtGeom.mjGEOM_BOX  # ty: ignore[unresolved-attribute]
-MJ_JOINT_FREE = mujoco.mjtJoint.mjJNT_FREE  # ty: ignore[unresolved-attribute]
 
 ARENA_MIN_X = -2.5
 ARENA_MAX_X = 5.5
@@ -33,7 +32,6 @@ LOWER_RAISED_TREAD_FRACTION = 0.5
 UPPER_RAISED_TREAD_FRACTION = 0.75
 
 STEP_FRICTION = (0.9, 0.02, 0.002)
-STEP_JOINT_DAMPING = 2.0
 STEP_SPAWN_MIN_X = 0.6
 STEP_SPAWN_MAX_X = 2.9
 STEP_SPAWN_MARGIN = 0.2
@@ -67,6 +65,7 @@ def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             mass=UPPER_STEP_MASS,
             raised_tread_fraction=UPPER_RAISED_TREAD_FRACTION,
         )
+        _add_small_block_grasps(spec)
 
     return add_stairs
 
@@ -152,11 +151,7 @@ def _add_step(
     x, y = center
     body = spec.worldbody.add_body(name=name)
     body.pos = (x, y, half_z)
-    body.add_joint(
-        name=f"{name}_free",
-        type=MJ_JOINT_FREE,
-        damping=STEP_JOINT_DAMPING,
-    )
+    body.add_freejoint(name=f"{name}_free")
     body.add_geom(
         name=f"{name}_lower_tread",
         type=MJGEOM_BOX,
@@ -179,6 +174,29 @@ def _add_step(
         contype=1,
         conaffinity=1,
     )
+
+
+def _add_small_block_grasps(spec: "MjSpec") -> None:
+    """Add the stairs-only rest and palm welds for the small block."""
+
+    common = {
+        "type": mujoco.mjtEq.mjEQ_WELD,  # ty: ignore[unresolved-attribute]
+        "objtype": mujoco.mjtObj.mjOBJ_BODY,  # ty: ignore[unresolved-attribute]
+    }
+    spec.add_equality(
+        name="stairs_small_block_rest_weld",
+        name1="stairs_small_block",
+        active=True,
+        **common,
+    )
+    for side in ("left", "right"):
+        spec.add_equality(
+            name=f"stairs_small_block_{side}_hand_weld",
+            name1=f"robot/{side}_wrist_yaw_link",
+            name2="stairs_small_block",
+            active=False,
+            **common,
+        )
 
 
 def _sample_step_starts(

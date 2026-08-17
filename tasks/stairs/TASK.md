@@ -26,8 +26,9 @@ Complete these three steps in order.
 3. **Pick it up with both hands.** Omit `waypoints_2d` entirely and use
    `left_hand` and `right_hand` end-effector targets on opposite accessible sides
    of the smaller orange block. Use a concise motion such as "grasp and lift the
-   small block". If either target is out of range, repeat step 1 to move closer,
-   then squat again before retrying.
+   small block". The block attaches automatically when either palm reaches it.
+   If either target is out of range, repeat step 1 to move closer, then squat
+   again before retrying.
 
 ## Safety
 

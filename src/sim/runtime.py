@@ -6,6 +6,7 @@ from typing import Any
 
 import torch
 from dora import Node
+from tasks.spec import TaskStepHook
 
 from shared.arrow import (
     grounding_request_from_arrow,
@@ -46,12 +47,14 @@ class SimRuntime:
         policy: SonicPolicy,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
+        step_hook: TaskStepHook | None = None,
     ) -> None:
         self.node = node
         self.simulation = simulation
         self.policy = policy
         self.renderer = renderer
         self.viewer = viewer
+        self.step_hook = step_hook
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
@@ -202,6 +205,8 @@ class SimRuntime:
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
                     action, completed = self.policy.infer(state)
+                if self.step_hook is not None:
+                    self.step_hook.before_step()
                 self.simulation.step(action)
                 if self.viewer is not None:
                     self.viewer.sync()

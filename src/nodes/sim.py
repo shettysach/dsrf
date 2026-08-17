@@ -39,6 +39,11 @@ def main() -> None:
                 else ViserSimViewer(simulation, reference)
             )
         renderer = SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
+        step_hook = (
+            cfg.task.make_step_hook(simulation)
+            if cfg.task is not None and cfg.task.make_step_hook is not None
+            else None
+        )
         _log_init(node, cfg)
         SimRuntime(
             node,
@@ -46,6 +51,7 @@ def main() -> None:
             policy,
             renderer,
             viewer,
+            step_hook=step_hook,
         ).run()
     finally:
         if viewer is not None:
