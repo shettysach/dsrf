@@ -239,12 +239,24 @@ class AgentLoop:
         )
         try:
             if self.command_mode == "direction":
-                motion, direction = parse_kinematic_planner_command(command)
+                parsed = parse_kinematic_planner_command(command)
+                if parsed.waypoints_2d:
+                    request = GroundingRequest(observation_id, parsed.waypoints_2d)
+                    self.pending_grounding = _PendingGrounding(
+                        command_text=command,
+                        motion=parsed.motion,
+                        waypoints_2d=parsed.waypoints_2d,
+                        end_effectors_2d=(),
+                        completion=completion,
+                    )
+                    data, metadata = grounding_request_to_arrow(request)
+                    self.node.send_output("grounding_request", data, metadata=metadata)
+                    return
                 self._send(
                     command,
-                    motion=motion,
+                    motion=parsed.motion,
                     target_xys=(),
-                    direction=direction,
+                    direction=parsed.direction,
                     completion=completion,
                 )
                 return
@@ -378,11 +390,7 @@ def main() -> None:
         timeout=cfg.vlm_timeout,
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
-        tool=(
-            KINEMATIC_PLANNER_TOOL
-            if cfg.command_mode == "direction"
-            else ARDY_TOOL
-        ),
+        tool=(KINEMATIC_PLANNER_TOOL if cfg.command_mode == "direction" else ARDY_TOOL),
     )
     AgentLoop(
         node,

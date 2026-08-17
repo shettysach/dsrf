@@ -434,3 +434,30 @@ def test_agent_requests_grounding_before_sending_complete_command() -> None:
     )
     assert command.motion == "sidestep carefully"
     np.testing.assert_allclose(command.target_xys, ((0.8, -0.2), (0.2, 0.6)))
+
+
+def test_kinematic_planner_grounds_waypoints_before_sending_command() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            _grounding_event(0, ((0.8, -0.2),)),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(['{"motion":"walk","waypoints_2d":[[300,600]]}'])
+
+    AgentLoop(cast(Any, node), cast(Any, client), command_mode="direction").run()
+
+    request_output = next(
+        output for output in node.outputs if output[0] == "grounding_request"
+    )
+    request = grounding_request_from_arrow(
+        request_output[1], cast(Any, request_output[2]["metadata"])
+    )
+    assert request.waypoints_2d == ((300, 600),)
+    command_output = next(output for output in node.outputs if output[0] == "command")
+    command = agent_command_from_arrow(
+        command_output[1], cast(Any, command_output[2]["metadata"])
+    )
+    assert command.direction is None
+    np.testing.assert_allclose(command.target_xys, ((0.8, -0.2),))
