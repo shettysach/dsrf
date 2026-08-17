@@ -82,11 +82,13 @@ def test_seesaw_five_run_dataflow_records_bounded_episodes() -> None:
         nodes["sim"]["env"].items()
         >= {
             "TASK": "seesaw",
-            "DEMO_RUNS": "${DEMO_RUNS:-5}",
-            "EPISODE_MAX_STEPS": "${EPISODE_MAX_STEPS:-3000}",
-            "DEMO_VIDEO_PATH": "${DEMO_VIDEO_PATH:-/tmp/seesaw-5-runs.mp4}",
+            "VIEWER": "viser",
+            "DEMO_RUNS": "5",
+            "EPISODE_MAX_STEPS": "3000",
+            "DEMO_VIDEO_PATH": "/tmp/seesaw-5-runs.mp4",
         }.items()
     )
+    assert nodes["agent"]["env"]["AGENT_DEBUG"] == "true"
 
 
 def test_seesaw_tracks_position_with_a_fixed_azimuth() -> None:

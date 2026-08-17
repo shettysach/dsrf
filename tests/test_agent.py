@@ -144,10 +144,38 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
 
     assert completion.command == '{"motion":"walk","direction":"left"}'
     assert posted[0]["tools"] == [KINEMATIC_PLANNER_TOOL]
-    assert (
-        posted[0]["tool_choice"]["function"]["name"]
-        == "kinematic_planner_command"
+    assert posted[0]["tool_choice"]["function"]["name"] == "kinematic_planner_command"
+
+
+def test_llama_client_uses_tool_call_content_as_reasoning(monkeypatch) -> None:
+    response = {
+        "content": "The low end is on the left, so I will approach it.",
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "ardy_command",
+                    "arguments": '{"motion":"walk"}',
+                },
+            }
+        ],
+    }
+
+    monkeypatch.setattr(
+        "agent.vlm.urllib.request.urlopen", lambda request, timeout: _Response(response)
     )
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="system",
+        user_prompt="user",
+        tool=ARDY_TOOL,
+    )
+
+    completion = client.complete(VisualObservation(0, None, b"jpeg"))
+
+    assert completion.reasoning == "The low end is on the left, so I will approach it."
 
 
 class _Node:
@@ -371,9 +399,7 @@ def test_agent_grounds_end_effector_before_sending_command() -> None:
         command_output[1], cast(Any, command_output[2]["metadata"])
     )
     assert command.end_effectors[0].name == target.name
-    np.testing.assert_allclose(
-        command.end_effectors[0].target_xyz, target.target_xyz
-    )
+    np.testing.assert_allclose(command.end_effectors[0].target_xyz, target.target_xyz)
 
 
 def test_agent_retries_motion_gen_errors() -> None:

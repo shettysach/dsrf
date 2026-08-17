@@ -9,6 +9,7 @@ nodes:
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
+      AGENT_DEBUG: "true"
       VLM_SYSTEM_PROMPT: tasks/seesaw/TASK.md
       VLM_USER_PROMPT: prompt/USER.md
       MOTION_GENERATOR: ardy
@@ -30,7 +31,7 @@ nodes:
       MOTION_GENERATOR: ardy
       CHECKPOINTS_DIR: /tmp/checkpoints
       TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
-      TEXT_ENCODER_DEVICE: cpu
+      TEXT_ENCODER_DEVICE: cuda
     inputs:
       command: agent/command
     outputs:
@@ -40,7 +41,7 @@ nodes:
   - id: sim
     path: uv
     args: run --extra cu128 --extra ardy dsrf-sim
-    min_log_level: warn
+    min_log_level: info
     env:
       DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
@@ -48,12 +49,12 @@ nodes:
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
-      VIEWER: "${VIEWER:-none}"
+      VIEWER: viser
       REFERENCE_GHOST: "false"
-      DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-/tmp/seesaw-5-runs.mp4}"
-      DEMO_RUNS: "${DEMO_RUNS:-5}"
-      EPISODE_MAX_STEPS: "${EPISODE_MAX_STEPS:-3000}"
-      MOTION_TIMEOUT_SECONDS: "${MOTION_TIMEOUT_SECONDS:-20}"
+      DEMO_VIDEO_PATH: /tmp/seesaw-5-runs.mp4
+      DEMO_RUNS: "5"
+      EPISODE_MAX_STEPS: "3000"
+      MOTION_TIMEOUT_SECONDS: "20"
     inputs:
       motion: motion-gen/motion
       grounding_request: agent/grounding_request
