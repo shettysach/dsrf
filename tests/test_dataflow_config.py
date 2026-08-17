@@ -12,11 +12,11 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"].items() >= {
-        "VLM_URL": "http://127.0.0.1:8080",
-        "VLM_TIMEOUT": "120",
-        "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
-        "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
-        "MOTION_GENERATOR": "kinematic_planner",
+            "VLM_URL": "http://127.0.0.1:8080",
+            "VLM_TIMEOUT": "120",
+            "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
+            "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
+            "MOTION_GENERATOR": "kinematic_planner",
     }.items()
     assert nodes["motion-gen"]["env"] == {
         "DEVICE": "cuda",
@@ -24,11 +24,11 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
         "PLANNER_ONNX": ("/tmp/GEAR-SONIC/planner_sonic.onnx"),
     }
     assert nodes["sim"]["env"].items() >= {
-        "DEVICE": "cuda",
-        "SONIC_DIR": "/tmp/GEAR-SONIC",
-        "TASK": "portrait-corridors",
-        "JPEG_QUALITY": "85",
-        "VIEWER": "native",
+            "DEVICE": "cuda",
+            "SONIC_DIR": "/tmp/GEAR-SONIC",
+            "TASK": "portrait-corridors",
+            "JPEG_QUALITY": "85",
+            "VIEWER": "native",
     }.items()
 
 
@@ -72,6 +72,21 @@ def test_seesaw_dataflow_uses_ardy() -> None:
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["sim"]["env"]["TASK"] == "seesaw"
+
+
+def test_seesaw_five_run_dataflow_records_bounded_episodes() -> None:
+    descriptor = yaml.safe_load(Path("seesaw_5_runs.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert (
+        nodes["sim"]["env"].items()
+        >= {
+            "TASK": "seesaw",
+            "DEMO_RUNS": "${DEMO_RUNS:-5}",
+            "EPISODE_MAX_STEPS": "${EPISODE_MAX_STEPS:-3000}",
+            "DEMO_VIDEO_PATH": "${DEMO_VIDEO_PATH:-/tmp/seesaw-5-runs.mp4}",
+        }.items()
+    )
 
 
 def test_seesaw_tracks_position_with_a_fixed_azimuth() -> None:

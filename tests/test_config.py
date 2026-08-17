@@ -96,6 +96,20 @@ def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
     assert SimConfig.from_env().viewer == "viser"
 
 
+def test_sim_config_reads_optional_episode_step_limit(monkeypatch) -> None:
+    monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("SONIC_DIR", "/models/sonic")
+    monkeypatch.setenv("TASK", "seesaw")
+    monkeypatch.setenv("IMAGE_WIDTH", "640")
+    monkeypatch.setenv("IMAGE_HEIGHT", "480")
+    monkeypatch.setenv("JPEG_QUALITY", "85")
+    monkeypatch.setenv("VIEWER", "none")
+    monkeypatch.setenv("REFERENCE_GHOST", "false")
+    monkeypatch.setenv("EPISODE_MAX_STEPS", "3000")
+
+    assert SimConfig.from_env().episode_max_steps == 3000
+
+
 def test_sim_config_rejects_unknown_viewer(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")

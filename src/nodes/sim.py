@@ -8,7 +8,7 @@ from dora import Node
 from shared.config import SimConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
-from sim.runtime import SimRuntime, portrait_corridor_demo_runs
+from sim.runtime import SimRuntime, portrait_corridor_demo_runs, repeated_demo_runs
 from sim.sonic.policy import SonicPolicy
 from sim.video import DemoVideoRecorder
 from sim.viewer import NativeSimViewer, SimViewer, ViserSimViewer
@@ -52,7 +52,9 @@ def main() -> None:
             else None
         )
         video_path = (
-            cfg.demo_video_dir
+            cfg.demo_video_path
+            if cfg.demo_video_path is not None
+            else cfg.demo_video_dir
             / f"goal{cfg.goal_index}_{datetime.now().strftime('%H%M')}.mp4"
             if cfg.demo_video_dir is not None
             else None
@@ -68,10 +70,18 @@ def main() -> None:
             step_hook,
             recorder,
             stop_recording_at_corridor=is_portrait_corridors,
+            stop_recording_at_stand=(
+                cfg.task is not None
+                and cfg.task.name == "seesaw"
+                and recorder is not None
+            ),
             motion_timeout_seconds=cfg.motion_timeout_seconds,
+            episode_max_steps=cfg.episode_max_steps,
             demo_runs=(
                 portrait_corridor_demo_runs(cfg.demo_runs)
                 if is_portrait_corridors and recorder is not None
+                else repeated_demo_runs(cfg.demo_runs)
+                if recorder is not None
                 else ()
             ),
         ).run()

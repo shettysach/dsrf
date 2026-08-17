@@ -71,6 +71,10 @@ class MotionExecutionTimeout(RuntimeError):
     pass
 
 
+class EpisodeStepLimitReached(RuntimeError):
+    pass
+
+
 def portrait_corridor_demo_runs(count: int) -> tuple[DemoRun, ...]:
     if not 1 <= count <= len(PORTRAIT_CORRIDOR_RUNS):
         raise ValueError(
@@ -79,6 +83,11 @@ def portrait_corridor_demo_runs(count: int) -> tuple[DemoRun, ...]:
     return tuple(
         DemoRun(title, start_xy) for title, start_xy in PORTRAIT_CORRIDOR_RUNS[:count]
     )
+
+
+def repeated_demo_runs(count: int) -> tuple[DemoRun, ...]:
+    """Return identical reset positions for independently recorded episodes."""
+    return tuple(DemoRun(f"Run {index + 1}", (0.0, 0.0)) for index in range(count))
 
 
 class SimRuntime:
@@ -92,7 +101,9 @@ class SimRuntime:
         step_hook: TaskStepHook | None = None,
         recorder: DemoVideoRecorder | None = None,
         stop_recording_at_corridor: bool = False,
+        stop_recording_at_stand: bool = False,
         motion_timeout_seconds: float = 20.0,
+        episode_max_steps: int | None = None,
         demo_runs: tuple[DemoRun, ...] = (),
     ) -> None:
         self.node = node
@@ -103,14 +114,20 @@ class SimRuntime:
         self.step_hook = step_hook
         self.recorder = recorder
         self.stop_recording_at_corridor = stop_recording_at_corridor
+        self.stop_recording_at_stand = stop_recording_at_stand
         if motion_timeout_seconds <= 0.0:
             raise ValueError("Motion timeout must be positive")
         self.max_motion_frames = max(1, math.ceil(motion_timeout_seconds * SONIC_FPS))
         self.motion_timeout_seconds = motion_timeout_seconds
+        if episode_max_steps is not None and episode_max_steps <= 0:
+            raise ValueError("Episode step limit must be positive")
+        self.episode_max_steps = episode_max_steps
+        self.episode_steps = 0
         self.demo_runs = demo_runs or (DemoRun("Center start", (0.0, 0.0)),)
         self.reset_for_demo_run = bool(demo_runs)
         self.run_index = 0
         self.observation_id = 0
+        self.episode_steps = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
         self.demo_vlm_state = DemoVlmState()
@@ -244,10 +261,24 @@ class SimRuntime:
         except MotionExecutionTimeout as exc:
             self._handle_motion_timeout(chunk.command, str(exc))
             return
+        except EpisodeStepLimitReached as exc:
+            self._handle_episode_step_limit(str(exc))
+            return
+        if (
+            self.episode_max_steps is not None
+            and self.episode_steps >= self.episode_max_steps
+        ):
+            self._handle_episode_step_limit(
+                f"Episode reached {self.episode_max_steps} simulation steps"
+            )
+            return
         if self._repeated_command_count >= MAX_REPEATED_COMMANDS:
             self._handle_repeated_command(chunk.command)
             return
         if self._stop_recording_if_ready(chunk.command):
+            return
+        if self.stop_recording_at_stand and _is_stand_command(chunk.command):
+            self._advance_or_stop("standing motion completed")
             return
         completed_observation_id = self.observation_id
         self.observation_id += 1
@@ -289,6 +320,13 @@ class SimRuntime:
         collision_detected = False
         with torch.no_grad():
             while True:
+                if (
+                    self.episode_max_steps is not None
+                    and self.episode_steps >= self.episode_max_steps
+                ):
+                    raise EpisodeStepLimitReached(
+                        f"Episode reached {self.episode_max_steps} simulation steps"
+                    )
                 if frames >= self.max_motion_frames:
                     raise MotionExecutionTimeout(
                         f"Motion exceeded {self.motion_timeout_seconds:.1f}s "
@@ -304,9 +342,13 @@ class SimRuntime:
                 if self.step_hook is not None:
                     self.step_hook.before_step()
                 self.simulation.step(action)
-                collision_detector = getattr(self.simulation, "task_collision_detected", None)
+                collision_detector = getattr(
+                    self.simulation, "task_collision_detected", None
+                )
                 collision_detected |= (
-                    bool(collision_detector()) if collision_detector is not None else False
+                    bool(collision_detector())
+                    if collision_detector is not None
+                    else False
                 )
                 if self.viewer is not None:
                     self.viewer.sync()
@@ -315,6 +357,7 @@ class SimRuntime:
                         self.renderer.capture_demo_rgb(), self.demo_vlm_state
                     )
                 frames += 1
+                self.episode_steps += 1
 
                 # Completion is detected while producing the last reference
                 # action. Capture only after that action's physics step.
@@ -373,6 +416,19 @@ class SimRuntime:
             },
         )
         self._advance_or_stop("motion timeout")
+
+    def _handle_episode_step_limit(self, detail: str) -> None:
+        self.node.log(
+            "info",
+            f"[RUN {self.run_index + 1}] episode step limit reached: {detail}",
+            target="dsrf.sim",
+            fields={
+                "event": "episode_step_limit",
+                "run": str(self.run_index + 1),
+                "detail": detail,
+            },
+        )
+        self._advance_or_stop("episode step limit")
 
     def _handle_repeated_command(self, command: str) -> None:
         self.node.log(

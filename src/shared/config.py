@@ -61,6 +61,7 @@ class SimConfig:
     demo_video_path: Path | None = None
     demo_video_dir: Path | None = None
     demo_runs: int = 1
+    episode_max_steps: int | None = None
     motion_timeout_seconds: float = 20.0
     goal_index: int | None = None
 
@@ -79,6 +80,7 @@ class SimConfig:
             demo_video_path=_optional_path("DEMO_VIDEO_PATH"),
             demo_video_dir=_optional_path("DEMO_VIDEO_DIR"),
             demo_runs=_positive_int_default("DEMO_RUNS", default=1),
+            episode_max_steps=_optional_positive_int("EPISODE_MAX_STEPS"),
             motion_timeout_seconds=_positive_float(
                 "MOTION_TIMEOUT_SECONDS", default=20.0
             ),
@@ -141,6 +143,12 @@ def _positive_int(name: str) -> int:
 def _positive_int_default(name: str, *, default: int) -> int:
     if name not in os.environ:
         return default
+    return _positive_int(name)
+
+
+def _optional_positive_int(name: str) -> int | None:
+    if name not in os.environ or not os.environ[name].strip():
+        return None
     return _positive_int(name)
 
 
