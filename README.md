@@ -36,6 +36,8 @@ Run OpenAI compatible VLM inference server.
 dora run corridors.yml
 # or
 dora run sokoban.yml
+# or run the ARDY-driven seesaw task
+dora run seesaw.yml
 ```
 
 - Set `VIEWER: none` in the selected dataflow to disable the window for headless

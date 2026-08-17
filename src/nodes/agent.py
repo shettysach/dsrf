@@ -8,12 +8,13 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
-from agent.ardy import ARDY_TOOL, parse_ardy_command
+from agent.ardy import ARDY_TOOL
 from agent.kinematic_planner import (
     KINEMATIC_PLANNER_TOOL,
-    parse_kinematic_planner_command,
 )
 from agent.vlm import CommandCompletion, OAIChatClient
+from motion_gen.ardy.parser import parse_ardy_command
+from motion_gen.kinematic_planner.parser import parse_kinematic_planner_command
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,

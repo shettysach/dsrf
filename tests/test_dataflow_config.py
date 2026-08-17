@@ -64,10 +64,21 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
 
 
+def test_seesaw_dataflow_uses_ardy() -> None:
+    descriptor = yaml.safe_load(Path("seesaw.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/seesaw/TASK.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["sim"]["env"]["TASK"] == "seesaw"
+
+
 def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
         "tasks/sokoban/TASK.md",
+        "tasks/seesaw/TASK.md",
     ):
         assert Path(path).is_file()
 

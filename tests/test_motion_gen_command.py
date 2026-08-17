@@ -91,6 +91,23 @@ def test_stand_has_no_specific_target() -> None:
     np.testing.assert_allclose(captured["movement_direction"], 0.0)
 
 
+def test_stand_direction_can_cue_a_turn() -> None:
+    captured: dict[str, np.ndarray] = {}
+
+    def run(_outputs, inputs):
+        captured.update(inputs)
+        qpos = np.tile(_standing(), (1, 8, 1))
+        return qpos, np.array([8], dtype=np.int64)
+
+    planner = KinematicPlanner.__new__(KinematicPlanner)
+    planner.session = cast(Any, SimpleNamespace(run=run))
+    planner._context = np.tile(_standing(), (1, 4, 1))
+    planner.generate("stand", (), "left")
+
+    assert captured["has_specific_target"].tolist() == [[0]]
+    np.testing.assert_allclose(captured["movement_direction"], [[0.0, 1.0, 0.0]])
+
+
 def test_direction_is_robot_relative() -> None:
     captured: dict[str, np.ndarray] = {}
 

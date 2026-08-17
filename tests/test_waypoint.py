@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from agent.ardy import parse_ardy_command
+from motion_gen.ardy.parser import parse_ardy_command
 from shared.messages import GroundingRequest, ProjectionContext
 from sim.grounding import resolve_end_effector, resolve_waypoint
 

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from tasks.portrait_corridors import TASK as PORTRAIT_CORRIDORS
+from tasks.seesaw import TASK as SEESAW
 from tasks.sokoban import TASK as SOKOBAN
 from tasks.spec import TaskSpec
 
-_TASK_SPECS = (PORTRAIT_CORRIDORS, SOKOBAN)
+_TASK_SPECS = (PORTRAIT_CORRIDORS, SEESAW, SOKOBAN)
 
 TASKS: dict[str, TaskSpec] = {task.name: task for task in _TASK_SPECS}
 

@@ -1,6 +1,6 @@
 import pytest
 
-from agent.kinematic_planner import (
+from motion_gen.kinematic_planner.parser import (
     KinematicPlannerCommand,
     parse_kinematic_planner_command,
 )
@@ -8,8 +8,8 @@ from agent.kinematic_planner import (
 
 def test_kinematic_command_parses_valid_tool_arguments() -> None:
     assert parse_kinematic_planner_command(
-        '{"motion":"stand","direction":"forward"}'
-    ) == KinematicPlannerCommand("stand", None, ())
+        '{"motion":"stand","direction":"left"}'
+    ) == KinematicPlannerCommand("stand", "left", ())
     assert parse_kinematic_planner_command(
         '{"motion":"walk","direction":"left"}'
     ) == KinematicPlannerCommand("walk", "left", ())
@@ -21,7 +21,7 @@ def test_kinematic_command_parses_valid_tool_arguments() -> None:
 @pytest.mark.parametrize(
     "command",
     [
-        '{"motion":"stand","direction":"left"}',
+        '{"motion":"stand","direction":"up"}',
         '{"motion":"walk","direction":"up"}',
         '{"motion":"walk"}',
         '{"motion":"walk","direction":"forward","waypoints_2d":[[500,500]]}',

@@ -19,8 +19,8 @@ def build_planner_inputs(
 ) -> dict[str, np.ndarray]:
     """Build kinematic-planner ONNX inputs from robot-local navigation controls."""
     mode = planner_mode(motion)
-    if motion == "stand" and (target_xy is not None or direction is not None):
-        raise ValueError("stand requires no target")
+    if motion == "stand" and target_xy is not None:
+        raise ValueError("stand cannot use a waypoint target")
     if motion == "walk" and (target_xy is None) == (direction is None):
         raise ValueError("walk requires exactly one target")
 
