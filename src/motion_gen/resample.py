@@ -5,7 +5,7 @@ import math
 import numpy as np
 import torch
 
-from shared.messages import SONIC_FPS, MotionChunk
+from shared.messages import SONIC_FPS, EndEffectorTarget, MotionChunk
 
 
 def _quat_slerp_batch(
@@ -73,6 +73,7 @@ def resample_motion(
     observation_id: int,
     command: str,
     reasoning: str | None = None,
+    end_effectors: tuple[EndEffectorTarget, ...] = (),
 ) -> MotionChunk:
     """Convert NumPy backend output to a CPU MotionChunk at SONIC's frequency.
 
@@ -87,4 +88,5 @@ def resample_motion(
         command=command,
         qpos=output.numpy(),
         reasoning=reasoning,
+        end_effectors=end_effectors,
     )

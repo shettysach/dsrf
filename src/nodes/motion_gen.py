@@ -85,6 +85,8 @@ def main() -> None:
                 source_fps=generator.fps,
                 observation_id=request.observation_id,
                 command=request.text,
+                reasoning=request.reasoning,
+                end_effectors=request.end_effectors,
             )
         except ValueError as exc:
             _report_invalid_command(node, request, exc)

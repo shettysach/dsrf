@@ -82,6 +82,7 @@ class MotionChunk:
     command: str
     qpos: np.ndarray
     reasoning: str | None = None
+    end_effectors: tuple[EndEffectorTarget, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.command.strip():
@@ -95,6 +96,7 @@ class MotionChunk:
             raise ValueError("Motion chunk must contain at least one frame")
         if not np.isfinite(qpos).all():
             raise ValueError("Motion chunk contains NaN or infinite values")
+        _validate_end_effectors(self.end_effectors)
         object.__setattr__(self, "qpos", np.ascontiguousarray(qpos))
 
 

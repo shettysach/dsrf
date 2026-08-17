@@ -11,8 +11,8 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from tasks import TaskSpec
 
-from shared.geometry import yaw_from_quat_wxyz
-from shared.messages import ProjectionContext
+from shared.geometry import local_xy_to_world, yaw_from_quat_wxyz
+from shared.messages import EndEffectorTarget, ProjectionContext
 from sim.config import make_sim_env_cfg
 
 _COLLAPSED_ROOT_HEIGHT_M = 0.25
@@ -138,6 +138,74 @@ class MjlabEnv:
         if uprightness < _FALLEN_UPRIGHTNESS:
             return f"torso was tipped over (uprightness {uprightness:.2f})"
         return None
+
+    def end_effector_positions_w(
+        self, names: tuple[str, ...]
+    ) -> dict[str, np.ndarray]:
+        """Return current world positions for named hand or foot sites."""
+        with self.compute_context():
+            sim = self._env.sim
+            return {
+                name: sim.data.site_xpos[0, sim.mj_model.site(_site_name(name)).id]
+                .detach()
+                .cpu()
+                .numpy()
+                .copy()
+                for name in names
+            }
+
+    def reference_end_effector_positions_w(
+        self,
+        qpos: np.ndarray,
+        *,
+        start_root_pos_w: torch.Tensor,
+        start_root_quat_w: torch.Tensor,
+        names: tuple[str, ...],
+    ) -> dict[str, np.ndarray]:
+        """Evaluate an ARDY qpos endpoint in the world frame of this command."""
+        model = self._env.sim._mj_model
+        if qpos.shape != (model.nq,):
+            raise ValueError(
+                f"Reference qpos has shape {qpos.shape}; expected ({model.nq},)"
+            )
+        reference_data = mujoco.MjData(model)  # ty: ignore[unresolved-attribute]
+        reference_data.qpos[:] = qpos
+        mujoco.mj_forward(model, reference_data)  # ty: ignore[unresolved-attribute]
+
+        reference_root = qpos[:3]
+        reference_yaw = yaw_from_quat_wxyz(qpos[3:7])
+        start_root = start_root_pos_w.detach().cpu().numpy()
+        command_yaw = yaw_from_quat_wxyz(start_root_quat_w.detach().cpu().numpy())
+        result: dict[str, np.ndarray] = {}
+        for name in names:
+            reference_position = reference_data.site(_site_name(name)).xpos.copy()
+            local_delta = reference_position - reference_root
+            world_xy = local_xy_to_world(
+                float(local_delta[0]), float(local_delta[1]), command_yaw - reference_yaw
+            )
+            result[name] = np.array(
+                (start_root[0] + world_xy[0], start_root[1] + world_xy[1], start_root[2] + local_delta[2]),
+                dtype=np.float64,
+            )
+        return result
+
+    def end_effector_targets_w(
+        self,
+        targets: tuple[EndEffectorTarget, ...],
+        *,
+        start_root_pos_w: torch.Tensor,
+        start_root_quat_w: torch.Tensor,
+    ) -> dict[str, np.ndarray]:
+        """Convert grounded robot-local targets to the world frame at command start."""
+        start_root = start_root_pos_w.detach().cpu().numpy()
+        yaw = yaw_from_quat_wxyz(start_root_quat_w.detach().cpu().numpy())
+        return {
+            target.name: np.array(
+                (*local_xy_to_world(target.target_xyz[0], target.target_xyz[1], yaw) + start_root[:2], start_root[2] + target.target_xyz[2]),
+                dtype=np.float64,
+            )
+            for target in targets
+        }
 
     def reset(self) -> tuple[VecEnvObs, dict[str, object]]:
         with self.compute_context():
@@ -311,6 +379,11 @@ def _is_task_collision_geom(name: str | None) -> bool:
         and not name.startswith("robot/")
         and name.endswith("_collision")
     )
+
+
+def _site_name(end_effector: str) -> str:
+    side, part = end_effector.split("_", maxsplit=1)
+    return f"robot/{side}_{'palm' if part == 'hand' else 'foot'}"
 
 
 def _heading_camera_azimuth(base_azimuth: float, root_quat_w: np.ndarray) -> float:

@@ -27,6 +27,8 @@ def motion_to_arrow(chunk: MotionChunk) -> tuple[pa.Array, dict[str, str]]:
     }
     if chunk.reasoning is not None:
         metadata["reasoning"] = chunk.reasoning
+    if chunk.end_effectors:
+        metadata["end_effectors"] = _end_effectors_json(chunk.end_effectors)
     return pa.array(chunk.qpos.reshape(-1), type=pa.float32()), metadata
 
 
@@ -42,6 +44,7 @@ def motion_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> MotionChunk:
         command=str(metadata["command"]),
         qpos=flat.reshape(-1, MOTION_COLUMNS),
         reasoning=_optional_string(metadata, "reasoning"),
+        end_effectors=_end_effectors(metadata),
     )
 
 

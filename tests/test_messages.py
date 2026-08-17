@@ -27,12 +27,14 @@ def test_motion_arrow_round_trip() -> None:
         7,
         "walk forward 0.4",
         np.arange(72, dtype=np.float32).reshape(2, 36),
+        end_effectors=(EndEffectorTarget("right_foot", (0.4, -0.2, -0.7)),),
     )
     value, metadata = motion_to_arrow(chunk)
     restored = motion_from_arrow(value, metadata)
     assert restored.observation_id == 7
     assert restored.command == "walk forward 0.4"
     np.testing.assert_array_equal(restored.qpos, chunk.qpos)
+    assert restored.end_effectors == chunk.end_effectors
 
 
 def test_agent_command_arrow_round_trip() -> None:

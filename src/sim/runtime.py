@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import torch
 import yaml
 from dora import Node
@@ -24,6 +25,7 @@ from shared.messages import (
     SONIC_FPS,
     EndEffectorTarget,
     GroundingResult,
+    MotionChunk,
     PipelineError,
     ProjectionContext,
     VisualObservation,
@@ -59,6 +61,13 @@ class ExecutionStats:
     elapsed_ms: float
     overrun_steps: int
     collision_detected: bool = False
+
+
+@dataclass(frozen=True)
+class EndEffectorTrackingDiagnostic:
+    name: str
+    target_w: np.ndarray
+    reference_w: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -238,6 +247,7 @@ class SimRuntime:
             except ValueError as exc:
                 self._report_error(str(exc))
                 return
+        diagnostics = self._reference_end_effector_diagnostics(chunk, state)
 
         self.demo_vlm_state = DemoVlmState(
             observation_id=chunk.observation_id,
@@ -288,6 +298,7 @@ class SimRuntime:
         if self.stop_recording_at_stand and _is_stand_command(chunk.command):
             self._advance_or_stop("standing motion completed")
             return
+        self._log_end_effector_tracking(diagnostics)
         completed_observation_id = self.observation_id
         self.observation_id += 1
         render_ms, jpeg_size = self._publish_observation(
@@ -372,8 +383,6 @@ class SimRuntime:
                 frames += 1
                 self.episode_steps += 1
 
-                # Completion is detected while producing the last reference
-                # action. Capture only after that action's physics step.
                 if completed:
                     return ExecutionStats(
                         frames=frames,
@@ -385,9 +394,62 @@ class SimRuntime:
                 next_step += CONTROL_PERIOD
                 now = time.perf_counter()
                 if next_step < now:
-                    # Do not execute burst catch-up steps after an overrun.
                     overrun_steps += 1
                     next_step = now
+
+    def _reference_end_effector_diagnostics(
+        self, chunk: MotionChunk, state: Any
+    ) -> tuple[EndEffectorTrackingDiagnostic, ...]:
+        if not chunk.end_effectors:
+            return ()
+        root_pos_w = state.root_pos_w
+        root_quat_w = state.root_quat_w
+        names = tuple(target.name for target in chunk.end_effectors)
+        targets_w = self.simulation.end_effector_targets_w(
+            chunk.end_effectors,
+            start_root_pos_w=root_pos_w,
+            start_root_quat_w=root_quat_w,
+        )
+        reference_w = self.simulation.reference_end_effector_positions_w(
+            chunk.qpos[-1],
+            start_root_pos_w=root_pos_w,
+            start_root_quat_w=root_quat_w,
+            names=names,
+        )
+        return tuple(
+            EndEffectorTrackingDiagnostic(name, targets_w[name], reference_w[name])
+            for name in names
+        )
+
+    def _log_end_effector_tracking(
+        self, diagnostics: tuple[EndEffectorTrackingDiagnostic, ...]
+    ) -> None:
+        if not diagnostics:
+            return
+        actual_w = self.simulation.end_effector_positions_w(
+            tuple(item.name for item in diagnostics)
+        )
+        for item in diagnostics:
+            reference_error_cm = float(
+                np.linalg.norm(item.reference_w - item.target_w) * 100.0
+            )
+            actual_error_cm = float(
+                np.linalg.norm(actual_w[item.name] - item.target_w) * 100.0
+            )
+            self.node.log(
+                "info",
+                f"[OBS {self.observation_id}] {item.name} target error: "
+                f"ARDY reference={reference_error_cm:.1f} cm, "
+                f"SONIC actual={actual_error_cm:.1f} cm",
+                target="dsrf.sim.end_effector",
+                fields={
+                    "event": "end_effector_tracking",
+                    "observation_id": str(self.observation_id),
+                    "end_effector": item.name,
+                    "reference_error_cm": f"{reference_error_cm:.3f}",
+                    "actual_error_cm": f"{actual_error_cm:.3f}",
+                },
+            )
 
     def _stop_recording_if_ready(self, command: str) -> bool:
         if (
