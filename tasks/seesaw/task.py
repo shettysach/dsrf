@@ -15,7 +15,7 @@ TASK = TaskSpec(
     make_scene=_make_scene,
     viewer=ViewerSpec(
         distance=4.0,
-        elevation=-30.0,
+        elevation=-50.0,
         origin="world",
         lookat=(1.5, 0.0, 0.0),
     ),

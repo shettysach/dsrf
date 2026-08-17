@@ -23,9 +23,12 @@ until the ground approach is complete.
    ground directly in front of the center of the near long edge of the blue
    plank. Do not put a waypoint on the plank, a corner, or either end.
 2. Stop at that ground position, face the plank, and reassess the image.
-3. **Then, mount with foot end-effector targets only.** Target a foot on the blue
-   surface near the hinge line and its front-to-back centerline. Keep the other
-   foot clear, then bring it onto the same central area with another foot target.
+3. **Then, mount with foot end-effector targets only.** Omit `waypoints_2d`
+   entirely from every mount or balance command: a waypoint on the raised plank
+   is invalid. Do not combine a waypoint with a foot target in these commands.
+   Target a foot on the blue surface near the hinge line and its front-to-back
+   centerline. Keep the other foot clear, then bring it onto the same central
+   area with another foot target.
 4. Do not use a hand target unless it is needed to recover balance. Do not reach
    toward the counterweight.
 
@@ -40,6 +43,8 @@ until the ground approach is complete.
    end.
 4. Stay near the plank's front-to-back centerline. Use only tiny corrections in
    that direction to keep both feet safely on the surface.
+5. While on the plank, use end-effector targets only; do not issue any 2D
+   waypoints.
 
 ## Finish
 

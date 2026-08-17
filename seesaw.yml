@@ -4,7 +4,7 @@ nodes:
   - id: agent
     path: uv
     args: run --extra cu128 --extra ardy dsrf-agent
-    min_log_level: warn
+    min_log_level: info
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
@@ -27,9 +27,9 @@ nodes:
     env:
       DEVICE: cuda
       MOTION_GENERATOR: ardy
-      CHECKPOINTS_DIR: /tmp/ardy/checkpoints
-      TEXT_ENCODER_MODEL: /tmp/model
-      TEXT_ENCODER_DEVICE: cuda
+      CHECKPOINTS_DIR: /tmp/checkpoints
+      TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
+      TEXT_ENCODER_DEVICE: cpu
     inputs:
       command: agent/command
     outputs:
