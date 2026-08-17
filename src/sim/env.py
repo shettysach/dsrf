@@ -15,6 +15,9 @@ from shared.geometry import yaw_from_quat_wxyz
 from shared.messages import ProjectionContext
 from sim.config import make_sim_env_cfg
 
+_COLLAPSED_ROOT_HEIGHT_M = 0.25
+_FALLEN_UPRIGHTNESS = 0.35
+
 if TYPE_CHECKING:
     from mjlab.envs.types import VecEnvObs, VecEnvStepReturn
     from mjlab.sim import Simulation
@@ -122,14 +125,17 @@ class MjlabEnv:
         """Return a human-readable fall cause, if the robot is no longer upright."""
         state = self.robot_state()
         root_height = float(state.root_pos_w[2].item())
-        if root_height < 0.45:
+        # A normal squat lowers the root to roughly 0.44 m, so height alone
+        # should only trip once the torso is close to the floor.  Orientation
+        # is the primary fall signal below.
+        if root_height < _COLLAPSED_ROOT_HEIGHT_M:
             return f"torso was too low ({root_height:.2f} m above the floor)"
 
         # The world Z component of the root link's local up axis.  Quaternions
         # are stored as wxyz, so this is the (2, 2) entry of its rotation matrix.
         _, quat_x, quat_y, _ = (float(value.item()) for value in state.root_quat_w)
         uprightness = 1.0 - 2.0 * (quat_x * quat_x + quat_y * quat_y)
-        if uprightness < 0.5:
+        if uprightness < _FALLEN_UPRIGHTNESS:
             return f"torso was tipped over (uprightness {uprightness:.2f})"
         return None
 

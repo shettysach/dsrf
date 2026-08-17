@@ -25,3 +25,28 @@ def test_render_keeps_camera_azimuth_fixed() -> None:
     simulation.render()
 
     assert renderer._cam.azimuth == 10.0
+
+
+def test_fall_detection_does_not_reset_an_upright_squat() -> None:
+    simulation = cast(Any, MjlabEnv.__new__(MjlabEnv))
+    simulation.robot_state = lambda: SimpleNamespace(
+        root_pos_w=np.array((0.0, 0.0, 0.44)),
+        root_quat_w=np.array((1.0, 0.0, 0.0, 0.0)),
+    )
+
+    assert simulation.fall_reason() is None
+
+
+def test_fall_detection_reports_collapsed_or_tipped_torso() -> None:
+    simulation = cast(Any, MjlabEnv.__new__(MjlabEnv))
+    simulation.robot_state = lambda: SimpleNamespace(
+        root_pos_w=np.array((0.0, 0.0, 0.20)),
+        root_quat_w=np.array((1.0, 0.0, 0.0, 0.0)),
+    )
+    assert "too low" in simulation.fall_reason()
+
+    simulation.robot_state = lambda: SimpleNamespace(
+        root_pos_w=np.array((0.0, 0.0, 0.70)),
+        root_quat_w=np.array((0.5, 0.866, 0.0, 0.0)),
+    )
+    assert "tipped over" in simulation.fall_reason()
