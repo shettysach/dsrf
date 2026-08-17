@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 MJGEOM_BOX = mujoco.mjtGeom.mjGEOM_BOX  # ty: ignore[unresolved-attribute]
+MJ_JOINT_FREE = mujoco.mjtJoint.mjJNT_FREE  # ty: ignore[unresolved-attribute]
 
 ARENA_MIN_X = -2.5
 ARENA_MAX_X = 5.5
@@ -32,6 +33,7 @@ LOWER_RAISED_TREAD_FRACTION = 0.5
 UPPER_RAISED_TREAD_FRACTION = 0.75
 
 STEP_FRICTION = (0.9, 0.02, 0.002)
+STEP_JOINT_DAMPING = 2.0
 STEP_SPAWN_MIN_X = 0.6
 STEP_SPAWN_MAX_X = 2.9
 STEP_SPAWN_MARGIN = 0.2
@@ -150,7 +152,11 @@ def _add_step(
     x, y = center
     body = spec.worldbody.add_body(name=name)
     body.pos = (x, y, half_z)
-    body.add_freejoint(name=f"{name}_free")
+    body.add_joint(
+        name=f"{name}_free",
+        type=MJ_JOINT_FREE,
+        damping=STEP_JOINT_DAMPING,
+    )
     body.add_geom(
         name=f"{name}_lower_tread",
         type=MJGEOM_BOX,

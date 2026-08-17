@@ -15,20 +15,19 @@ green platform and do not attempt to climb the stairs.
 
 ## Procedure
 
-Complete the following phases in order.
+Complete these three steps in order.
 
-1. **First, identify the smaller block.** Do not approach the larger block.
-2. **Then, approach with 2D waypoints only.** Place waypoints on visible floor,
-   stopping directly in front of the smaller block and close enough for both
-   hands to reach it. Do not put a waypoint on either block or the platform.
-3. Stop, face the smaller block squarely, and reassess the image. Keep the block
-   centered in front of the robot.
-4. **Then, pick up with hand end-effector targets only.** Omit `waypoints_2d`
-   entirely. Place `left_hand` and `right_hand` targets on the two accessible
-   sides of the smaller orange block, not on the floor and not on the larger
-   block. Use a concise motion such as "grasp and lift the small block".
-5. Keep both hand targets within reach. If either hand target is too far, return
-   to the ground-approach phase, walk closer, stop, and try again.
+1. **Move to the smaller stair.** Identify the smaller block, then use 2D
+   waypoints on visible floor to stop directly in front of it. Do not put a
+   waypoint on either block or the platform. Do not approach the larger block.
+2. **Squat in front of it.** Omit all image constraints, face the smaller block
+   squarely, and issue a concise squat motion. Reassess once the robot is low,
+   balanced, and close enough to reach the block with both hands.
+3. **Pick it up with both hands.** Omit `waypoints_2d` entirely and use
+   `left_hand` and `right_hand` end-effector targets on opposite accessible sides
+   of the smaller orange block. Use a concise motion such as "grasp and lift the
+   small block". If either target is out of range, repeat step 1 to move closer,
+   then squat again before retrying.
 
 ## Safety
 

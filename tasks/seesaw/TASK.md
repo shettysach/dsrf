@@ -16,21 +16,24 @@ its motion has settled.
 
 ## Approach and mount
 
-Complete these phases in order. Do not attempt a foot placement on the seesaw
-until the ground approach is complete.
+Complete these three steps in order. Do not attempt a foot placement until the
+ground approach is complete.
 
-1. **First, approach with 2D waypoints only.** Put each waypoint on the visible
-   ground directly in front of the center of the near long edge of the blue
-   plank. Do not put a waypoint on the plank, a corner, or either end.
-2. Stop at that ground position, face the plank, and reassess the image.
-3. **Then, mount with foot end-effector targets only.** Omit `waypoints_2d`
-   entirely from every mount or balance command: a waypoint on the raised plank
-   is invalid. Do not combine a waypoint with a foot target in these commands.
-   Target a foot on the blue surface near the hinge line and its front-to-back
-   centerline. Keep the other foot clear, then bring it onto the same central
-   area with another foot target.
-4. Do not use a hand target unless it is needed to recover balance. Do not reach
-   toward the counterweight.
+1. **Analyze the seesaw.** Identify which end of the blue plank is closest to
+   the ground. This is the low end. Do not approach the raised end or the red
+   counterweight.
+2. **Move to the low end with 2D waypoints only.** Put each waypoint on visible
+   floor as close as safely possible to that low end. Never put a waypoint on
+   the seesaw itself, a corner, or the counterweight. Stop, face the low end,
+   and reassess the image.
+3. **Climb with foot end-effector targets only.** Omit `waypoints_2d` entirely
+   and target a foot on the low blue end. Keep the other foot clear, then bring
+   it onto the same surface with another foot target. Do not combine a waypoint
+   with a foot target. If a foot target is out of range, return to step 2: move
+   closer on the floor with a waypoint, stop, then try the foot target again.
+
+Do not use a hand target unless it is needed to recover balance. Do not reach
+toward the counterweight.
 
 ## Balance
 
