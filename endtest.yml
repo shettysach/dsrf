@@ -41,7 +41,7 @@ nodes:
   - id: sim
     path: uv
     args: run --extra cu128 --extra ardy dsrf-sim
-    min_log_level: warn
+    min_log_level: info
     env:
       DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
