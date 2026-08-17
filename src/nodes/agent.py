@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from io import BytesIO
-from pathlib import Path
 
-import imageio.v3 as iio
 from dora import Node
 
 from agent.ardy import ARDY_TOOL
@@ -53,7 +50,6 @@ class AgentLoop:
         node: Node,
         client: OAIChatClient,
         *,
-        waypoint_debug: bool = False,
         command_mode: str = "waypoint",
     ) -> None:
         self.node = node
@@ -63,7 +59,6 @@ class AgentLoop:
         self.pending_completion: CommandCompletion | None = None
         self.pending_grounding: _PendingGrounding | None = None
         self.invalid_responses = 0
-        self.waypoint_debug = waypoint_debug
         self.command_mode = command_mode
 
     def run(self) -> None:
@@ -297,24 +292,6 @@ class AgentLoop:
             )
         pending = self.pending_grounding
         self.pending_grounding = None
-        if self.waypoint_debug:
-            self.node.log(
-                "info",
-                f"VLM waypoints: normalized={pending.waypoints_2d} "
-                f"local_targets={result.target_xys} "
-                f"end_effectors={result.end_effectors}",
-                target="dsrf.agent.waypoint",
-                fields={
-                    "event": "waypoint_grounded",
-                    "observation_id": str(result.observation_id),
-                },
-            )
-            _write_debug_image(
-                self.observation.jpeg,
-                result.observation_id,
-                pending.waypoints_2d,
-                tuple(selection.target_2d for selection in pending.end_effectors_2d),
-            )
         self._send(
             pending.command_text,
             motion=pending.motion,
@@ -360,29 +337,6 @@ class AgentLoop:
         )
 
 
-def _write_debug_image(
-    jpeg: bytes,
-    observation_id: int,
-    waypoints_2d: tuple[tuple[int, int], ...],
-    end_effectors_2d: tuple[tuple[int, int], ...],
-) -> None:
-    image = iio.imread(BytesIO(jpeg), extension=".jpg")
-    height, width = image.shape[:2]
-    for x, y in waypoints_2d:
-        u = round(x / 1000 * (width - 1))
-        v = round(y / 1000 * (height - 1))
-        image[max(0, v - 5) : v + 6, u] = (255, 0, 0)
-        image[v, max(0, u - 5) : u + 6] = (255, 0, 0)
-    for x, y in end_effectors_2d:
-        u = round(x / 1000 * (width - 1))
-        v = round(y / 1000 * (height - 1))
-        image[max(0, v - 5) : v + 6, u] = (0, 255, 255)
-        image[v, max(0, u - 5) : u + 6] = (0, 255, 255)
-    output_dir = Path("/tmp/dsrf-waypoint-debug")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    iio.imwrite(output_dir / f"observation-{observation_id}.jpg", image)
-
-
 def main() -> None:
     cfg = AgentConfig.from_env()
     node = Node()
@@ -396,7 +350,6 @@ def main() -> None:
     AgentLoop(
         node,
         client,
-        waypoint_debug=cfg.waypoint_debug,
         command_mode=cfg.command_mode,
     ).run()
 

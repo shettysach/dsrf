@@ -26,8 +26,6 @@ PLATFORM_HALF_WIDTH = 1.4
 
 LOWER_STEP_HALF_SIZE = (0.25, 0.45, 0.15)
 UPPER_STEP_HALF_SIZE = (0.5, 0.45, 0.2)
-LOWER_STEP_MASS = 4.0
-UPPER_STEP_MASS = 7.0
 LOWER_RAISED_TREAD_FRACTION = 0.5
 UPPER_RAISED_TREAD_FRACTION = 0.75
 
@@ -42,7 +40,7 @@ _STEP_RGBA = (0.95, 0.55, 0.1, 1.0)
 
 
 def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
-    """Create a walled arena with a raised platform and two movable steps."""
+    """Create a walled arena with a raised platform and two fixed steps."""
 
     lower_start, upper_start = _sample_step_starts(seed)
 
@@ -54,7 +52,6 @@ def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             name="stairs_small_block",
             center=lower_start,
             half_size=LOWER_STEP_HALF_SIZE,
-            mass=LOWER_STEP_MASS,
             raised_tread_fraction=LOWER_RAISED_TREAD_FRACTION,
         )
         _add_step(
@@ -62,10 +59,8 @@ def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             name="stairs_large_block",
             center=upper_start,
             half_size=UPPER_STEP_HALF_SIZE,
-            mass=UPPER_STEP_MASS,
             raised_tread_fraction=UPPER_RAISED_TREAD_FRACTION,
         )
-        _add_small_block_grasps(spec)
 
     return add_stairs
 
@@ -142,22 +137,18 @@ def _add_step(
     name: str,
     center: tuple[float, float],
     half_size: tuple[float, float, float],
-    mass: float,
     raised_tread_fraction: float,
 ) -> None:
     half_x, half_y, half_z = half_size
     raised_half_x = half_x * raised_tread_fraction
-    lower_mass = mass / (1.0 + raised_tread_fraction)
     x, y = center
     body = spec.worldbody.add_body(name=name)
     body.pos = (x, y, half_z)
-    body.add_freejoint(name=f"{name}_free")
     body.add_geom(
         name=f"{name}_lower_tread",
         type=MJGEOM_BOX,
         pos=(0.0, 0.0, -half_z * 0.5),
         size=(half_x, half_y, half_z * 0.5),
-        mass=lower_mass,
         friction=STEP_FRICTION,
         rgba=_STEP_RGBA,
         contype=1,
@@ -168,36 +159,11 @@ def _add_step(
         type=MJGEOM_BOX,
         pos=(half_x - raised_half_x, 0.0, half_z * 0.5),
         size=(raised_half_x, half_y, half_z * 0.5),
-        mass=mass - lower_mass,
         friction=STEP_FRICTION,
         rgba=_STEP_RGBA,
         contype=1,
         conaffinity=1,
     )
-
-
-def _add_small_block_grasps(spec: "MjSpec") -> None:
-    """Add the stairs-only rest and palm welds for the small block."""
-
-    common = {
-        "type": mujoco.mjtEq.mjEQ_WELD,  # ty: ignore[unresolved-attribute]
-        "objtype": mujoco.mjtObj.mjOBJ_BODY,  # ty: ignore[unresolved-attribute]
-    }
-    spec.add_equality(
-        name="stairs_small_block_rest_weld",
-        name1="stairs_small_block",
-        active=True,
-        **common,
-    )
-    for side in ("left", "right"):
-        spec.add_equality(
-            name=f"stairs_small_block_{side}_hand_weld",
-            name1=f"robot/{side}_wrist_yaw_link",
-            name2="stairs_small_block",
-            active=False,
-            **common,
-        )
-
 
 def _sample_step_starts(
     seed: int | None,

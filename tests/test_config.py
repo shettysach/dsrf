@@ -135,7 +135,6 @@ def test_agent_config_from_env(monkeypatch) -> None:
         vlm_timeout=12.5,
         system_prompt=Path("/prompts/system.md"),
         user_prompt=Path("/prompts/user.md"),
-        waypoint_debug=False,
         command_mode="waypoint",
     )
 

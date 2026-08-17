@@ -78,7 +78,6 @@ class AgentConfig:
     vlm_timeout: float
     system_prompt: Path
     user_prompt: Path
-    waypoint_debug: bool
     command_mode: Literal["waypoint", "direction"]
 
     @classmethod
@@ -94,7 +93,6 @@ class AgentConfig:
             vlm_timeout=timeout,
             system_prompt=Path(os.environ["VLM_SYSTEM_PROMPT"]),
             user_prompt=Path(os.environ["VLM_USER_PROMPT"]),
-            waypoint_debug=_optional_boolean("WAYPOINT_DEBUG", default=False),
             command_mode=(
                 "direction"
                 if os.environ.get("MOTION_GENERATOR", "").strip().lower()
