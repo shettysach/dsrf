@@ -52,6 +52,7 @@ nodes:
       VIEWER: native
       REFERENCE_GHOST: "false"
       CAMERA_YAW: "false"
+      DEMO_VIDEO_PATH: /tmp/endtest-vlm.mp4
     inputs:
       motion: motion-gen/motion
       grounding_request: agent/grounding_request

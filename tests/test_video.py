@@ -34,3 +34,19 @@ def test_demo_overlay_scales_up_without_dominating_720p() -> None:
     assert composed.shape == frame.shape
     assert xs.max() - xs.min() + 1 <= round(1280 * 0.28)
     assert ys.max() - ys.min() + 1 <= round(720 * 0.55)
+
+
+def test_demo_overlay_marks_the_vlm_end_effector_selection() -> None:
+    frame = np.full((480, 640, 3), 220, dtype=np.uint8)
+
+    composed = compose_demo_frame(
+        frame,
+        DemoVlmState(
+            0,
+            "Step onto the visible green square.",
+            '{"motion":"step","end_effectors":[{"name":"left_foot","target_2d":[500,500]}]}',
+            ((500, 500),),
+        ),
+    )
+
+    assert tuple(composed[240, 320]) == (235, 30, 30)

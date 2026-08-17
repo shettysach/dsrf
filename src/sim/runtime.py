@@ -276,6 +276,7 @@ class SimRuntime:
             observation_id=chunk.observation_id,
             reasoning=chunk.reasoning or "",
             command=chunk.command,
+            target_points_2d=_end_effector_points_2d(chunk.command),
         )
         signature = _command_signature(chunk.command)
         if signature == self._last_command_signature:
@@ -701,6 +702,27 @@ def _command_signature(command: str) -> object:
         if isinstance(waypoints, list):
             return ("walk", tuple(tuple(waypoint) for waypoint in waypoints))
     return (motion,)
+
+
+def _end_effector_points_2d(command: str) -> tuple[tuple[int, int], ...]:
+    try:
+        payload = json.loads(command)
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(payload, dict) or not isinstance(payload.get("end_effectors"), list):
+        return ()
+    points: list[tuple[int, int]] = []
+    for end_effector in payload["end_effectors"]:
+        if not isinstance(end_effector, dict):
+            continue
+        target = end_effector.get("target_2d")
+        if (
+            isinstance(target, list)
+            and len(target) == 2
+            and all(type(value) is int and 0 <= value <= 1000 for value in target)
+        ):
+            points.append((target[0], target[1]))
+    return tuple(points)
 
 
 def _current_dataflow_id() -> str | None:

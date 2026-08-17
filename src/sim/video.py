@@ -17,6 +17,7 @@ class DemoVlmState:
     observation_id: int = -1
     reasoning: str = ""
     command: str = ""
+    target_points_2d: tuple[tuple[int, int], ...] = ()
 
 
 class DemoVideoRecorder:
@@ -77,12 +78,13 @@ def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
         max_width=text_width,
         max_lines=max_reasoning_lines,
     )
+    tool_call_lines = [_fit_ellipsis(draw, _tool_call_label(state.command), font, text_width)]
     entries = [
         (f"Observation #{state.observation_id}", font),
         ("Reasoning", bold_font),
         *[(line, font) for line in reasoning_lines],
-        ("Command", bold_font),
-        (_decision_label(state.command), font),
+        ("Tool call", bold_font),
+        *[(line, font) for line in tool_call_lines],
     ]
 
     panel_height = 2 * padding + line_height * len(entries) + 4
@@ -107,6 +109,8 @@ def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
             font=entry_font,
         )
         y += line_height
+
+    _draw_target_points(draw, state.target_points_2d, image.size)
 
     return np.asarray(Image.alpha_composite(image, overlay).convert("RGB"))
 
@@ -183,3 +187,33 @@ def _decision_label(command: str) -> str:
     if isinstance(motion, str):
         return motion.upper()
     return command or "WAIT"
+
+
+def _tool_call_label(command: str) -> str:
+    try:
+        payload = json.loads(command)
+    except (json.JSONDecodeError, TypeError):
+        return command or "WAIT"
+    if not isinstance(payload, dict):
+        return command or "WAIT"
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def _draw_target_points(
+    draw: ImageDraw.ImageDraw,
+    points: tuple[tuple[int, int], ...],
+    size: tuple[int, int],
+) -> None:
+    width, height = size
+    radius = max(14, min(width, height) // 28)
+    for x, y in points:
+        u = round(x / 1000 * (width - 1))
+        v = round(y / 1000 * (height - 1))
+        draw.ellipse(
+            (u - radius - 4, v - radius - 4, u + radius + 4, v + radius + 4),
+            fill=(255, 255, 255, 255),
+        )
+        draw.ellipse(
+            (u - radius, v - radius, u + radius, v + radius),
+            fill=(235, 30, 30, 255),
+        )
