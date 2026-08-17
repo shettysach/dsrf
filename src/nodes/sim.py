@@ -46,6 +46,11 @@ def main() -> None:
                 else ViserSimViewer(simulation, reference)
             )
         renderer = SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
+        step_hook = (
+            cfg.task.make_step_hook(simulation)
+            if cfg.task is not None and cfg.task.make_step_hook is not None
+            else None
+        )
         video_path = (
             cfg.demo_video_dir
             / f"goal{cfg.goal_index}_{datetime.now().strftime('%H%M')}.mp4"
@@ -60,6 +65,7 @@ def main() -> None:
             policy,
             renderer,
             viewer,
+            step_hook,
             recorder,
             stop_recording_at_corridor=is_portrait_corridors,
             motion_timeout_seconds=cfg.motion_timeout_seconds,

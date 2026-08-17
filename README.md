@@ -36,46 +36,24 @@ Run OpenAI compatible VLM inference server.
 dora run corridors.yml
 # or
 dora run sokoban.yml
-# or: interactive graphical 2D Sokoban
-dora run grid_sokoban.yml
-# or
-dora run stack_steps.yml
-# or
-dora run see_saw.yml
+# or run the ARDY-driven seesaw task
+dora run seesaw.yml
+# or run the ARDY-driven stairs task
+dora run stairs.yml
 ```
 
 - Set `VIEWER: none` in the selected dataflow to disable the window for headless
   runs.
 - Set `REFERENCE_GHOST: "true"` to show the active motion
   reference in the native viewer.
-- Set `CAMERA_YAW: "false"` to keep the camera heading fixed while the robot turns.
-- Set `DEMO_VIDEO_DIR: "none"` to disable demo video recording.
-
-`grid_sokoban.yml` launches a Pygame application and needs no MJLab, SONIC, or
-motion model. Its layout, VLM endpoint, timeout, history, and autoplay settings
-are all configured in that file. Play with arrow keys/WASD; `R` resets, and
-`N` skips to the next recorded variation. Keys `1`–`6` choose the curriculum
-boards. The additional `edge-right` board mirrors the earlier physical task:
-push one open-floor box toward a goal at the arena's right edge.
-
-The default grid configuration records ten two-box variations to
-`/tmp/grid-sokoban-10-runs.mp4`. Each run ends on success, the move limit, a
-terminal VLM error, or a VLM `reset` action; a VLM reset advances to a fresh
-variation instead of replaying the current board. Set `GRID_VIDEO_PATH=none` in
-the YAML to disable recording. The default move limit is 40; a box pushed into a
-non-goal corner also ends the run as a static deadlock.
-
-Those ten runs are fixed, solver-checked two-box topologies: `two-box`,
-`two-edge`, and `two-topology-01` through `two-topology-08`. They differ in
-interior-wall structure and box/goal placement; they are not rotations or
-reflections of one another.
 
 ## ARDY closed loop
 
 The ARDY motion generator encodes each command's `motion` field with a local
-Transformers model and converts the resolved local waypoint into a root-position
-constraint. It generates a five-second reference and carries ARDY's generated
-history into the next request.
+Transformers model. It converts resolved floor waypoints into root-position
+constraints and visible hand or foot targets into ARDY global-joint-position constraints.
+It generates a five-second reference and carries ARDY's generated history into
+the next request.
 
 Set `TEXT_ENCODER_MODEL`, `TEXT_ENCODER_DEVICE`, `DEVICE`, and `CHECKPOINTS_DIR`
 in `ardy.yml`, then run:
@@ -88,14 +66,14 @@ The text model must expose `last_hidden_state` with hidden size 4096. The
 encoder applies attention-mask-aware mean pooling and transfers the resulting
 float32 tensor directly to ARDY's device.
 
-## Waypoint grounding
+## Constraint grounding
 
-The simulator publishes RGB-only observations. When a VLM command contains an
-one or more image waypoints, the agent sends those pixels to the simulator while physics remains
-paused. The simulator renders depth on demand, resolves the pixel into a
-robot-local targets, and returns only those coordinates. The agent then
-sends one complete request containing the motion prompt and ordered resolved targets to
-the motion generator.
+The simulator publishes RGB-only observations. When a VLM command contains one
+or more image waypoints or end-effector targets, the agent sends those pixels to the
+simulator while physics remains paused. The simulator renders depth on demand,
+resolves each pixel into a robot-local target, and returns only those coordinates.
+The agent then sends one complete request containing the motion prompt and
+resolved targets to the motion generator.
 
 Depth is cached for the current observation, so VLM retries and multiple waypoints reuse the same render.
 The cache is discarded when motion begins and the next RGB observation is

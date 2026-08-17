@@ -3,8 +3,9 @@ import math
 import numpy as np
 import pytest
 
+from motion_gen.ardy.parser import parse_ardy_command
 from shared.messages import GroundingRequest, ProjectionContext
-from sim.waypoint import resolve_waypoint
+from sim.grounding import resolve_end_effector, resolve_waypoint
 
 
 def _floor_projection() -> ProjectionContext:
@@ -61,9 +62,91 @@ def test_depth_patch_uses_valid_median_and_clamps_horizon() -> None:
     assert math.hypot(*result.target_xy) == pytest.approx(0.5)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "not json",
+        '{"motion":"walk","waypoints_2d":[[500]]}',
+        '{"motion":"walk","waypoints_2d":[[500.0,500]]}',
+    ],
+)
+def test_malformed_commands_fail(text: str) -> None:
+    with pytest.raises(ValueError):
+        parse_ardy_command(text)
+
+
 def test_grounding_request_validates_coordinate_range() -> None:
+    parsed = parse_ardy_command('{"motion":"walk","waypoints_2d":[[-1,500]]}')
+    assert parsed.waypoints_2d
     with pytest.raises(ValueError, match=r"\[0,1000\]"):
-        GroundingRequest(0, ((-1, 500),))
+        GroundingRequest(0, parsed.waypoints_2d)
+
+
+def test_stand_parses_without_resolving_depth() -> None:
+    command = parse_ardy_command('{"motion":"stand","waypoints_2d":[]}')
+    assert command.motion == "stand"
+    assert command.waypoints_2d == ()
+
+
+def test_command_without_waypoints_defaults_to_no_grounding() -> None:
+    command = parse_ardy_command('{"motion":"wave with the right hand"}')
+    assert command.motion == "wave with the right hand"
+    assert command.waypoints_2d == ()
+
+
+def test_end_effector_command_parses_without_waypoints() -> None:
+    command = parse_ardy_command(
+        '{"motion":"reach for the cup","end_effectors":'
+        '[{"name":"right_hand","target_2d":[600,400]}]}'
+    )
+    assert command.waypoints_2d == ()
+    assert [(target.name, target.target_2d) for target in command.end_effectors] == [
+        ("right_hand", (600, 400))
+    ]
+
+
+def test_foot_end_effector_command_parses_without_waypoints() -> None:
+    command = parse_ardy_command(
+        '{"motion":"step onto the platform","end_effectors":'
+        '[{"name":"left_foot","target_2d":[500,700]}]}'
+    )
+    assert [(target.name, target.target_2d) for target in command.end_effectors] == [
+        ("left_foot", (500, 700))
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"motion":"reach","end_effectors":null}',
+        '{"motion":"reach","end_effectors":'
+        '[{"name":"head","target_2d":[500,500]}]}',
+    ],
+)
+def test_invalid_end_effector_commands_fail(text: str) -> None:
+    with pytest.raises(ValueError):
+        parse_ardy_command(text)
+
+
+def test_command_can_combine_waypoints_and_end_effectors() -> None:
+    command = parse_ardy_command(
+        '{"motion":"walk to the box and reach","waypoints_2d":[[500,700]],'
+        '"end_effectors":[{"name":"left_hand","target_2d":[550,400]}]}'
+    )
+    assert command.waypoints_2d == ((500, 700),)
+    assert command.end_effectors[0].name == "left_hand"
+
+
+def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:
+    grounded = parse_ardy_command(
+        '{"motion":"sidestep carefully toward the doorway","waypoints_2d":[[400,600],[600,500]]}'
+    )
+    ungrounded = parse_ardy_command(
+        '{"motion":"wave with the right hand","waypoints_2d":[]}'
+    )
+    assert grounded.motion == "sidestep carefully toward the doorway"
+    assert grounded.waypoints_2d == ((400, 600), (600, 500))
+    assert ungrounded.waypoints_2d == ()
 
 
 def test_invalid_depth_fails() -> None:
@@ -71,3 +154,22 @@ def test_invalid_depth_fails() -> None:
     projection.depth[:] = np.nan
     with pytest.raises(ValueError, match="No valid depth"):
         resolve_waypoint((500, 500), projection)
+
+
+def test_end_effector_pixel_resolves_to_local_3d_target() -> None:
+    projection = ProjectionContext(
+        depth=np.full((101, 101), 0.5, dtype=np.float32),
+        camera_pos_w=np.array([0.0, 0.0, 0.8]),
+        camera_forward_w=np.array([1.0, 0.0, 0.0]),
+        camera_up_w=np.array([0.0, 0.0, 1.0]),
+        frustum_height=1.0,
+        root_pos_w=np.zeros(3),
+        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
+        near=0.01,
+        far=100.0,
+    )
+
+    result = resolve_end_effector("right_hand", (500, 500), projection)
+
+    assert result.pixel == (50, 50)
+    assert result.target_xyz == pytest.approx((0.5, 0.0, 0.8), abs=0.01)

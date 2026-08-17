@@ -12,6 +12,8 @@ from shared.arrow import (
 )
 from shared.messages import (
     AgentCommand,
+    EndEffectorSelection,
+    EndEffectorTarget,
     GroundingRequest,
     GroundingResult,
     MotionChunk,
@@ -34,7 +36,13 @@ def test_motion_arrow_round_trip() -> None:
 
 
 def test_agent_command_arrow_round_trip() -> None:
-    command = AgentCommand(3, "waypoint", "walk", ((0.4, 0.2),))
+    command = AgentCommand(
+        3,
+        "reach",
+        "reach with the right hand",
+        (),
+        end_effectors=(EndEffectorTarget("right_hand", (0.4, -0.2, 0.8)),),
+    )
     value, metadata = agent_command_to_arrow(command)
     assert agent_command_from_arrow(value, metadata) == command
 
@@ -65,6 +73,27 @@ def test_grounding_messages_arrow_round_trip() -> None:
     restored = grounding_result_from_arrow(value, metadata)
     assert restored.observation_id == result.observation_id
     np.testing.assert_allclose(restored.target_xys, result.target_xys)
+
+    request = GroundingRequest(
+        5,
+        ((300, 700),),
+        (EndEffectorSelection("left_hand", (400, 300)),),
+    )
+    value, metadata = grounding_request_to_arrow(request)
+    assert grounding_request_from_arrow(value, metadata) == request
+
+    result = GroundingResult(
+        5,
+        ((1.0, 0.0),),
+        (EndEffectorTarget("left_hand", (0.5, 0.2, 0.7)),),
+    )
+    value, metadata = grounding_result_to_arrow(result)
+    restored = grounding_result_from_arrow(value, metadata)
+    assert restored.end_effectors[0].name == "left_hand"
+    np.testing.assert_allclose(
+        restored.end_effectors[0].target_xyz,
+        result.end_effectors[0].target_xyz,
+    )
 
 
 def test_pipeline_error_arrow_round_trip() -> None:

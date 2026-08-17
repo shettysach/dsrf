@@ -11,6 +11,7 @@ from typing import Any
 import torch
 import yaml
 from dora import Node
+from tasks.spec import TaskStepHook
 
 from shared.arrow import (
     grounding_request_from_arrow,
@@ -21,17 +22,18 @@ from shared.arrow import (
 )
 from shared.messages import (
     SONIC_FPS,
+    EndEffectorTarget,
     GroundingResult,
     PipelineError,
     ProjectionContext,
     VisualObservation,
 )
 from sim.env import MjlabEnv
+from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
 from sim.sonic.policy import SonicPolicy
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
-from sim.waypoint import resolve_waypoint
 
 CONTROL_PERIOD = 1.0 / SONIC_FPS
 PORTRAIT_CORRIDOR_APPROACH_X = 1.0
@@ -87,6 +89,7 @@ class SimRuntime:
         policy: SonicPolicy,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
+        step_hook: TaskStepHook | None = None,
         recorder: DemoVideoRecorder | None = None,
         stop_recording_at_corridor: bool = False,
         motion_timeout_seconds: float = 20.0,
@@ -97,6 +100,7 @@ class SimRuntime:
         self.policy = policy
         self.renderer = renderer
         self.viewer = viewer
+        self.step_hook = step_hook
         self.recorder = recorder
         self.stop_recording_at_corridor = stop_recording_at_corridor
         if motion_timeout_seconds <= 0.0:
@@ -138,8 +142,6 @@ class SimRuntime:
         self.demo_vlm_state = DemoVlmState()
         self._last_command_signature = None
         self._repeated_command_count = 0
-        if self.viewer is not None:
-            self.viewer.sync()
         render_ms, jpeg_size = self._publish_observation(completed_command=None)
         self.node.log(
             "info",
@@ -171,11 +173,22 @@ class SimRuntime:
                 resolve_waypoint(point, self._projection_cache)
                 for point in request.waypoints_2d
             )
+            resolved_end_effectors = tuple(
+                resolve_end_effector(
+                    selection.name, selection.target_2d, self._projection_cache
+                )
+                for selection in request.end_effectors_2d
+            )
         except (KeyError, TypeError, ValueError) as exc:
             self._report_error(str(exc), source="grounding")
             return
         result = GroundingResult(
-            self.observation_id, tuple(item.target_xy for item in resolved)
+            self.observation_id,
+            tuple(item.target_xy for item in resolved),
+            tuple(
+                EndEffectorTarget(target.name, target.target_xyz)
+                for target in resolved_end_effectors
+            ),
         )
         data, metadata = grounding_result_to_arrow(result)
         self.node.send_output("grounding_result", data, metadata=metadata)
@@ -288,6 +301,8 @@ class SimRuntime:
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
                     action, completed = self.policy.infer(state)
+                if self.step_hook is not None:
+                    self.step_hook.before_step()
                 self.simulation.step(action)
                 collision_detector = getattr(self.simulation, "task_collision_detected", None)
                 collision_detected |= (

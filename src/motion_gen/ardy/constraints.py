@@ -3,18 +3,28 @@ from __future__ import annotations
 import torch
 from ardy.motion_rep.tools import RotateFeatures
 
+from shared.messages import EndEffectorTarget
 
-def build_waypoint_constraints(
+_JOINT_NAMES = {
+    "left_hand": "left_hand_roll_skel",
+    "right_hand": "right_hand_roll_skel",
+    "left_foot": "left_toe_base",
+    "right_foot": "right_toe_base",
+}
+
+
+def build_constraints(
     motion_rep,
     root_history: torch.Tensor,
     root_heading: torch.Tensor,
     target_xys: tuple[tuple[float, float], ...],
+    end_effectors: tuple[EndEffectorTarget, ...],
     *,
     generated_frames: int,
     history_frames: int,
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Convert robot-local targets into evenly spaced ARDY root endpoints."""
+    """Convert robot-local navigation and end-effector targets into ARDY conditions."""
     if (
         root_history.ndim != 2
         or root_history.shape[0] < 2
@@ -25,34 +35,91 @@ def build_waypoint_constraints(
             f"got {tuple(root_history.shape)}"
         )
 
-    current_root_2d = root_history[-1, [0, 2]]
+    current_root = root_history[-1].to(device=device)
+    current_root_2d = current_root[[0, 2]]
     if root_heading.numel() != 1 or not torch.isfinite(root_heading).all():
         raise ValueError("ARDY root heading must be one finite angle")
-    if not target_xys:
-        raise ValueError("ARDY waypoint constraints require at least one target")
-    local_ardy = torch.tensor(
-        [[left, forward] for forward, left in target_xys],
-        dtype=current_root_2d.dtype,
-        device=device,
-    )
+    if not target_xys and not end_effectors:
+        raise ValueError("ARDY constraints require at least one target")
     heading = root_heading.reshape(()).to(dtype=current_root_2d.dtype, device=device)
-    delta_ardy = (
-        RotateFeatures(heading.unsqueeze(0))
-        .rotate_2d_positions(local_ardy.unsqueeze(0))
-        .squeeze(0)
-    )
-    relative_indices = (
-        torch.arange(1, len(target_xys) + 1, device=device)
-        * generated_frames
-        // len(target_xys)
-    )
-    root_2d = current_root_2d + delta_ardy
-    frame_indices = relative_indices + history_frames - 1
+    index: dict[str, list[torch.Tensor]] = {}
+    data: dict[str, list[torch.Tensor]] = {}
+
+    if target_xys:
+        local_2d = torch.tensor(
+            [[left, forward] for forward, left in target_xys],
+            dtype=current_root.dtype,
+            device=device,
+        )
+        root_2d = current_root_2d + _rotate_2d(local_2d, heading)
+        relative_indices = (
+            torch.arange(1, len(target_xys) + 1, device=device)
+            * generated_frames
+            // len(target_xys)
+        )
+        frame_indices = relative_indices + history_frames - 1
+        index["root_2d"] = [frame_indices]
+        data["root_2d"] = [root_2d]
+    else:
+        frame = generated_frames + history_frames - 1
+        frame_indices = torch.tensor([frame], device=device)
+        root_2d = current_root_2d.unsqueeze(0)
+        index["root_2d"] = [frame_indices]
+        data["root_2d"] = [root_2d]
+
+    if end_effectors:
+        frame = generated_frames + history_frames - 1
+        local_2d = torch.tensor(
+            [
+                [target.target_xyz[1], target.target_xyz[0]]
+                for target in end_effectors
+            ],
+            dtype=current_root.dtype,
+            device=device,
+        )
+        delta_2d = _rotate_2d(local_2d, heading)
+        target_positions = current_root.repeat(len(end_effectors), 1)
+        target_positions[:, [0, 2]] += delta_2d
+        target_positions[:, 1] += torch.tensor(
+            [target.target_xyz[2] for target in end_effectors],
+            dtype=current_root.dtype,
+            device=device,
+        )
+        root_index = motion_rep.skeleton.root_idx
+        constraint_root = current_root.clone()
+        constraint_root[[0, 2]] = root_2d[-1]
+        joint_indices = [
+            motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
+            for target in end_effectors
+        ]
+        global_indices = torch.tensor(
+            [[frame, root_index], *[[frame, joint] for joint in joint_indices]],
+            device=device,
+        )
+        index.update(
+            root_y_pos=[torch.tensor([frame], device=device)],
+            global_joints_positions=[global_indices],
+        )
+        data.update(
+            root_y_pos=[current_root[1].reshape(1)],
+            global_joints_positions=[
+                torch.cat((constraint_root.unsqueeze(0), target_positions))
+            ],
+        )
+
     observed_motion, motion_mask = motion_rep.create_conditions(
-        {"root_2d": [frame_indices]},
-        {"root_2d": [root_2d]},
+        index,
+        data,
         generated_frames + history_frames,
         True,
         device,
     )
     return motion_mask.unsqueeze(0), observed_motion.unsqueeze(0)
+
+
+def _rotate_2d(positions: torch.Tensor, heading: torch.Tensor) -> torch.Tensor:
+    return (
+        RotateFeatures(heading.unsqueeze(0))
+        .rotate_2d_positions(positions.unsqueeze(0))
+        .squeeze(0)
+    )

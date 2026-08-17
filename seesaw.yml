@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dora-rs/dora/v1.0.0-rc.4/dora-schema.json
+
+nodes:
+  - id: agent
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-agent
+    min_log_level: info
+    env:
+      VLM_URL: http://127.0.0.1:8080
+      VLM_TIMEOUT: "120"
+      VLM_SYSTEM_PROMPT: tasks/seesaw/TASK.md
+      VLM_USER_PROMPT: prompt/USER.md
+      MOTION_GENERATOR: ardy
+    inputs:
+      observation: sim/observation
+      grounding_result: sim/grounding_result
+      planning_error: motion-gen/error
+      sim_error: sim/error
+    outputs:
+      - command
+      - grounding_request
+
+  - id: motion-gen
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-motion-gen
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      MOTION_GENERATOR: ardy
+      CHECKPOINTS_DIR: /tmp/checkpoints
+      TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
+      TEXT_ENCODER_DEVICE: cpu
+    inputs:
+      command: agent/command
+    outputs:
+      - motion
+      - error
+
+  - id: sim
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-sim
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      SONIC_DIR: /tmp/GEAR-SONIC
+      TASK: seesaw
+      IMAGE_WIDTH: "1280"
+      IMAGE_HEIGHT: "720"
+      JPEG_QUALITY: "85"
+      VIEWER: native
+      REFERENCE_GHOST: "false"
+    inputs:
+      motion: motion-gen/motion
+      grounding_request: agent/grounding_request
+    outputs:
+      - observation
+      - grounding_result
+      - error

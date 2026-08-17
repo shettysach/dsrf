@@ -9,14 +9,12 @@ from motion_gen.kinematic_planner import (
     PlannerMode,
     planner_direction,
     planner_mode,
-    planner_turn_direction,
 )
 
 
 def test_navigation_modes_are_intentionally_small() -> None:
     assert planner_mode("stand") is PlannerMode.IDLE
     assert planner_mode("walk") is PlannerMode.WALK
-    assert planner_mode("turn") is PlannerMode.WALK
     with pytest.raises(ValueError, match="Unsupported motion"):
         planner_mode("run")
 
@@ -24,8 +22,6 @@ def test_navigation_modes_are_intentionally_small() -> None:
 def test_navigation_directions_map_to_local_vectors() -> None:
     assert planner_direction("forward") == (1.0, 0.0)
     assert planner_direction("left") == (0.0, 1.0)
-    assert planner_turn_direction("left") == (0.0, 1.0)
-    assert planner_turn_direction("right") == (0.0, -1.0)
     with pytest.raises(ValueError, match="Unsupported direction"):
         planner_direction("north")
 
@@ -95,6 +91,23 @@ def test_stand_has_no_specific_target() -> None:
     np.testing.assert_allclose(captured["movement_direction"], 0.0)
 
 
+def test_stand_direction_can_cue_a_turn() -> None:
+    captured: dict[str, np.ndarray] = {}
+
+    def run(_outputs, inputs):
+        captured.update(inputs)
+        qpos = np.tile(_standing(), (1, 8, 1))
+        return qpos, np.array([8], dtype=np.int64)
+
+    planner = KinematicPlanner.__new__(KinematicPlanner)
+    planner.session = cast(Any, SimpleNamespace(run=run))
+    planner._context = np.tile(_standing(), (1, 4, 1))
+    planner.generate("stand", (), "left")
+
+    assert captured["has_specific_target"].tolist() == [[0]]
+    np.testing.assert_allclose(captured["movement_direction"], [[0.0, 1.0, 0.0]])
+
+
 def test_direction_is_robot_relative() -> None:
     captured: dict[str, np.ndarray] = {}
 
@@ -119,26 +132,6 @@ def test_direction_is_robot_relative() -> None:
     np.testing.assert_allclose(
         captured["facing_direction"], [[0.0, 1.0, 0.0]], atol=1e-6
     )
-
-
-def test_turn_changes_facing_without_requesting_translation() -> None:
-    captured: dict[str, np.ndarray] = {}
-
-    def run(_outputs, inputs):
-        captured.update(inputs)
-        qpos = np.tile(_standing(), (1, 8, 1))
-        return qpos, np.array([8], dtype=np.int64)
-
-    planner = KinematicPlanner.__new__(KinematicPlanner)
-    planner.session = cast(Any, SimpleNamespace(run=run))
-    planner._context = np.tile(_standing(), (1, 4, 1))
-
-    planner.generate("turn", (), "left")
-
-    assert captured["mode"].tolist() == [PlannerMode.WALK]
-    assert captured["has_specific_target"].tolist() == [[0]]
-    np.testing.assert_allclose(captured["movement_direction"], 0.0)
-    np.testing.assert_allclose(captured["facing_direction"], [[0.0, 1.0, 0.0]])
 
 
 def _standing() -> np.ndarray:

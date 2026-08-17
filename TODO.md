@@ -13,3 +13,5 @@
 [ ] Collision detection, hooks.
 
 [ ] Review owner-guaranteed required-field checks in `AgentCommand`, `VisualObservation`, `MotionChunk`, and `PipelineError` for the same simplification.
+
+[ ] Remove the hacky Task Hook

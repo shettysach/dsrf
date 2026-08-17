@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from io import BytesIO
@@ -9,9 +8,14 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
+from agent.ardy import ARDY_TOOL
 from agent.debug import AgentDebug
-from agent.vlm import OAIChatClient
-from agent.waypoint import parse_waypoint_command
+from agent.kinematic_planner import (
+    KINEMATIC_PLANNER_TOOL,
+)
+from agent.vlm import CommandCompletion, OAIChatClient
+from motion_gen.ardy.parser import parse_ardy_command
+from motion_gen.kinematic_planner.parser import parse_kinematic_planner_command
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,
@@ -22,6 +26,8 @@ from shared.arrow import (
 from shared.config import AgentConfig
 from shared.messages import (
     AgentCommand,
+    EndEffectorSelection,
+    EndEffectorTarget,
     GroundingRequest,
     GroundingResult,
     PipelineError,
@@ -29,7 +35,7 @@ from shared.messages import (
 )
 
 MAX_INVALID_RESPONSES = 3
-FALLBACK_COMMAND = '{"motion":"stand","waypoints_2d":[]}'
+FALLBACK_COMMAND = '{"motion":"stand"}'
 PLANNER_FALLBACK_COMMAND = '{"motion":"stand","direction":"forward"}'
 
 
@@ -38,7 +44,8 @@ class _PendingGrounding:
     command_text: str
     motion: str
     waypoints_2d: tuple[tuple[int, int], ...]
-    reasoning: str | None
+    end_effectors_2d: tuple[EndEffectorSelection, ...]
+    completion: CommandCompletion
 
 
 class AgentLoop:
@@ -56,6 +63,7 @@ class AgentLoop:
         self.observation: VisualObservation | None = None
         self.run_id: int | None = None
         self.pending_command: str | None = None
+        self.pending_completion: CommandCompletion | None = None
         self.pending_grounding: _PendingGrounding | None = None
         self.invalid_responses = 0
         self.waypoint_debug = waypoint_debug
@@ -90,6 +98,7 @@ class AgentLoop:
             self.run_id = observation.run_id
             self.observation = None
             self.pending_command = None
+            self.pending_completion = None
             self.pending_grounding = None
             self.invalid_responses = 0
         if self.observation is None:
@@ -112,10 +121,12 @@ class AgentLoop:
                     "previous observation"
                 )
             assert self.pending_command is not None
-            self.client.commit(self.observation, self.pending_command)
+            assert self.pending_completion is not None
+            self.client.commit(self.observation, self.pending_completion)
 
         self.observation = observation
         self.pending_command = None
+        self.pending_completion = None
         self.pending_grounding = None
         self.invalid_responses = 0
         self._query_and_send()
@@ -203,7 +214,7 @@ class AgentLoop:
         )
         started_at = time.perf_counter()
         try:
-            result = self.client.complete(
+            completion = self.client.complete(
                 self.observation,
                 retry_feedback=retry_feedback,
             )
@@ -224,15 +235,14 @@ class AgentLoop:
             )
             raise
 
-        vlm_ms = (time.perf_counter() - started_at) * 1000.0
-        command = str(result)
-        reasoning = getattr(result, "reasoning", None)
+        command = completion.command
         self.agent_debug.response(
             self.node,
             observation_id=observation_id,
-            reasoning=reasoning,
+            reasoning=completion.reasoning,
             command=command,
         )
+        vlm_ms = (time.perf_counter() - started_at) * 1000.0
         self.node.log(
             "info",
             f"[OBS {observation_id}] VLM command: {command!r} "
@@ -249,23 +259,40 @@ class AgentLoop:
         )
         try:
             if self.command_mode == "direction":
-                if not _is_waypoint_command(command):
-                    motion, direction = _parse_planner_command(command)
-                    self._send(
-                        command,
-                        motion=motion,
-                        target_xys=(),
-                        direction=direction,
-                        reasoning=reasoning,
+                parsed = parse_kinematic_planner_command(command)
+                if parsed.waypoints_2d:
+                    request = GroundingRequest(observation_id, parsed.waypoints_2d)
+                    self.pending_grounding = _PendingGrounding(
+                        command_text=command,
+                        motion=parsed.motion,
+                        waypoints_2d=parsed.waypoints_2d,
+                        end_effectors_2d=(),
+                        completion=completion,
                     )
+                    data, metadata = grounding_request_to_arrow(request)
+                    self.node.send_output("grounding_request", data, metadata=metadata)
                     return
-            parsed = parse_waypoint_command(command)
-            if not parsed.waypoints_2d:
                 self._send(
-                    command, motion=parsed.motion, target_xys=(), reasoning=reasoning
+                    command,
+                    motion=parsed.motion,
+                    target_xys=(),
+                    direction=parsed.direction,
+                    completion=completion,
                 )
                 return
-            request = GroundingRequest(observation_id, parsed.waypoints_2d)
+            parsed = parse_ardy_command(command)
+            if not parsed.waypoints_2d and not parsed.end_effectors:
+                self._send(
+                    command,
+                    motion=parsed.motion,
+                    target_xys=(),
+                    completion=completion,
+                )
+                return
+            end_effectors_2d = parsed.end_effectors
+            request = GroundingRequest(
+                observation_id, parsed.waypoints_2d, end_effectors_2d
+            )
         except ValueError as exc:
             self._retry_invalid(command, str(exc))
             return
@@ -274,7 +301,8 @@ class AgentLoop:
             command_text=command,
             motion=parsed.motion,
             waypoints_2d=parsed.waypoints_2d,
-            reasoning=reasoning,
+            end_effectors_2d=end_effectors_2d,
+            completion=completion,
         )
         data, metadata = grounding_request_to_arrow(request)
         self.node.send_output("grounding_request", data, metadata=metadata)
@@ -292,7 +320,8 @@ class AgentLoop:
             self.node.log(
                 "info",
                 f"VLM waypoints: normalized={pending.waypoints_2d} "
-                f"local_targets={result.target_xys}",
+                f"local_targets={result.target_xys} "
+                f"end_effectors={result.end_effectors}",
                 target="dsrf.agent.waypoint",
                 fields={
                     "event": "waypoint_grounded",
@@ -303,12 +332,14 @@ class AgentLoop:
                 self.observation.jpeg,
                 result.observation_id,
                 pending.waypoints_2d,
+                tuple(selection.target_2d for selection in pending.end_effectors_2d),
             )
         self._send(
             pending.command_text,
             motion=pending.motion,
             target_xys=result.target_xys,
-            reasoning=pending.reasoning,
+            end_effectors=result.end_effectors,
+            completion=pending.completion,
         )
 
     def _send(
@@ -318,7 +349,8 @@ class AgentLoop:
         motion: str,
         target_xys: tuple[tuple[float, float], ...],
         direction: str | None = None,
-        reasoning: str | None = None,
+        end_effectors: tuple[EndEffectorTarget, ...] = (),
+        completion: CommandCompletion | None = None,
     ) -> None:
         assert self.observation is not None
         command = AgentCommand(
@@ -327,11 +359,17 @@ class AgentLoop:
             motion,
             target_xys,
             direction,
-            reasoning,
+            end_effectors,
+            completion.reasoning if completion is not None else None,
         )
         data, metadata = agent_command_to_arrow(command)
         self.node.send_output("command", data, metadata=metadata)
         self.pending_command = command.text
+        self.pending_completion = completion or CommandCompletion(
+            command_text,
+            {"role": "assistant", "content": command_text},
+            None,
+        )
 
     @property
     def _fallback_command(self) -> str:
@@ -343,7 +381,10 @@ class AgentLoop:
 
 
 def _write_debug_image(
-    jpeg: bytes, observation_id: int, waypoints_2d: tuple[tuple[int, int], ...]
+    jpeg: bytes,
+    observation_id: int,
+    waypoints_2d: tuple[tuple[int, int], ...],
+    end_effectors_2d: tuple[tuple[int, int], ...],
 ) -> None:
     image = iio.imread(BytesIO(jpeg), extension=".jpg")
     height, width = image.shape[:2]
@@ -352,6 +393,11 @@ def _write_debug_image(
         v = round(y / 1000 * (height - 1))
         image[max(0, v - 5) : v + 6, u] = (255, 0, 0)
         image[v, max(0, u - 5) : u + 6] = (255, 0, 0)
+    for x, y in end_effectors_2d:
+        u = round(x / 1000 * (width - 1))
+        v = round(y / 1000 * (height - 1))
+        image[max(0, v - 5) : v + 6, u] = (0, 255, 255)
+        image[v, max(0, u - 5) : u + 6] = (0, 255, 255)
     output_dir = Path("/tmp/dsrf-waypoint-debug")
     output_dir.mkdir(parents=True, exist_ok=True)
     iio.imwrite(output_dir / f"observation-{observation_id}.jpg", image)
@@ -365,6 +411,7 @@ def main() -> None:
         timeout=cfg.vlm_timeout,
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
+        tool=(KINEMATIC_PLANNER_TOOL if cfg.command_mode == "direction" else ARDY_TOOL),
         history_turns=cfg.history_turns,
         history_retain_turns=cfg.history_retain_turns,
     )
@@ -375,32 +422,6 @@ def main() -> None:
         agent_debug=AgentDebug(cfg.agent_debug),
         command_mode=cfg.command_mode,
     ).run()
-
-
-def _parse_planner_command(text: str) -> tuple[str, str | None]:
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError("Command must be a JSON object") from exc
-    if not isinstance(payload, dict) or set(payload) != {"motion", "direction"}:
-        raise ValueError("Planner command must contain only motion and direction")
-    motion = payload["motion"]
-    direction = payload["direction"]
-    if motion == "stand" and direction in {"forward", "backward", "left", "right"}:
-        return "stand", None
-    if motion == "walk" and direction in {"forward", "backward", "left", "right"}:
-        return "walk", direction
-    if motion == "turn" and direction in {"left", "right"}:
-        return "turn", direction
-    raise ValueError("Unsupported planner motion or direction")
-
-
-def _is_waypoint_command(text: str) -> bool:
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return False
-    return isinstance(payload, dict) and "waypoints_2d" in payload
 
 
 if __name__ == "__main__":

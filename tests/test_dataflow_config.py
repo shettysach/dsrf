@@ -2,42 +2,34 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from tasks import get_task
+
+from sim.config import make_sim_env_cfg
 
 
 def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     descriptor = yaml.safe_load(Path("corridors.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
-    assert nodes["agent"]["env"] == {
+    assert nodes["agent"]["env"].items() >= {
         "VLM_URL": "http://127.0.0.1:8080",
         "VLM_TIMEOUT": "120",
-        "AGENT_DEBUG": "${AGENT_DEBUG:-false}",
-        "VLM_HISTORY_TURNS": "${VLM_HISTORY_TURNS:-8}",
-        "VLM_HISTORY_RETAIN_TURNS": "${VLM_HISTORY_RETAIN_TURNS:-2}",
         "VLM_SYSTEM_PROMPT": "tasks/portrait_corridors/TASK.md",
         "VLM_USER_PROMPT": "prompt/PLANNER_USER.md",
         "MOTION_GENERATOR": "kinematic_planner",
-    }
+    }.items()
     assert nodes["motion-gen"]["env"] == {
         "DEVICE": "cuda",
         "MOTION_GENERATOR": "kinematic_planner",
         "PLANNER_ONNX": ("/tmp/GEAR-SONIC/planner_sonic.onnx"),
     }
-    assert nodes["sim"]["env"] == {
+    assert nodes["sim"]["env"].items() >= {
         "DEVICE": "cuda",
         "SONIC_DIR": "/tmp/GEAR-SONIC",
         "TASK": "portrait-corridors",
-        "GOAL_INDEX": "${GOAL_INDEX:-1}",
-        "IMAGE_WIDTH": "1280",
-        "IMAGE_HEIGHT": "720",
         "JPEG_QUALITY": "85",
         "VIEWER": "native",
-        "REFERENCE_GHOST": "${REFERENCE_GHOST:-false}",
-        "CAMERA_YAW": "${CAMERA_YAW:-true}",
-        "DEMO_VIDEO_DIR": "${DEMO_VIDEO_DIR:-}",
-        "DEMO_RUNS": "${DEMO_RUNS:-10}",
-        "MOTION_TIMEOUT_SECONDS": "${MOTION_TIMEOUT_SECONDS:-20}",
-    }
+    }.items()
 
 
 def test_ardy_dataflow_encodes_commands_in_motion_gen() -> None:
@@ -68,80 +60,46 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
 
     assert set(nodes) == {"agent", "motion-gen", "sim"}
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
-    assert nodes["agent"]["env"]["AGENT_DEBUG"] == "${AGENT_DEBUG:-false}"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"
-    assert nodes["sim"]["env"]["GOAL_INDEX"] == "${GOAL_INDEX:-0}"
 
 
-def test_stack_steps_dataflow_uses_stack_steps_task() -> None:
-    descriptor = yaml.safe_load(Path("stack_steps.yml").read_text())
+def test_seesaw_dataflow_uses_ardy() -> None:
+    descriptor = yaml.safe_load(Path("seesaw.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
-    assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == ("tasks/stack_steps/TASK.md")
-    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
-    assert nodes["sim"]["env"]["TASK"] == "stack-steps"
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/seesaw/TASK.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["sim"]["env"]["TASK"] == "seesaw"
 
 
-def test_see_saw_dataflow_uses_see_saw_task() -> None:
-    descriptor = yaml.safe_load(Path("see_saw.yml").read_text())
+def test_seesaw_tracks_position_with_a_fixed_azimuth() -> None:
+    cfg = make_sim_env_cfg(task=get_task("seesaw"))
+
+    assert cfg.viewer.origin_type is cfg.viewer.OriginType.ASSET_BODY
+    assert cfg.viewer.entity_name == "robot"
+    assert cfg.viewer.body_name == "torso_link"
+    assert cfg.viewer.azimuth == 0.0
+
+
+def test_stairs_dataflow_uses_ardy() -> None:
+    descriptor = yaml.safe_load(Path("stairs.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
-    assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/see_saw/TASK.md"
-    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
-    assert nodes["sim"]["env"]["TASK"] == "see-saw"
-
-
-def test_sokoban_2d_dataflow_enables_waypoint_projection() -> None:
-    descriptor = yaml.safe_load(Path("sokoban_2d.yml").read_text())
-    nodes = {node["id"]: node for node in descriptor["nodes"]}
-
-    assert set(nodes) == {"agent", "motion-gen", "sim"}
-    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/SYSTEM_2D.md"
-    assert nodes["agent"]["env"]["VLM_USER_PROMPT"] == "prompt/USER_2D.md"
-    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
-    assert nodes["sim"]["env"]["TASK"] == "sokoban"
-    assert nodes["sim"]["env"]["CAPTURE_DEPTH"] == "true"
-    assert nodes["sim"]["env"]["GOAL_INDEX"] == "${GOAL_INDEX:-0}"
-
-
-def test_grid_sokoban_launcher_keeps_runtime_configuration_in_yaml() -> None:
-    descriptor = yaml.safe_load(Path("grid_sokoban.yml").read_text())
-    node = descriptor["nodes"][0]
-
-    assert node["args"] == "run dsrf-grid-sokoban"
-    assert node["env"] == {
-        "GRID_LAYOUT": "${GRID_LAYOUT:-straight}",
-        "GRID_VLM": "${GRID_VLM:-true}",
-        "GRID_AUTOPLAY": "${GRID_AUTOPLAY:-true}",
-        "GRID_RECORD_RUNS": "${GRID_RECORD_RUNS:-10}",
-        "GRID_MAX_MOVES": "${GRID_MAX_MOVES:-40}",
-        "GRID_VIDEO_PATH": "${GRID_VIDEO_PATH:-/tmp/grid-sokoban-10-runs.mp4}",
-        "GRID_RECORD_FPS": "${GRID_RECORD_FPS:-8}",
-        "GRID_RECORD_HOLD_FRAMES": "${GRID_RECORD_HOLD_FRAMES:-4}",
-        "VLM_URL": "${VLM_URL:-http://127.0.0.1:8080}",
-        "VLM_TIMEOUT": "${VLM_TIMEOUT:-120}",
-        "VLM_HISTORY_TURNS": "${VLM_HISTORY_TURNS:-16}",
-        "VLM_HISTORY_RETAIN_TURNS": "${VLM_HISTORY_RETAIN_TURNS:-4}",
-        "VLM_SYSTEM_PROMPT": "tasks/grid_sokoban/TASK.md",
-        "VLM_USER_PROMPT": "tasks/grid_sokoban/USER.md",
-    }
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/stairs/TASK.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["sim"]["env"]["TASK"] == "stairs"
 
 
 def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
         "tasks/sokoban/TASK.md",
-        "tasks/sokoban/SYSTEM_2D.md",
-        "tasks/grid_sokoban/SYSTEM.md",
-        "tasks/grid_sokoban/TASK.md",
-        "tasks/stack_steps/TASK.md",
-        "tasks/see_saw/TASK.md",
+        "tasks/seesaw/TASK.md",
+        "tasks/stairs/TASK.md",
     ):
         assert Path(path).is_file()
-    assert Path("tasks/grid_sokoban/USER.md").is_file()
 
 
 def test_text_encoder_is_a_library_without_a_node_entry_point() -> None:

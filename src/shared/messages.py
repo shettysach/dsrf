@@ -7,6 +7,36 @@ import numpy as np
 MOTION_COLUMNS = 36
 SONIC_FPS = 50
 ARDY_EMBEDDING_SIZE = 4096
+END_EFFECTOR_NAMES = frozenset({"left_hand", "right_hand", "left_foot", "right_foot"})
+
+
+@dataclass(frozen=True)
+class EndEffectorSelection:
+    name: str
+    target_2d: tuple[int, int]
+
+    def __post_init__(self) -> None:
+        if self.name not in END_EFFECTOR_NAMES:
+            raise ValueError(f"Unsupported end effector: {self.name}")
+        if len(self.target_2d) != 2 or any(
+            isinstance(value, bool) or not isinstance(value, int)
+            for value in self.target_2d
+        ):
+            raise ValueError("End-effector image target must contain two integers")
+        if not all(0 <= value <= 1000 for value in self.target_2d):
+            raise ValueError("End-effector image coordinates must be in [0,1000]")
+
+
+@dataclass(frozen=True)
+class EndEffectorTarget:
+    name: str
+    target_xyz: tuple[float, float, float]
+
+    def __post_init__(self) -> None:
+        if self.name not in END_EFFECTOR_NAMES:
+            raise ValueError(f"Unsupported end effector: {self.name}")
+        if not all(np.isfinite(value) for value in self.target_xyz):
+            raise ValueError("End-effector target must be finite")
 
 
 @dataclass(frozen=True)
@@ -75,6 +105,7 @@ class AgentCommand:
     motion: str
     target_xys: tuple[tuple[float, float], ...]
     direction: str | None = None
+    end_effectors: tuple[EndEffectorTarget, ...] = ()
     reasoning: str | None = None
 
     def __post_init__(self) -> None:
@@ -82,6 +113,7 @@ class AgentCommand:
         if not normalized:
             raise ValueError("Command is empty")
         _validate_navigation(self.motion, self.target_xys, self.direction)
+        _validate_end_effectors(self.end_effectors)
         object.__setattr__(self, "text", normalized)
 
 
@@ -102,6 +134,7 @@ class VisualObservation:
 class GroundingRequest:
     observation_id: int
     waypoints_2d: tuple[tuple[int, int], ...]
+    end_effectors_2d: tuple[EndEffectorSelection, ...] = ()
 
     def __post_init__(self) -> None:
         for x, y in self.waypoints_2d:
@@ -112,18 +145,23 @@ class GroundingRequest:
                 raise ValueError("Waypoint coordinates must be integers")
             if not (0 <= x <= 1000 and 0 <= y <= 1000):
                 raise ValueError("Waypoint coordinates must be in [0,1000]")
+        names = [selection.name for selection in self.end_effectors_2d]
+        if len(names) != len(set(names)):
+            raise ValueError("Each end effector may be grounded once")
 
 
 @dataclass(frozen=True)
 class GroundingResult:
     observation_id: int
     target_xys: tuple[tuple[float, float], ...]
+    end_effectors: tuple[EndEffectorTarget, ...] = ()
 
     def __post_init__(self) -> None:
         if not all(
             np.isfinite(value) for target_xy in self.target_xys for value in target_xy
         ):
             raise ValueError("target_xys must be finite")
+        _validate_end_effectors(self.end_effectors)
 
 
 @dataclass(frozen=True)
@@ -152,3 +190,9 @@ def _validate_navigation(
         return
     if not all(np.isfinite(value) for target_xy in target_xys for value in target_xy):
         raise ValueError("target_xys must be finite")
+
+
+def _validate_end_effectors(end_effectors: tuple[EndEffectorTarget, ...]) -> None:
+    names = [target.name for target in end_effectors]
+    if len(names) != len(set(names)):
+        raise ValueError("Each end effector may be constrained once")

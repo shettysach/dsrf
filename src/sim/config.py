@@ -69,7 +69,11 @@ def make_sim_env_cfg(
         entities={"robot": robot_cfg},
     )
     if task is not None:
-        scene.spec_fn = task.make_scene(goal_index=goal_index)
+        scene.spec_fn = (
+            task.make_scene_with_goal(goal_index)
+            if task.make_scene_with_goal is not None
+            else task.make_scene()
+        )
 
     viewer_spec = task.viewer if task is not None else ViewerSpec()
 
@@ -86,12 +90,17 @@ def make_sim_env_cfg(
         },
         sim=SimulationCfg(njmax=128, mujoco=MujocoCfg(timestep=0.005)),
         viewer=ViewerConfig(
-            origin_type=ViewerConfig.OriginType.ASSET_BODY,
-            entity_name="robot",
-            body_name="torso_link",
+            origin_type=(
+                ViewerConfig.OriginType.WORLD
+                if viewer_spec.origin == "world"
+                else ViewerConfig.OriginType.ASSET_BODY
+            ),
+            entity_name="robot" if viewer_spec.origin == "robot" else None,
+            body_name="torso_link" if viewer_spec.origin == "robot" else None,
+            lookat=viewer_spec.lookat,
             distance=viewer_spec.distance,
             elevation=viewer_spec.elevation,
-            azimuth=0.0,
+            azimuth=viewer_spec.azimuth,
             width=image_width,
             height=image_height,
             max_extra_envs=0,

@@ -22,6 +22,8 @@ from shared.arrow import (
 from shared.config import KinematicPlannerConfig
 from shared.messages import (
     AgentCommand,
+    EndEffectorSelection,
+    EndEffectorTarget,
     GroundingRequest,
     MotionChunk,
     ProjectionContext,
@@ -148,11 +150,17 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     )
     embedding = torch.ones(4096)
     encoded: list[str] = []
-    generated: list[tuple[torch.Tensor, tuple[tuple[float, float], ...]]] = []
+    generated: list[
+        tuple[
+            torch.Tensor,
+            tuple[tuple[float, float], ...],
+            tuple[EndEffectorTarget, ...],
+        ]
+    ] = []
     generator = SimpleNamespace(
         fps=25,
-        generate=lambda embedding, target: (
-            generated.append((embedding, target)) or _planner_motion()
+        generate=lambda embedding, target, end_effectors: (
+            generated.append((embedding, target, end_effectors)) or _planner_motion()
         ),
     )
     encoder = SimpleNamespace(
@@ -177,6 +185,7 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     assert len(generated) == 1
     assert generated[0][0] is embedding
     assert generated[0][1] == ((0.2, -0.7), (0.6, 0.1))
+    assert generated[0][2] == ()
     chunk = motion_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
@@ -244,7 +253,7 @@ class _Renderer:
 
 def _projection() -> ProjectionContext:
     return ProjectionContext(
-        depth=np.ones((2, 2), dtype=np.float32),
+        depth=np.ones((101, 101), dtype=np.float32),
         camera_pos_w=np.zeros(3),
         camera_forward_w=np.array([1.0, 0.0, 0.0]),
         camera_up_w=np.array([0.0, 0.0, 1.0]),
@@ -279,10 +288,12 @@ def _motion_event(chunk: MotionChunk) -> dict[str, object]:
 
 
 def _grounding_request_event(
-    observation_id: int, waypoints_2d: tuple[tuple[int, int], ...] = ((500, 500),)
+    observation_id: int,
+    waypoints_2d: tuple[tuple[int, int], ...] = ((500, 500),),
+    end_effectors_2d: tuple[EndEffectorSelection, ...] = (),
 ) -> dict[str, object]:
     value, metadata = grounding_request_to_arrow(
-        GroundingRequest(observation_id, waypoints_2d)
+        GroundingRequest(observation_id, waypoints_2d, end_effectors_2d)
     )
     return {
         "type": "INPUT",
@@ -313,7 +324,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     runtime.run()
 
     assert simulation.steps == 2
-    assert viewer.sync_steps == [0, 1, 2]
+    assert viewer.sync_steps == [1, 2]
     assert renderer.jpeg_steps == [0, 2]
     assert renderer.depth_steps == []
     observations = [output for output in node.outputs if output[0] == "observation"]
@@ -379,6 +390,39 @@ def test_sim_lazily_caches_depth_for_current_observation() -> None:
         grounding_result_from_arrow(value, cast(Any, kwargs["metadata"])).observation_id
         == 0
         for _, value, kwargs in results
+    )
+
+
+def test_sim_grounds_end_effector_with_lazy_depth() -> None:
+    node = _Node(
+        [
+            _grounding_request_event(
+                0,
+                (),
+                (EndEffectorSelection("right_hand", (500, 500)),),
+            ),
+            {"type": "STOP"},
+        ]
+    )
+    simulation = _Simulation()
+    renderer = _Renderer(simulation)
+    runtime = sim_runtime.SimRuntime(
+        cast(Any, node),
+        cast(Any, simulation),
+        cast(Any, _Policy()),
+        cast(Any, renderer),
+    )
+
+    runtime.run()
+
+    assert renderer.depth_steps == [0]
+    output = next(output for output in node.outputs if output[0] == "grounding_result")
+    result = grounding_result_from_arrow(
+        output[1], cast(Any, output[2]["metadata"])
+    )
+    assert result.end_effectors[0].name == "right_hand"
+    np.testing.assert_allclose(
+        result.end_effectors[0].target_xyz, (1.0, 0.0, 0.0), atol=0.3
     )
 
 
