@@ -16,13 +16,13 @@ its motion has settled.
 
 ## Approach and mount
 
-1. Use a floor waypoint to approach the center of the near long edge of the blue
-   plank. Do not approach a corner or either end.
-2. Before stepping up, face the plank and make sure the intended foot target is
-   on its blue surface, near the hinge line and its front-to-back centerline.
-3. Step onto the plank deliberately. Use a foot end-effector target when it
-   helps place a foot on the surface; keep the other foot clear and then bring it
-   onto the same central area.
+1. **Approach with 2D waypoints only.** Put each waypoint on the visible ground
+   directly in front of the center of the near long edge of the blue plank. Do
+   not put a waypoint on the plank, a corner, or either end.
+2. Once at that ground position, stop using waypoints and face the plank.
+3. **Mount with foot end-effector targets.** Target a foot on the blue surface,
+   near the hinge line and its front-to-back centerline. Keep the other foot
+   clear, then bring it onto the same central area with another foot target.
 4. Do not use a hand target unless it is needed to recover balance. Do not reach
    toward the counterweight.
 
