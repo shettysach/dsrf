@@ -216,6 +216,7 @@ class _Simulation:
 class _Policy:
     def __init__(self) -> None:
         self.calls = 0
+        self.resets = 0
         self.loaded: MotionChunk | None = None
 
     def load_motion(self, chunk, root_pos_w, root_quat_w) -> None:
@@ -226,6 +227,9 @@ class _Policy:
         del state
         self.calls += 1
         return torch.zeros((1, 29)), self.calls == 2
+
+    def reset(self) -> None:
+        self.resets += 1
 
 
 class _Renderer:
@@ -339,6 +343,46 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     assert second.observation_id == 1
     assert second.completed_command == "walk forward"
     assert any("[OBS 0->1] motion complete" in message for _, message, _ in node.logs)
+
+
+def test_sonic_resets_after_a_fall_and_reports_the_cause(monkeypatch) -> None:
+    class _FallingSimulation(_Simulation):
+        def __init__(self) -> None:
+            super().__init__()
+            self.resets = 0
+
+        def fall_reason(self) -> str | None:
+            return "torso was tipped over (uprightness 0.20)" if self.steps else None
+
+        def reset(self) -> None:
+            self.resets += 1
+
+    qpos = np.zeros((2, 36), dtype=np.float32)
+    qpos[:, 3] = 1.0
+    node = _Node(
+        [_motion_event(MotionChunk(0, "walk forward", qpos)), {"type": "STOP"}]
+    )
+    simulation = _FallingSimulation()
+    policy = _Policy()
+    monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
+    runtime = sim_runtime.SimRuntime(
+        cast(Any, node),
+        cast(Any, simulation),
+        cast(Any, policy),
+        cast(Any, _Renderer(simulation)),
+    )
+
+    runtime.run()
+
+    observations = [output for output in node.outputs if output[0] == "observation"]
+    reset_observation = observation_from_arrow(
+        observations[-1][1], cast(Any, observations[-1][2]["metadata"])
+    )
+    assert simulation.resets == 1
+    assert policy.resets == 1
+    assert reset_observation.observation_id == 0
+    assert reset_observation.run_id == 1
+    assert reset_observation.reset_reason == "torso was tipped over (uprightness 0.20)"
 
 
 def test_sim_publishes_rgb_without_eager_depth() -> None:

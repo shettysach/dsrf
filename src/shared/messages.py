@@ -124,10 +124,13 @@ class VisualObservation:
     jpeg: bytes
     run_id: int = 0
     collision_detected: bool = False
+    reset_reason: str | None = None
 
     def __post_init__(self) -> None:
         if not self.jpeg:
             raise ValueError("Observation JPEG is empty")
+        if self.reset_reason is not None and not self.reset_reason.strip():
+            raise ValueError("Reset reason must be non-empty when provided")
 
 
 @dataclass(frozen=True)

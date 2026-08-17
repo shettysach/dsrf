@@ -87,6 +87,8 @@ def observation_to_arrow(
         metadata["completed_command"] = observation.completed_command
     if observation.collision_detected:
         metadata["collision_detected"] = "true"
+    if observation.reset_reason is not None:
+        metadata["reset_reason"] = observation.reset_reason
     return pa.array([observation.jpeg], type=pa.binary()), metadata
 
 
@@ -108,6 +110,9 @@ def observation_from_arrow(
         run_id=int(metadata.get("run_id", 0)),
         collision_detected=str(metadata.get("collision_detected", "false")).lower()
         == "true",
+        reset_reason=(
+            str(metadata["reset_reason"]) if "reset_reason" in metadata else None
+        ),
     )
 
 

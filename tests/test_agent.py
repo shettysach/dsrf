@@ -178,6 +178,49 @@ def test_llama_client_uses_tool_call_content_as_reasoning(monkeypatch) -> None:
     assert completion.reasoning == "The low end is on the left, so I will approach it."
 
 
+def test_llama_client_tells_the_vlm_why_a_fall_reset_occurred(monkeypatch) -> None:
+    posted: list[dict[str, Any]] = []
+    response = {
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "ardy_command",
+                    "arguments": '{"motion":"stand"}',
+                },
+            }
+        ]
+    }
+
+    def urlopen(request, timeout):
+        del timeout
+        posted.append(json.loads(request.data))
+        return _Response(response)
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="system",
+        user_prompt="user",
+        tool=ARDY_TOOL,
+    )
+    client.complete(
+        VisualObservation(
+            0,
+            None,
+            b"jpeg",
+            run_id=1,
+            reset_reason="torso was too low (0.22 m above the floor)",
+        )
+    )
+
+    text = posted[0]["messages"][-1]["content"][0]["text"]
+    assert "previous attempt was reset because the robot fell" in text
+    assert "torso was too low" in text
+
+
 class _Node:
     def __init__(self, events: list[dict[str, object]]) -> None:
         self.events = iter(events)

@@ -75,6 +75,10 @@ class EpisodeStepLimitReached(RuntimeError):
     pass
 
 
+class RobotFell(RuntimeError):
+    pass
+
+
 def portrait_corridor_demo_runs(count: int) -> tuple[DemoRun, ...]:
     if not 1 <= count <= len(PORTRAIT_CORRIDOR_RUNS):
         raise ValueError(
@@ -126,6 +130,7 @@ class SimRuntime:
         self.demo_runs = demo_runs or (DemoRun("Center start", (0.0, 0.0)),)
         self.reset_for_demo_run = bool(demo_runs)
         self.run_index = 0
+        self.run_id = 0
         self.observation_id = 0
         self.episode_steps = 0
         self._projection_cache: ProjectionContext | None = None
@@ -258,6 +263,9 @@ class SimRuntime:
         )
         try:
             stats = self._execute()
+        except RobotFell as exc:
+            self._reset_after_fall(str(exc))
+            return
         except MotionExecutionTimeout as exc:
             self._handle_motion_timeout(chunk.command, str(exc))
             return
@@ -342,6 +350,11 @@ class SimRuntime:
                 if self.step_hook is not None:
                     self.step_hook.before_step()
                 self.simulation.step(action)
+                fall_detector = getattr(self.simulation, "fall_reason", None)
+                if fall_detector is not None:
+                    fall_reason = fall_detector()
+                    if fall_reason is not None:
+                        raise RobotFell(fall_reason)
                 collision_detector = getattr(
                     self.simulation, "task_collision_detected", None
                 )
@@ -417,6 +430,32 @@ class SimRuntime:
         )
         self._advance_or_stop("motion timeout")
 
+    def _reset_after_fall(self, reason: str) -> None:
+        """Start a clean episode and surface the physical failure to the VLM."""
+        self.node.log(
+            "warning",
+            f"[OBS {self.observation_id}] robot fell; resetting episode: {reason}",
+            target="dsrf.sim",
+            fields={
+                "event": "episode_reset_after_fall",
+                "observation_id": str(self.observation_id),
+                "reason": reason,
+            },
+        )
+        self.simulation.reset()
+        self.policy.reset()
+        if self.step_hook is not None and hasattr(self.step_hook, "reset"):
+            self.step_hook.reset()
+        self.run_id += 1
+        self.observation_id = 0
+        self.episode_steps = 0
+        self._projection_cache = None
+        self._observation_published_at = None
+        self.demo_vlm_state = DemoVlmState()
+        self._last_command_signature = None
+        self._repeated_command_count = 0
+        self._publish_observation(completed_command=None, reset_reason=reason)
+
     def _handle_episode_step_limit(self, detail: str) -> None:
         self.node.log(
             "info",
@@ -448,6 +487,7 @@ class SimRuntime:
     def _advance_or_stop(self, reason: str) -> None:
         if self.run_index + 1 < len(self.demo_runs):
             self.run_index += 1
+            self.run_id += 1
             self.node.log(
                 "info",
                 f"Starting demo run {self.run_index + 1}/{len(self.demo_runs)} "
@@ -517,6 +557,7 @@ class SimRuntime:
         *,
         completed_command: str | None,
         collision_detected: bool = False,
+        reset_reason: str | None = None,
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
         jpeg = self.renderer.capture_jpeg()
@@ -525,8 +566,9 @@ class SimRuntime:
             observation_id=self.observation_id,
             completed_command=completed_command,
             jpeg=jpeg,
-            run_id=self.run_index,
+            run_id=self.run_id,
             collision_detected=collision_detected,
+            reset_reason=reset_reason,
         )
         data, metadata = observation_to_arrow(observation)
         self.node.send_output("observation", data, metadata=metadata)

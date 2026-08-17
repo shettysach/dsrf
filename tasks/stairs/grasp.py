@@ -48,6 +48,10 @@ class StairsGrasp:
                     self._attached = True
                     return
 
+    def reset(self) -> None:
+        """Clear task-local grasp state after the simulator resets an episode."""
+        self._attached = False
+
     def _palm_reaches_block(self, palm_site_id: int) -> bool:
         data = self._sim.data
         block_pos = data.xpos[0, self._block_body_id]

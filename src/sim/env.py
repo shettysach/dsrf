@@ -118,6 +118,21 @@ class MjlabEnv:
                     return True
             return False
 
+    def fall_reason(self) -> str | None:
+        """Return a human-readable fall cause, if the robot is no longer upright."""
+        state = self.robot_state()
+        root_height = float(state.root_pos_w[2].item())
+        if root_height < 0.45:
+            return f"torso was too low ({root_height:.2f} m above the floor)"
+
+        # The world Z component of the root link's local up axis.  Quaternions
+        # are stored as wxyz, so this is the (2, 2) entry of its rotation matrix.
+        _, quat_x, quat_y, _ = (float(value.item()) for value in state.root_quat_w)
+        uprightness = 1.0 - 2.0 * (quat_x * quat_x + quat_y * quat_y)
+        if uprightness < 0.5:
+            return f"torso was tipped over (uprightness {uprightness:.2f})"
+        return None
+
     def reset(self) -> tuple[VecEnvObs, dict[str, object]]:
         with self.compute_context():
             return self._env.reset()

@@ -17,27 +17,27 @@ green platform and do not attempt to climb the stairs.
 
 Complete these three steps in order.
 
-1. **Move to the smaller stair.** Identify the smaller block, then use 2D
-   waypoints on visible floor to stop directly in front of it. Do not put a
-   waypoint on either block or the platform. Do not approach the larger block.
-2. **Squat in front of it.** Omit all image constraints, face the smaller block
-   squarely, and issue a concise squat motion. Reassess once the robot is low,
-   balanced, and close enough to reach the block with both hands.
-3. **Pick it up with both hands.** Omit `waypoints_2d` entirely and use
-   `left_hand` and `right_hand` end-effector targets on opposite accessible sides
-   of the smaller orange block. Use a concise motion such as "grasp and lift the
-   small block". The block attaches automatically when either palm reaches it.
-   If either target is out of range, repeat step 1 to move closer, then squat
-   again before retrying.
+1. **Walk directly in front of the smaller stair.** Identify the smaller block,
+   then use a `walk` motion with 2D waypoints on visible floor to stop squarely
+   in front of it, as close as possible without contacting it. Do not put a
+   waypoint on either block or the platform, and do not approach the larger block.
+2. **Squat in place.** Omit `waypoints_2d`, stay facing the smaller block, and
+   issue a concise squat motion. Reassess only once the robot is low, balanced,
+   and within hand reach.
+3. **Grasp and lift it.** Omit `waypoints_2d` entirely and use one or both hand
+   end-effector targets on an accessible side of the smaller orange block. Use a
+   concise motion such as "grasp and lift the small block". The block attaches
+   automatically when either palm reaches it. If it is out of range, stand,
+   repeat step 1 to move closer, then squat again before retrying.
 
 ## Safety
 
 - Never combine a waypoint with a hand target in one command.
-- Do not target both hands at the same image point; target opposite sides of the
-  smaller block.
+- If using both hands, do not target them at the same image point; use opposite
+  accessible sides of the smaller block.
 - Make no contact with the larger block, side walls, or platform.
 
 ## Finish
 
-Once both hands are on the smaller block and it has been lifted clear of the
-floor, stand while holding it. Do not continue toward the platform.
+Once the smaller block has been lifted clear of the floor, stand while holding
+it. Do not continue toward the platform.

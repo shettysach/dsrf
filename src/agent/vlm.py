@@ -173,6 +173,12 @@ def _user_message(
 ) -> dict[str, Any]:
     completed = observation.completed_command or "none (initial observation)"
     text = f"Completed command: {completed}"
+    if observation.reset_reason is not None:
+        text = (
+            f"The previous attempt was reset because the robot fell: "
+            f"{observation.reset_reason}. Restart from the initial pose and "
+            "move more carefully.\n\n" + text
+        )
     if observation.collision_detected:
         text += "\nCollision happened during the completed command."
     text += f"\n\n{user_prompt}"
