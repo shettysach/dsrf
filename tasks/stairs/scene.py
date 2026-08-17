@@ -42,7 +42,7 @@ _STEP_RGBA = (0.95, 0.55, 0.1, 1.0)
 
 
 def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
-    """Create a walled arena with a raised platform and two movable steps."""
+    """Create a walled arena with a fixed step and one graspable block."""
 
     lower_start, upper_start = _sample_step_starts(seed)
 
@@ -56,6 +56,7 @@ def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             half_size=LOWER_STEP_HALF_SIZE,
             mass=LOWER_STEP_MASS,
             raised_tread_fraction=LOWER_RAISED_TREAD_FRACTION,
+            movable=True,
         )
         _add_step(
             spec,
@@ -64,6 +65,7 @@ def make_stairs_spec_fn(*, seed: int | None = None) -> SceneSpecFn:
             half_size=UPPER_STEP_HALF_SIZE,
             mass=UPPER_STEP_MASS,
             raised_tread_fraction=UPPER_RAISED_TREAD_FRACTION,
+            movable=False,
         )
         _add_small_block_grasps(spec)
 
@@ -144,6 +146,7 @@ def _add_step(
     half_size: tuple[float, float, float],
     mass: float,
     raised_tread_fraction: float,
+    movable: bool,
 ) -> None:
     half_x, half_y, half_z = half_size
     raised_half_x = half_x * raised_tread_fraction
@@ -151,7 +154,8 @@ def _add_step(
     x, y = center
     body = spec.worldbody.add_body(name=name)
     body.pos = (x, y, half_z)
-    body.add_freejoint(name=f"{name}_free")
+    if movable:
+        body.add_freejoint(name=f"{name}_free")
     body.add_geom(
         name=f"{name}_lower_tread",
         type=MJGEOM_BOX,
@@ -187,6 +191,11 @@ def _add_small_block_grasps(spec: "MjSpec") -> None:
         name="stairs_small_block_rest_weld",
         name1="stairs_small_block",
         active=True,
+        # The free joint is retained only so the block can be released into a
+        # palm weld. A stiff rest weld makes its pre-grasp pose truly fixed
+        # instead of a compliant contact that can settle or bounce.
+        solref=(0.01, 1.0),
+        solimp=(0.999, 0.999, 0.001, 0.5, 2.0),
         **common,
     )
     for side in ("left", "right"):
