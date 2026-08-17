@@ -49,6 +49,7 @@ nodes:
       JPEG_QUALITY: "85"
       VIEWER: native
       REFERENCE_GHOST: "false"
+      CAMERA_YAW: "false"
     inputs:
       motion: motion-gen/motion
       grounding_request: agent/grounding_request

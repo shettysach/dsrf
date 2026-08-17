@@ -117,6 +117,7 @@ def test_endtest_dataflow_uses_ardy() -> None:
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["sim"]["env"]["TASK"] == "endtest"
+    assert nodes["sim"]["env"]["CAMERA_YAW"] == "false"
 
 
 def test_dataflow_system_prompts_exist() -> None:

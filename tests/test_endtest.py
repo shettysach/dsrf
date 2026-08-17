@@ -14,6 +14,8 @@ def test_catalog_contains_endtest() -> None:
 
     assert task is TASKS["endtest"]
     assert task.objective == "Place each foot on its matching green target square."
+    assert task.viewer.origin == "world"
+    assert task.viewer.elevation == -90.0
 
 
 def test_endtest_has_two_non_colliding_green_foot_targets() -> None:
