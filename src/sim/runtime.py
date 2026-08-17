@@ -239,6 +239,29 @@ class SimRuntime:
             )
             return
         self._projection_cache = None
+        if chunk.end_effectors:
+            self.node.log(
+                "info",
+                f"[OBS {self.observation_id}] received end-effector targets: "
+                f"{chunk.end_effectors}",
+                target="dsrf.sim.end_effector",
+                fields={
+                    "event": "end_effector_targets_received",
+                    "observation_id": str(self.observation_id),
+                    "count": str(len(chunk.end_effectors)),
+                },
+            )
+        elif '"end_effectors"' in chunk.command:
+            self.node.log(
+                "warning",
+                f"[OBS {self.observation_id}] motion lost its grounded "
+                "end-effector target metadata",
+                target="dsrf.sim.end_effector",
+                fields={
+                    "event": "end_effector_targets_missing",
+                    "observation_id": str(self.observation_id),
+                },
+            )
 
         with self.simulation.compute_context():
             state = self.simulation.robot_state()
