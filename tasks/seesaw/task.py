@@ -13,5 +13,10 @@ TASK = TaskSpec(
     name="seesaw",
     objective="Walk onto the counterweighted seesaw and stand where it balances.",
     make_scene=_make_scene,
-    viewer=ViewerSpec(distance=4.0, elevation=-30.0),
+    viewer=ViewerSpec(
+        distance=4.0,
+        elevation=-30.0,
+        origin="world",
+        lookat=(1.5, 0.0, 0.0),
+    ),
 )

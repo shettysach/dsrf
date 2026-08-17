@@ -3,6 +3,9 @@ from pathlib import Path
 
 import yaml
 
+from tasks import get_task
+from sim.config import make_sim_env_cfg
+
 
 def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     descriptor = yaml.safe_load(Path("corridors.yml").read_text())
@@ -72,6 +75,13 @@ def test_seesaw_dataflow_uses_ardy() -> None:
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["motion-gen"]["env"]["MOTION_GENERATOR"] == "ardy"
     assert nodes["sim"]["env"]["TASK"] == "seesaw"
+
+
+def test_seesaw_uses_a_fixed_world_camera() -> None:
+    cfg = make_sim_env_cfg(task=get_task("seesaw"))
+
+    assert cfg.viewer.origin_type is cfg.viewer.OriginType.WORLD
+    assert cfg.viewer.lookat == (1.5, 0.0, 0.0)
 
 
 def test_dataflow_system_prompts_exist() -> None:

@@ -85,12 +85,17 @@ def make_sim_env_cfg(
         },
         sim=SimulationCfg(njmax=128, mujoco=MujocoCfg(timestep=0.005)),
         viewer=ViewerConfig(
-            origin_type=ViewerConfig.OriginType.ASSET_BODY,
-            entity_name="robot",
-            body_name="torso_link",
+            origin_type=(
+                ViewerConfig.OriginType.WORLD
+                if viewer_spec.origin == "world"
+                else ViewerConfig.OriginType.ASSET_BODY
+            ),
+            entity_name="robot" if viewer_spec.origin == "robot" else None,
+            body_name="torso_link" if viewer_spec.origin == "robot" else None,
+            lookat=viewer_spec.lookat,
             distance=viewer_spec.distance,
             elevation=viewer_spec.elevation,
-            azimuth=0.0,
+            azimuth=viewer_spec.azimuth,
             width=image_width,
             height=image_height,
             max_extra_envs=0,
