@@ -77,11 +77,13 @@ def test_seesaw_dataflow_uses_ardy() -> None:
     assert nodes["sim"]["env"]["TASK"] == "seesaw"
 
 
-def test_seesaw_uses_a_fixed_world_camera() -> None:
+def test_seesaw_tracks_position_with_a_fixed_azimuth() -> None:
     cfg = make_sim_env_cfg(task=get_task("seesaw"))
 
-    assert cfg.viewer.origin_type is cfg.viewer.OriginType.WORLD
-    assert cfg.viewer.lookat == (1.5, 0.0, 0.0)
+    assert cfg.viewer.origin_type is cfg.viewer.OriginType.ASSET_BODY
+    assert cfg.viewer.entity_name == "robot"
+    assert cfg.viewer.body_name == "torso_link"
+    assert cfg.viewer.azimuth == 0.0
 
 
 def test_dataflow_system_prompts_exist() -> None:
