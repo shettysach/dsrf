@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import json
 
-KINEMATIC_COMMAND_TOOL_NAME = "submit_kinematic_command"
-KINEMATIC_COMMAND_TOOL = {
+KINEMATIC_PLANNER_TOOL = {
     "type": "function",
     "function": {
-        "name": KINEMATIC_COMMAND_TOOL_NAME,
-        "description": "Submit the robot's next kinematic-planner command.",
+        "name": "kinematic_planner_command",
+        "description": "Choose the robot's next kinematic-planner command.",
         "parameters": {
             "type": "object",
             "additionalProperties": False,
@@ -24,7 +23,7 @@ KINEMATIC_COMMAND_TOOL = {
 }
 
 
-def parse_kinematic_command(text: str) -> tuple[str, str | None]:
+def parse_kinematic_planner_command(text: str) -> tuple[str, str | None]:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:

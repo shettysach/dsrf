@@ -7,9 +7,7 @@ import numpy as np
 MOTION_COLUMNS = 36
 SONIC_FPS = 50
 ARDY_EMBEDDING_SIZE = 4096
-END_EFFECTOR_NAMES = frozenset(
-    {"left_hand", "right_hand", "left_foot", "right_foot"}
-)
+END_EFFECTOR_NAMES = frozenset({"left_hand", "right_hand", "left_foot", "right_foot"})
 
 
 @dataclass(frozen=True)
@@ -37,8 +35,6 @@ class EndEffectorTarget:
     def __post_init__(self) -> None:
         if self.name not in END_EFFECTOR_NAMES:
             raise ValueError(f"Unsupported end effector: {self.name}")
-        if len(self.target_xyz) != 3:
-            raise ValueError("End-effector target must contain three coordinates")
         if not all(np.isfinite(value) for value in self.target_xyz):
             raise ValueError("End-effector target must be finite")
 

@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from agent.constraint import parse_constraint_command
+from agent.ardy import parse_ardy_command
 from shared.messages import GroundingRequest, ProjectionContext
 from sim.grounding import resolve_end_effector, resolve_waypoint
 
@@ -72,30 +72,30 @@ def test_depth_patch_uses_valid_median_and_clamps_horizon() -> None:
 )
 def test_malformed_commands_fail(text: str) -> None:
     with pytest.raises(ValueError):
-        parse_constraint_command(text)
+        parse_ardy_command(text)
 
 
 def test_grounding_request_validates_coordinate_range() -> None:
-    parsed = parse_constraint_command('{"motion":"walk","waypoints_2d":[[-1,500]]}')
+    parsed = parse_ardy_command('{"motion":"walk","waypoints_2d":[[-1,500]]}')
     assert parsed.waypoints_2d
     with pytest.raises(ValueError, match=r"\[0,1000\]"):
         GroundingRequest(0, parsed.waypoints_2d)
 
 
 def test_stand_parses_without_resolving_depth() -> None:
-    command = parse_constraint_command('{"motion":"stand","waypoints_2d":[]}')
+    command = parse_ardy_command('{"motion":"stand","waypoints_2d":[]}')
     assert command.motion == "stand"
     assert command.waypoints_2d == ()
 
 
 def test_command_without_waypoints_defaults_to_no_grounding() -> None:
-    command = parse_constraint_command('{"motion":"wave with the right hand"}')
+    command = parse_ardy_command('{"motion":"wave with the right hand"}')
     assert command.motion == "wave with the right hand"
     assert command.waypoints_2d == ()
 
 
 def test_end_effector_command_parses_without_waypoints() -> None:
-    command = parse_constraint_command(
+    command = parse_ardy_command(
         '{"motion":"reach for the cup","end_effectors":'
         '[{"name":"right_hand","target_2d":[600,400]}]}'
     )
@@ -106,7 +106,7 @@ def test_end_effector_command_parses_without_waypoints() -> None:
 
 
 def test_foot_end_effector_command_parses_without_waypoints() -> None:
-    command = parse_constraint_command(
+    command = parse_ardy_command(
         '{"motion":"step onto the platform","end_effectors":'
         '[{"name":"left_foot","target_2d":[500,700]}]}'
     )
@@ -125,11 +125,11 @@ def test_foot_end_effector_command_parses_without_waypoints() -> None:
 )
 def test_invalid_end_effector_commands_fail(text: str) -> None:
     with pytest.raises(ValueError):
-        parse_constraint_command(text)
+        parse_ardy_command(text)
 
 
 def test_command_can_combine_waypoints_and_end_effectors() -> None:
-    command = parse_constraint_command(
+    command = parse_ardy_command(
         '{"motion":"walk to the box and reach","waypoints_2d":[[500,700]],'
         '"end_effectors":[{"name":"left_hand","target_2d":[550,400]}]}'
     )
@@ -138,10 +138,10 @@ def test_command_can_combine_waypoints_and_end_effectors() -> None:
 
 
 def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:
-    grounded = parse_constraint_command(
+    grounded = parse_ardy_command(
         '{"motion":"sidestep carefully toward the doorway","waypoints_2d":[[400,600],[600,500]]}'
     )
-    ungrounded = parse_constraint_command(
+    ungrounded = parse_ardy_command(
         '{"motion":"wave with the right hand","waypoints_2d":[]}'
     )
     assert grounded.motion == "sidestep carefully toward the doorway"

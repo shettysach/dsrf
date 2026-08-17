@@ -3,8 +3,10 @@ from typing import Any, cast
 
 import numpy as np
 
-from agent.constraint import MOTION_CONSTRAINT_TOOL, MOTION_CONSTRAINT_TOOL_NAME
-from agent.planner import KINEMATIC_COMMAND_TOOL, KINEMATIC_COMMAND_TOOL_NAME
+from agent.ardy import ARDY_TOOL
+from agent.kinematic_planner import (
+    KINEMATIC_PLANNER_TOOL,
+)
 from agent.vlm import CommandCompletion, OAIChatClient
 from nodes.agent import AgentLoop
 from shared.arrow import (
@@ -48,7 +50,7 @@ def test_llama_client_submits_and_replays_motion_tool_calls(monkeypatch) -> None
                         "id": "call_1",
                         "type": "function",
                         "function": {
-                            "name": MOTION_CONSTRAINT_TOOL_NAME,
+                            "name": "ardy_command",
                             "arguments": '{"motion":"stand"}',
                         },
                     }
@@ -60,7 +62,7 @@ def test_llama_client_submits_and_replays_motion_tool_calls(monkeypatch) -> None
                         "id": "call_2",
                         "type": "function",
                         "function": {
-                            "name": MOTION_CONSTRAINT_TOOL_NAME,
+                            "name": "ardy_command",
                             "arguments": '{"motion":"walk"}',
                         },
                     }
@@ -79,7 +81,7 @@ def test_llama_client_submits_and_replays_motion_tool_calls(monkeypatch) -> None
         timeout=12.0,
         system_prompt="system",
         user_prompt="user",
-        tool=MOTION_CONSTRAINT_TOOL,
+        tool=ARDY_TOOL,
     )
     first = VisualObservation(0, None, b"first")
     completion = client.complete(first)
@@ -90,10 +92,10 @@ def test_llama_client_submits_and_replays_motion_tool_calls(monkeypatch) -> None
 
     assert posted[0]["tool_choice"] == {
         "type": "function",
-        "function": {"name": MOTION_CONSTRAINT_TOOL_NAME},
+        "function": {"name": "ardy_command"},
     }
     assert posted[0]["parallel_tool_calls"] is False
-    assert posted[0]["tools"][0]["function"]["name"] == MOTION_CONSTRAINT_TOOL_NAME
+    assert posted[0]["tools"][0]["function"]["name"] == "ardy_command"
     messages = posted[1]["messages"]
     assert [message["role"] for message in messages] == [
         "system",
@@ -117,7 +119,7 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
                 "id": "call_1",
                 "type": "function",
                 "function": {
-                    "name": KINEMATIC_COMMAND_TOOL_NAME,
+                    "name": "kinematic_planner_command",
                     "arguments": '{"motion":"walk","direction":"left"}',
                 },
             }
@@ -135,14 +137,17 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
         timeout=12.0,
         system_prompt="system",
         user_prompt="user",
-        tool=KINEMATIC_COMMAND_TOOL,
+        tool=KINEMATIC_PLANNER_TOOL,
     )
 
     completion = client.complete(VisualObservation(0, None, b"jpeg"))
 
     assert completion.command == '{"motion":"walk","direction":"left"}'
-    assert posted[0]["tools"] == [KINEMATIC_COMMAND_TOOL]
-    assert posted[0]["tool_choice"]["function"]["name"] == KINEMATIC_COMMAND_TOOL_NAME
+    assert posted[0]["tools"] == [KINEMATIC_PLANNER_TOOL]
+    assert (
+        posted[0]["tool_choice"]["function"]["name"]
+        == "kinematic_planner_command"
+    )
 
 
 class _Node:
@@ -290,7 +295,7 @@ def test_agent_commits_tool_call_for_conversation_replay() -> None:
                 "id": "call_1",
                 "type": "function",
                 "function": {
-                    "name": MOTION_CONSTRAINT_TOOL_NAME,
+                    "name": "ardy_command",
                     "arguments": '{"motion":"stand"}',
                 },
             }

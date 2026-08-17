@@ -8,8 +8,11 @@ from pathlib import Path
 import imageio.v3 as iio
 from dora import Node
 
-from agent.constraint import MOTION_CONSTRAINT_TOOL, parse_constraint_command
-from agent.planner import KINEMATIC_COMMAND_TOOL, parse_kinematic_command
+from agent.ardy import ARDY_TOOL, parse_ardy_command
+from agent.kinematic_planner import (
+    KINEMATIC_PLANNER_TOOL,
+    parse_kinematic_planner_command,
+)
 from agent.vlm import CommandCompletion, OAIChatClient
 from shared.arrow import (
     agent_command_to_arrow,
@@ -236,7 +239,7 @@ class AgentLoop:
         )
         try:
             if self.command_mode == "direction":
-                motion, direction = parse_kinematic_command(command)
+                motion, direction = parse_kinematic_planner_command(command)
                 self._send(
                     command,
                     motion=motion,
@@ -245,7 +248,7 @@ class AgentLoop:
                     completion=completion,
                 )
                 return
-            parsed = parse_constraint_command(command)
+            parsed = parse_ardy_command(command)
             if not parsed.waypoints_2d and not parsed.end_effectors:
                 self._send(
                     command,
@@ -376,9 +379,9 @@ def main() -> None:
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
         tool=(
-            KINEMATIC_COMMAND_TOOL
+            KINEMATIC_PLANNER_TOOL
             if cfg.command_mode == "direction"
-            else MOTION_CONSTRAINT_TOOL
+            else ARDY_TOOL
         ),
     )
     AgentLoop(

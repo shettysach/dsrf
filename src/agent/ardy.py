@@ -5,12 +5,11 @@ from dataclasses import dataclass
 
 from shared.messages import END_EFFECTOR_NAMES, EndEffectorSelection
 
-MOTION_CONSTRAINT_TOOL_NAME = "submit_motion_constraint"
-MOTION_CONSTRAINT_TOOL = {
+ARDY_TOOL = {
     "type": "function",
     "function": {
-        "name": MOTION_CONSTRAINT_TOOL_NAME,
-        "description": "Submit the robot's next motion and optional image constraints.",
+        "name": "ardy_command",
+        "description": "Choose ARDY's next motion and optional image constraints.",
         "parameters": {
             "type": "object",
             "additionalProperties": False,
@@ -57,21 +56,19 @@ MOTION_CONSTRAINT_TOOL = {
 
 
 @dataclass(frozen=True)
-class ConstraintCommand:
+class ArdyCommand:
     motion: str
     waypoints_2d: tuple[tuple[int, int], ...]
     end_effectors: tuple[EndEffectorSelection, ...]
 
 
-def parse_constraint_command(text: str) -> ConstraintCommand:
+def parse_ardy_command(text: str) -> ArdyCommand:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError("Command is not valid JSON") from exc
 
-    if not isinstance(payload, dict) or not isinstance(
-        payload.get("motion"), str
-    ):
+    if not isinstance(payload, dict) or not isinstance(payload.get("motion"), str):
         raise ValueError("Command must include motion")
 
     waypoints = payload.get("waypoints_2d", [])
@@ -86,11 +83,7 @@ def parse_constraint_command(text: str) -> ConstraintCommand:
     if len(names) != len(set(names)):
         raise ValueError("Each end effector may be constrained once")
 
-    return ConstraintCommand(
-        payload["motion"],
-        parsed_waypoints,
-        parsed_end_effectors,
-    )
+    return ArdyCommand(payload["motion"], parsed_waypoints, parsed_end_effectors)
 
 
 def _point(value: object) -> tuple[int, int]:
