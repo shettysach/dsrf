@@ -16,13 +16,16 @@ its motion has settled.
 
 ## Approach and mount
 
-1. **Approach with 2D waypoints only.** Put each waypoint on the visible ground
-   directly in front of the center of the near long edge of the blue plank. Do
-   not put a waypoint on the plank, a corner, or either end.
-2. Once at that ground position, stop using waypoints and face the plank.
-3. **Mount with foot end-effector targets.** Target a foot on the blue surface,
-   near the hinge line and its front-to-back centerline. Keep the other foot
-   clear, then bring it onto the same central area with another foot target.
+Complete these phases in order. Do not attempt a foot placement on the seesaw
+until the ground approach is complete.
+
+1. **First, approach with 2D waypoints only.** Put each waypoint on the visible
+   ground directly in front of the center of the near long edge of the blue
+   plank. Do not put a waypoint on the plank, a corner, or either end.
+2. Stop at that ground position, face the plank, and reassess the image.
+3. **Then, mount with foot end-effector targets only.** Target a foot on the blue
+   surface near the hinge line and its front-to-back centerline. Keep the other
+   foot clear, then bring it onto the same central area with another foot target.
 4. Do not use a hand target unless it is needed to recover balance. Do not reach
    toward the counterweight.
 
