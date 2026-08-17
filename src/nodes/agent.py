@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import Path
 
 import imageio.v3 as iio
+import numpy as np
 from dora import Node
 
 from agent.ardy import ARDY_TOOL
@@ -396,11 +397,23 @@ def _write_debug_image(
     for x, y in end_effectors_2d:
         u = round(x / 1000 * (width - 1))
         v = round(y / 1000 * (height - 1))
-        image[max(0, v - 5) : v + 6, u] = (0, 255, 255)
-        image[v, max(0, u - 5) : u + 6] = (0, 255, 255)
+        _draw_debug_dot(image, u, v)
     output_dir = Path("/tmp/dsrf-waypoint-debug")
     output_dir.mkdir(parents=True, exist_ok=True)
     iio.imwrite(output_dir / f"observation-{observation_id}.jpg", image)
+
+
+def _draw_debug_dot(image: np.ndarray, u: int, v: int) -> None:
+    """Draw a large, high-contrast end-effector selection marker."""
+
+    height, width = image.shape[:2]
+    radius = max(14, min(height, width) // 28)
+    rows, columns = np.ogrid[:height, :width]
+    distance_squared = (rows - v) ** 2 + (columns - u) ** 2
+    image[distance_squared <= radius**2] = (235, 30, 30)
+    image[
+        (distance_squared <= (radius + 4) ** 2) & (distance_squared > radius**2)
+    ] = (255, 255, 255)
 
 
 def main() -> None:

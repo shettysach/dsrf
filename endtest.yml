@@ -11,6 +11,8 @@ nodes:
       VLM_SYSTEM_PROMPT: tasks/endtest/TASK.md
       VLM_USER_PROMPT: prompt/USER.md
       MOTION_GENERATOR: ardy
+      WAYPOINT_DEBUG: "true"
+      AGENT_DEBUG: "true"
     inputs:
       observation: sim/observation
       grounding_result: sim/grounding_result
