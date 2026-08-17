@@ -86,11 +86,21 @@ def test_seesaw_tracks_position_with_a_fixed_azimuth() -> None:
     assert cfg.viewer.azimuth == 0.0
 
 
+def test_stairs_dataflow_uses_ardy() -> None:
+    descriptor = yaml.safe_load(Path("stairs.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/stairs/TASK.md"
+    assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "ardy"
+    assert nodes["sim"]["env"]["TASK"] == "stairs"
+
+
 def test_dataflow_system_prompts_exist() -> None:
     for path in (
         "tasks/portrait_corridors/TASK.md",
         "tasks/sokoban/TASK.md",
         "tasks/seesaw/TASK.md",
+        "tasks/stairs/TASK.md",
     ):
         assert Path(path).is_file()
 

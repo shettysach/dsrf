@@ -38,6 +38,8 @@ dora run corridors.yml
 dora run sokoban.yml
 # or run the ARDY-driven seesaw task
 dora run seesaw.yml
+# or run the ARDY-driven stairs task
+dora run stairs.yml
 ```
 
 - Set `VIEWER: none` in the selected dataflow to disable the window for headless
