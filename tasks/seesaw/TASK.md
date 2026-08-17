@@ -25,7 +25,7 @@ ground approach is complete.
 2. **Move to the low end with 2D waypoints only.** Put each waypoint on visible
    floor as close as safely possible to that low end. Never put a waypoint on
    the seesaw itself, a corner, or the counterweight. Stop, face the low end,
-   and reassess the image.
+   and reassess the image. Use a simple motion command like "walk".
 3. **Climb with foot end-effector targets only.** Omit `waypoints_2d` entirely
    and target a foot on the low blue end. Keep the other foot clear, then bring
    it onto the same surface with another foot target. Do not combine a waypoint
