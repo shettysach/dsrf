@@ -16,6 +16,5 @@ TASK = TaskSpec(
     observation_camera=ObservationCameraSpec(
         distance=4.0,
         elevation=-50.0,
-        origin="robot",
     ),
 )

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
-from tasks import ObservationCameraSpec, TaskSpec
+from tasks import TaskSpec
 
 from controller import ControlOutput, RobotState
 from controller.g1_command import G1CommandTransform
@@ -29,9 +29,6 @@ class MjlabEnv:
         task: TaskSpec | None = None,
     ) -> None:
         torch_device = torch.device(device)
-        camera_spec = (
-            task.observation_camera if task is not None else ObservationCameraSpec()
-        )
         self._env = ManagerBasedRlEnv(
             cfg=make_sim_env_cfg(
                 image_width=image_width,
@@ -66,7 +63,6 @@ class MjlabEnv:
             self._env.sim,
             camera,
             sensor_context,
-            camera_spec,
         )
         self._body_ids = {
             name: index for index, name in enumerate(self._robot.body_names)

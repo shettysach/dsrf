@@ -89,7 +89,6 @@ def test_seesaw_dataflow_uses_ardy() -> None:
 def test_seesaw_observation_camera_tracks_with_a_fixed_azimuth() -> None:
     camera = get_task("seesaw").observation_camera
 
-    assert camera.origin == "robot"
     assert camera.azimuth == 0.0
 
 

@@ -4,28 +4,16 @@ import pytest
 import torch
 
 from controller import ControlOutput, ExternalWrench
-from sim.camera import orbit_camera_pose
+from sim.config import make_sim_env_cfg
 from sim.env import MjlabEnv
 
 
-def test_observation_camera_orbits_target() -> None:
-    position, rotation = orbit_camera_pose(
-        torch.tensor([1.0, 2.0, 1.0]),
-        distance=2.0,
-        elevation_deg=-30.0,
-        azimuth_deg=0.0,
-    )
+def test_observation_camera_is_attached_to_torso() -> None:
+    camera = make_sim_env_cfg().scene.sensors[0]
 
-    torch.testing.assert_close(
-        position,
-        torch.tensor([1.0 - 3.0**0.5, 2.0, 2.0]),
-    )
-    forward = -rotation[:, 2]
-    torch.testing.assert_close(
-        forward,
-        torch.nn.functional.normalize(torch.tensor([3.0**0.5, 0.0, -1.0]), dim=0),
-    )
-    torch.testing.assert_close(rotation.T @ rotation, torch.eye(3))
+    assert camera.parent_body == "robot/torso_link"
+    assert camera.pos == pytest.approx((-1.931852, 0.0, 0.517638), abs=1e-6)
+    assert camera.fovy == 45.0
 
 
 class _Robot:

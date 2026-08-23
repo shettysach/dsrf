@@ -2,22 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 type SceneSpecFn = Callable[["MjSpec"], None]
 type SceneFactory = Callable[[], SceneSpecFn]
-type CameraOrigin = Literal["robot", "world"]
 
 
 @dataclass(frozen=True)
 class ObservationCameraSpec:
     distance: float = 2.0
     elevation: float = -15.0
-    origin: CameraOrigin = "robot"
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     azimuth: float = 0.0
     fovy: float = 45.0
 

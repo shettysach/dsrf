@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
+import torch
 from mjlab.asset_zoo.robots.unitree_g1.g1_constants import (
     G1_ACTUATOR_4010,
     G1_ACTUATOR_5020,
@@ -18,6 +20,7 @@ from mjlab.scene import SceneCfg
 from mjlab.sensor import CameraSensorCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
+from mjlab.utils.lab_api.math import quat_from_matrix
 from mjlab.viewer import ViewerConfig
 from tasks import ObservationCameraSpec, TaskSpec
 
@@ -68,6 +71,7 @@ def make_sim_env_cfg(
     camera_spec = (
         task.observation_camera if task is not None else ObservationCameraSpec()
     )
+    camera_pos, camera_quat = _attached_camera_pose(camera_spec)
     scene = SceneCfg(
         num_envs=1,
         terrain=TerrainEntityCfg(terrain_type="plane"),
@@ -75,6 +79,9 @@ def make_sim_env_cfg(
         sensors=(
             CameraSensorCfg(
                 name=OBSERVATION_CAMERA,
+                parent_body="robot/torso_link",
+                pos=camera_pos,
+                quat=camera_quat,
                 width=image_width,
                 height=image_height,
                 data_types=("rgb", "depth"),
@@ -101,3 +108,25 @@ def make_sim_env_cfg(
         viewer=ViewerConfig(width=image_width, height=image_height, max_extra_envs=0),
         episode_length_s=0.0,
     )
+
+
+def _attached_camera_pose(
+    spec: ObservationCameraSpec,
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+    elevation = math.radians(spec.elevation)
+    azimuth = math.radians(spec.azimuth)
+    position = torch.tensor(
+        (
+            -spec.distance * math.cos(elevation) * math.cos(azimuth),
+            -spec.distance * math.cos(elevation) * math.sin(azimuth),
+            -spec.distance * math.sin(elevation),
+        ),
+        dtype=torch.float64,
+    )
+    forward = torch.nn.functional.normalize(-position, dim=0)
+    world_up = position.new_tensor((0.0, 0.0, 1.0))
+    right = torch.nn.functional.normalize(torch.cross(forward, world_up, dim=0), dim=0)
+    up = torch.cross(right, forward, dim=0)
+    rotation = torch.stack((right, up, -forward), dim=1)
+    quaternion = quat_from_matrix(rotation)
+    return tuple(position.tolist()), tuple(quaternion.tolist())
