@@ -4,6 +4,10 @@
 
 [ ] Communication - Replace np with torch / zero-copy tensors
 
+[ ] Switch sparse RGB-D capture to MJLab's GPU `CameraSensor`.
+    - Track [MJLab PR #1025](https://github.com/mujocolab/mjlab/pull/1025) for render intervals and forced on-demand capture; do not render on every simulation step.
+    - Move camera projection/grounding geometry from NumPy to Torch, keep depth on the GPU, and transfer only RGB needed for JPEG output and final grounded coordinates to the CPU.
+
 # Context mgmt
 
 [ ] Bound VLM history without defeating llama-server's KV-prefix cache
