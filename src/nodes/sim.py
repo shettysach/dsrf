@@ -6,7 +6,7 @@ from dora import Node
 
 from shared.config import SimConfig, SonicConfig
 from sim.controller import Controller
-from sim.controller.sonic import Sonic
+from sim.controller.sonic import SonicController
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
@@ -72,7 +72,7 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
 def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
     match cfg.controller:
         case SonicConfig():
-            return Sonic(
+            return SonicController(
                 cfg.controller.sonic_dir,
                 device=cfg.device,
                 cuda_stream=simulation.cuda_stream,

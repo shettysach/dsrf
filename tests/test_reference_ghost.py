@@ -5,8 +5,8 @@ import numpy as np
 import torch
 
 from shared.messages import MotionChunk
+from sim.controller.sonic.policy import MotionReference
 from sim.reference_ghost import ReferenceGhost
-from sim.sonic.policy import MotionReference
 
 
 def _motion() -> MotionChunk:

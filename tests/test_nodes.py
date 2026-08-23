@@ -10,6 +10,8 @@ import torch
 
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
+from motion_gen.ardy.adapter import ArdyMotionGenerator
+from motion_gen.kinematic_planner.adapter import KinematicPlannerMotionGenerator
 from shared.arrow import (
     agent_command_to_arrow,
     grounding_request_to_arrow,
@@ -75,7 +77,6 @@ def _run_motion_gen(monkeypatch, events, generate):
     monkeypatch.setattr(
         motion_gen_node, "KinematicPlanner", lambda *args, **kwargs: generator
     )
-    monkeypatch.setattr(motion_gen_node, "_create_text_encoder", lambda cfg: None)
     motion_gen_node.main()
     return node
 
@@ -176,8 +177,11 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     )
     monkeypatch.setattr(motion_gen_node.MotionGenConfig, "from_env", lambda: config)
     monkeypatch.setattr(motion_gen_node, "Node", lambda: node)
-    monkeypatch.setattr(motion_gen_node, "_create_generator", lambda cfg: generator)
-    monkeypatch.setattr(motion_gen_node, "_create_text_encoder", lambda cfg: encoder)
+    monkeypatch.setattr(
+        motion_gen_node,
+        "_create_generator",
+        lambda cfg: ArdyMotionGenerator(generator, encoder),
+    )
 
     motion_gen_node.main()
 
@@ -186,11 +190,35 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     assert generated[0][0] is embedding
     assert generated[0][1] == ((0.2, -0.7), (0.6, 0.1))
     assert generated[0][2] == ()
+    assert "encode_ms" in node.logs[0][2]["fields"]
     chunk = motion_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert chunk.observation_id == 7
     assert chunk.command == command_text
+
+
+def test_motion_generator_adapters_validate_backend_specific_constraints() -> None:
+    planner = KinematicPlannerMotionGenerator(
+        SimpleNamespace(fps=30, generate=lambda *args: _planner_motion())
+    )
+    ardy = ArdyMotionGenerator(
+        SimpleNamespace(fps=25, generate=lambda *args: _planner_motion()),
+        SimpleNamespace(encode=lambda text: torch.ones(4096)),
+    )
+
+    with pytest.raises(ValueError, match="End-effector constraints"):
+        planner.generate(
+            AgentCommand(
+                0,
+                "wave",
+                "wave",
+                (),
+                end_effectors=(EndEffectorTarget("left_hand", (0.1, 0.0, 0.5)),),
+            )
+        )
+    with pytest.raises(ValueError, match="Directional commands"):
+        ardy.generate(AgentCommand(0, "walk left", "walk", (), direction="left"))
 
 
 class _Simulation:

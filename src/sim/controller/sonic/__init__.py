@@ -1,4 +1,4 @@
-"""Simulation-facing adapter for the SONIC learned policy."""
+"""SONIC implementation of the simulation controller contract."""
 
 from __future__ import annotations
 
@@ -7,12 +7,14 @@ from pathlib import Path
 import torch
 
 from shared.messages import MotionChunk
+from sim.controller.sonic.policy import MotionReference, SonicPolicy
 from sim.env import RobotState
-from sim.sonic.policy import MotionReference, SonicPolicy
+
+__all__ = ["SonicController"]
 
 
-class Sonic:
-    """Adapt SONIC's reference-loading API to the generic controller contract."""
+class SonicController:
+    """Adapt SONIC's policy API to the generic simulation controller contract."""
 
     def __init__(
         self,

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 import numpy as np
 from dora import Node
 
+from motion_gen.ardy.adapter import ArdyMotionGenerator
+from motion_gen.generator import MotionGenerator
 from motion_gen.kinematic_planner import KinematicPlanner
+from motion_gen.kinematic_planner.adapter import KinematicPlannerMotionGenerator
 from motion_gen.resample import resample_motion
 from shared.arrow import (
     agent_command_from_arrow,
@@ -17,34 +19,30 @@ from shared.config import ArdyConfig, KinematicPlannerConfig, MotionGenConfig
 from shared.messages import SONIC_FPS, AgentCommand, MotionChunk, PipelineError
 
 
-def _create_generator(cfg: MotionGenConfig) -> Any:
+def _create_generator(cfg: MotionGenConfig) -> MotionGenerator:
     match cfg.backend:
         case ArdyConfig():
             from motion_gen.ardy.generator import Ardy
+            from motion_gen.ardy.text_encoder import TextEncoder
 
-            return Ardy(cfg.backend.checkpoints_dir, device=cfg.device)
+            return ArdyMotionGenerator(
+                Ardy(cfg.backend.checkpoints_dir, device=cfg.device),
+                TextEncoder(
+                    cfg.backend.text_encoder_model,
+                    device=cfg.backend.text_encoder_device,
+                ),
+            )
 
         case KinematicPlannerConfig():
-            return KinematicPlanner(cfg.backend.planner_onnx, device=cfg.device)
-
-
-def _create_text_encoder(cfg: MotionGenConfig) -> Any | None:
-    if not isinstance(cfg.backend, ArdyConfig):
-        return None
-
-    from motion_gen.ardy.text_encoder import TextEncoder
-
-    return TextEncoder(
-        cfg.backend.text_encoder_model,
-        device=cfg.backend.text_encoder_device,
-    )
+            return KinematicPlannerMotionGenerator(
+                KinematicPlanner(cfg.backend.planner_onnx, device=cfg.device)
+            )
 
 
 def main() -> None:
     cfg = MotionGenConfig.from_env()
     node = Node()
     generator = _create_generator(cfg)
-    text_encoder = _create_text_encoder(cfg)
 
     for event in node:
         if event["type"] == "STOP":
@@ -55,31 +53,8 @@ def main() -> None:
         metadata = dict(event.get("metadata") or {})
         request = agent_command_from_arrow(event["value"], metadata)
         started_at = time.perf_counter()
-        encode_ms: float | None = None
         try:
-            if text_encoder is None:
-                if request.end_effectors:
-                    raise ValueError(
-                        "End-effector constraints are only supported by ARDY"
-                    )
-                source_qpos = generator.generate(
-                    request.motion,
-                    request.target_xys,
-                    request.direction,
-                )
-            else:
-                if request.direction is not None:
-                    raise ValueError(
-                        "Directional commands are only supported by kinematic_planner"
-                    )
-
-                encode_started_at = time.perf_counter()
-                embedding = text_encoder.encode(request.motion)
-                encode_ms = (time.perf_counter() - encode_started_at) * 1000.0
-                source_qpos = generator.generate(
-                    embedding, request.target_xys, request.end_effectors
-                )
-
+            source_qpos = generator.generate(request)
             chunk = resample_motion(
                 source_qpos,
                 source_fps=generator.fps,
@@ -100,7 +75,7 @@ def main() -> None:
             source_qpos,
             chunk,
             plan_ms=plan_ms,
-            encode_ms=encode_ms,
+            encode_ms=generator.last_encode_ms,
         )
         data, motion_metadata = motion_to_arrow(chunk)
         node.send_output("motion", data, metadata=motion_metadata)

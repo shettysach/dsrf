@@ -18,9 +18,9 @@ from shared.g1 import (
     standing_qpos,
 )
 from shared.messages import SONIC_FPS, MotionChunk
+from sim.controller.sonic.onnx_model import OnnxModel
 from sim.env import RobotState
 from sim.observations import ObservationLayout
-from sim.sonic.onnx_model import OnnxModel
 
 HISTORY_FRAMES = 10
 

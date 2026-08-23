@@ -8,9 +8,9 @@ import torch
 from motion_gen.kinematic_planner import KinematicPlanner
 from motion_gen.resample import resample_motion
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB
+from sim.controller.sonic.policy import SonicPolicy
 from sim.env import MjlabEnv, RobotState
 from sim.renderer import SimRenderer
-from sim.sonic.policy import SonicPolicy
 
 SONIC_DIR = Path("/tmp/GEAR-SONIC")
 

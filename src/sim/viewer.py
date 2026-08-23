@@ -12,8 +12,8 @@ from shared.messages import SONIC_FPS
 if TYPE_CHECKING:
     from mjlab.viewer import EnvProtocol
 
+    from sim.controller.sonic.policy import MotionReference
     from sim.env import MjlabEnv
-    from sim.sonic.policy import MotionReference
 
 from sim.reference_ghost import ReferenceGhost
 
