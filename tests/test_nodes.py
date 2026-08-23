@@ -91,10 +91,6 @@ def _planner_motion() -> torch.Tensor:
     return qpos
 
 
-def _planner_motion_numpy() -> np.ndarray:
-    return _planner_motion().numpy()
-
-
 def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
     generated: list[tuple[str, tuple[tuple[float, float], ...], str | None]] = []
 
@@ -170,7 +166,7 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
         fps=25,
         generate=lambda embedding, target, end_effectors: (
             generated.append((embedding, target, end_effectors))
-            or _planner_motion_numpy()
+            or _planner_motion()
         ),
     )
     encoder = SimpleNamespace(
@@ -212,7 +208,7 @@ def test_motion_generator_adapters_validate_backend_specific_constraints() -> No
         SimpleNamespace(fps=30, generate=lambda *args: _planner_motion())
     )
     ardy = ArdyMotionGenerator(
-        SimpleNamespace(fps=25, generate=lambda *args: _planner_motion_numpy()),
+        SimpleNamespace(fps=25, generate=lambda *args: _planner_motion()),
         SimpleNamespace(encode=lambda text: torch.ones(4096)),
     )
 

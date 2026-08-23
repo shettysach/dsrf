@@ -82,7 +82,7 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
         "global_root_heading": torch.tensor([[[1.0, 0.0]] * 124 + [[0.0, 1.0]]]),
     }
     converter = Mock()
-    converter.dict_to_qpos.return_value = np.zeros((1, 125, 36), dtype=np.float32)
+    converter.dict_to_qpos.return_value = torch.zeros((1, 125, 36))
 
     generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
     generator.device = torch.device("cpu")
@@ -98,6 +98,7 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     qpos = generator.generate(embedding, ((0.0, 0.5),))
 
     assert qpos.shape == (125, 36)
+    assert converter.dict_to_qpos.call_args.kwargs["numpy"] is False
     model.motion_rep.inverse.assert_called_once()
     generated_motion = model.motion_rep.inverse.call_args.args[0]
     assert generated_motion.shape == (1, 125, 3)
@@ -123,7 +124,7 @@ def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
         "global_root_heading": torch.tensor([[[1.0, 0.0]] * 125]),
     }
     converter = Mock()
-    converter.dict_to_qpos.return_value = np.zeros((1, 125, 36), dtype=np.float32)
+    converter.dict_to_qpos.return_value = torch.zeros((1, 125, 36))
 
     generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
     generator.device = torch.device("cpu")

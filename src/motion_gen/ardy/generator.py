@@ -59,7 +59,7 @@ class Ardy:
         embedding: torch.Tensor,
         target_xys: tuple[tuple[float, float], ...],
         end_effectors: tuple[EndEffectorTarget, ...] = (),
-    ) -> np.ndarray:
+    ) -> torch.Tensor:
         text_feat, text_pad_mask = prepare_conditioning(
             embedding,
             device=self.device,
@@ -119,15 +119,10 @@ class Ardy:
             batched_qpos = self.converter.dict_to_qpos(
                 decoded,
                 str(self.device),
+                numpy=False,
             )
 
-        qpos = np.ascontiguousarray(batched_qpos[0], dtype=np.float32)
-        if qpos.ndim != 2 or qpos.shape[1] != 36:
-            raise ValueError(f"ARDY qpos must have shape [T, 36], got {qpos.shape}")
-        if qpos.shape[0] == 0:
-            raise ValueError("ARDY generated no motion frames")
-        if not np.isfinite(qpos).all():
-            raise ValueError("ARDY qpos contains NaN or infinite values")
+        qpos = batched_qpos[0].contiguous()
         self.initial_history = next_history
         self.root_history = next_root_history
         self.root_heading = next_root_heading

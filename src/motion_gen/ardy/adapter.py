@@ -31,10 +31,8 @@ class ArdyMotionGenerator:
         encode_started_at = time.perf_counter()
         embedding = self._text_encoder.encode(command.motion)
         self.last_encode_ms = (time.perf_counter() - encode_started_at) * 1000.0
-        return torch.from_numpy(
-            self._generator.generate(
-                embedding,
-                command.target_xys,
-                command.end_effectors,
-            )
+        return self._generator.generate(
+            embedding,
+            command.target_xys,
+            command.end_effectors,
         )
