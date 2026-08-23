@@ -54,8 +54,7 @@ class MjlabEnv:
         )
         self._robot = self._env.scene["robot"]
         camera = self._env.scene[OBSERVATION_CAMERA]
-        if not isinstance(camera, CameraSensor):
-            raise RuntimeError("Observation sensor is not an MJLab CameraSensor")
+        assert isinstance(camera, CameraSensor)
         self._camera_capture = OnDemandCameraCapture(
             self._env.sim,
             camera,
@@ -94,10 +93,6 @@ class MjlabEnv:
             joint_pos=data.joint_pos[0],
             joint_vel=data.joint_vel[0],
         )
-
-    def get_observations(self) -> VecEnvObs:
-        with self.compute_context():
-            return self._env.get_observations()
 
     @property
     def step_dt(self) -> float:

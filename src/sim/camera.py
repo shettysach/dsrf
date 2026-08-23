@@ -37,11 +37,9 @@ class OnDemandCameraCapture:
         simulation: Simulation,
         camera: CameraSensor,
     ) -> None:
-        original_sense = simulation.sense
-
         self._simulation = simulation
         self._camera = camera
-        self._sense = original_sense
+        self._sense = simulation.sense
         simulation.sense = MethodType(_skip_sense, simulation)  # ty: ignore[invalid-assignment]
 
     def capture(
