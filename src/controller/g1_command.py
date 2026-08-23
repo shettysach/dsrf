@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from controller import G1_JOINT_COUNT
+from shared.g1 import G1_JOINT_COUNT
 
 
 class G1CommandTransform:

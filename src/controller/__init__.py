@@ -7,9 +7,8 @@ from typing import Protocol
 
 import torch
 
+from shared.g1 import G1_JOINT_COUNT
 from shared.messages import MotionChunk
-
-G1_JOINT_COUNT = 29
 
 
 @dataclass(frozen=True)
