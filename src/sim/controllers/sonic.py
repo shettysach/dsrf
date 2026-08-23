@@ -35,5 +35,5 @@ class Sonic:
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
         self.policy.load_motion(chunk, state.root_pos_w, state.root_quat_w)
 
-    def infer(self, state: RobotState) -> tuple[torch.Tensor, bool]:
+    def act(self, state: RobotState) -> tuple[torch.Tensor, bool]:
         return self.policy.infer(state)

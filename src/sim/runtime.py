@@ -201,7 +201,7 @@ class SimRuntime:
 
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
-                    action, completed = self.controller.infer(state)
+                    action, completed = self.controller.act(state)
                 self.simulation.step(action)
                 if self.viewer is not None:
                     self.viewer.sync()
