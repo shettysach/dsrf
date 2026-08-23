@@ -11,6 +11,9 @@ from mjlab.utils.lab_api.math import (
     yaw_quat,
 )
 
+from controller.sonic.observations import ObservationLayout
+from controller.sonic.onnx_model import OnnxModel
+from controller.types import RobotState
 from shared.g1 import (
     DEFAULT_JOINT_POS_MJLAB,
     MJLAB_FROM_SONIC,
@@ -18,9 +21,6 @@ from shared.g1 import (
     standing_qpos,
 )
 from shared.messages import SONIC_FPS, MotionChunk
-from sim.controller.sonic.onnx_model import OnnxModel
-from sim.env import RobotState
-from sim.observations import ObservationLayout
 
 HISTORY_FRAMES = 10
 

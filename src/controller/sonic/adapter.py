@@ -1,4 +1,4 @@
-"""SONIC implementation of the simulation controller contract."""
+"""SONIC implementation of the generic controller contract."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from pathlib import Path
 
 import torch
 
+from controller.sonic.policy import MotionReference, SonicPolicy
+from controller.types import RobotState
 from shared.messages import MotionChunk
-from sim.controller.sonic.policy import MotionReference, SonicPolicy
-from sim.env import RobotState
 
 __all__ = ["SonicController"]
 

@@ -87,6 +87,7 @@ explicit = true
 [tool.hatch.build.targets.wheel]
 packages = [
     "src/agent",
+    "src/controller",
     "src/motion_gen",
     "src/nodes",
     "src/shared",

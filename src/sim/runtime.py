@@ -7,6 +7,7 @@ from typing import Any
 import torch
 from dora import Node
 
+from controller import Controller
 from shared.arrow import (
     grounding_request_from_arrow,
     grounding_result_to_arrow,
@@ -22,7 +23,6 @@ from shared.messages import (
     ProjectionContext,
     VisualObservation,
 )
-from sim.controller import Controller
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer

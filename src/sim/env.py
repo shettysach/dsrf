@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import mujoco
@@ -10,22 +9,13 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from tasks import TaskSpec
 
+from controller.types import RobotState
 from shared.messages import ProjectionContext
 from sim.config import make_sim_env_cfg
 
 if TYPE_CHECKING:
     from mjlab.envs.types import VecEnvObs, VecEnvStepReturn
     from mjlab.sim import Simulation
-
-
-@dataclass(frozen=True)
-class RobotState:
-    root_pos_w: torch.Tensor
-    root_quat_w: torch.Tensor
-    root_ang_vel_b: torch.Tensor
-    projected_gravity_b: torch.Tensor
-    joint_pos: torch.Tensor
-    joint_vel: torch.Tensor
 
 
 class MjlabEnv:

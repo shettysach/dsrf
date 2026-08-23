@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from mjlab.envs import ManagerBasedRlEnv
     from mjlab.viewer.debug_visualizer import DebugVisualizer
 
-    from sim.controller.sonic.policy import MotionReference
+    from controller.sonic.policy import MotionReference
 
 REFERENCE_GHOST_COLOR = np.array((0.5, 0.7, 0.5, 0.5), dtype=np.float32)
 

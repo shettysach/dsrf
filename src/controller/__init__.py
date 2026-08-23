@@ -1,4 +1,4 @@
-"""Simulation-facing controller contract and implementations."""
+"""Controller contract and implementations."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from typing import Protocol
 
 import torch
 
+from controller.types import RobotState
 from shared.messages import MotionChunk
-from sim.env import RobotState
 
 
 class Controller(Protocol):
