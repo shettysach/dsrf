@@ -6,8 +6,8 @@ from pathlib import Path
 
 import torch
 
+from controller import RobotState
 from controller.sonic.policy import MotionReference, SonicPolicy
-from controller.types import RobotState
 from shared.messages import MotionChunk
 
 __all__ = ["SonicController"]

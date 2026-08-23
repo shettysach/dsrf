@@ -11,9 +11,9 @@ from mjlab.utils.lab_api.math import (
     yaw_quat,
 )
 
+from controller import RobotState
 from controller.sonic.observations import ObservationLayout
 from controller.sonic.onnx_model import OnnxModel
-from controller.types import RobotState
 from shared.g1 import (
     DEFAULT_JOINT_POS_MJLAB,
     MJLAB_FROM_SONIC,

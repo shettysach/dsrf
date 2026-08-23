@@ -5,8 +5,8 @@ import onnxruntime as ort
 import pytest
 import torch
 
+from controller import RobotState
 from controller.sonic.policy import SonicPolicy
-from controller.types import RobotState
 from motion_gen.kinematic_planner.generator import KinematicPlanner
 from motion_gen.resample import resample_motion
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB

@@ -9,7 +9,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from tasks import TaskSpec
 
-from controller.types import RobotState
+from controller import RobotState
 from shared.messages import ProjectionContext
 from sim.config import make_sim_env_cfg
 
