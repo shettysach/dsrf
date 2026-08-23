@@ -12,7 +12,7 @@ ARDY_TOOL = {
             "additionalProperties": False,
             "required": ["motion"],
             "properties": {
-                "motion": {"type": "string"},
+                "motion": {"type": "string", "minLength": 1},
                 "waypoints_2d": {
                     "type": "array",
                     "items": {

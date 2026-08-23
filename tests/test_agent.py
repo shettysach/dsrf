@@ -40,6 +40,12 @@ class _Response:
         return self.payload
 
 
+def test_ardy_tool_requires_nonempty_motion() -> None:
+    motion = ARDY_TOOL["function"]["parameters"]["properties"]["motion"]
+
+    assert motion["minLength"] == 1
+
+
 def test_llama_client_submits_and_replays_motion_tool_calls(monkeypatch) -> None:
     posted: list[dict[str, Any]] = []
     responses = iter(
