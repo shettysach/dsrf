@@ -16,7 +16,7 @@ from shared.arrow import (
     pipeline_error_to_arrow,
 )
 from shared.messages import (
-    SONIC_FPS,
+    REFERENCE_HZ,
     EndEffectorTarget,
     GroundingResult,
     PipelineError,
@@ -27,8 +27,6 @@ from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
 from sim.viewer import SimViewer
-
-CONTROL_PERIOD = 1.0 / SONIC_FPS
 
 
 @dataclass(frozen=True)
@@ -55,6 +53,12 @@ class SimRuntime:
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
+        expected_step_dt = 1.0 / REFERENCE_HZ
+        if abs(self.simulation.step_dt - expected_step_dt) >= 1.0e-9:
+            raise ValueError(
+                f"Simulation step_dt must be {expected_step_dt}, "
+                f"got {self.simulation.step_dt}"
+            )
 
     def run(self) -> None:
         render_ms, jpeg_size = self._publish_observation(completed_command=None)
@@ -162,7 +166,7 @@ class SimRuntime:
         render_ms, jpeg_size = self._publish_observation(
             completed_command=chunk.command
         )
-        target_ms = stats.frames * CONTROL_PERIOD * 1000.0
+        target_ms = stats.frames * self.simulation.step_dt * 1000.0
         realtime = target_ms / stats.elapsed_ms if stats.elapsed_ms > 0.0 else 0.0
         self.node.log(
             "info",
@@ -201,22 +205,22 @@ class SimRuntime:
 
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
-                    action, completed = self.controller.act(state)
-                self.simulation.step(action)
+                    output = self.controller.act(state)
+                self.simulation.step(output)
                 if self.viewer is not None:
                     self.viewer.sync()
                 frames += 1
 
                 # Completion is detected while producing the last reference
                 # action. Capture only after that action's physics step.
-                if completed:
+                if output.completed:
                     return ExecutionStats(
                         frames=frames,
                         elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
                         overrun_steps=overrun_steps,
                     )
 
-                next_step += CONTROL_PERIOD
+                next_step += self.simulation.step_dt
                 now = time.perf_counter()
                 if next_step < now:
                     # Do not execute burst catch-up steps after an overrun.

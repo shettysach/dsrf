@@ -6,7 +6,8 @@ from dora import Node
 
 from controller import Controller
 from controller.sonic import SonicController
-from shared.config import SimConfig, SonicConfig
+from controller.virtual_forces import VirtualForcesController
+from shared.config import SimConfig, SonicConfig, VirtualForcesConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
@@ -61,6 +62,7 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "event": "sim_initialized",
             "task": cfg.task.name if cfg.task is not None else "none",
             "device": cfg.device,
+            "controller": type(cfg.controller).__name__,
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
         },
@@ -72,9 +74,12 @@ def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
         case SonicConfig():
             return SonicController(
                 cfg.controller.sonic_dir,
+                simulation.command_transform,
                 device=cfg.device,
                 cuda_stream=simulation.cuda_stream,
             )
+        case VirtualForcesConfig():
+            return VirtualForcesController(cfg.controller, device=cfg.device)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,44 @@ import torch
 
 from shared.messages import MotionChunk
 
+G1_JOINT_COUNT = 29
+
+
+@dataclass(frozen=True)
+class ExternalWrench:
+    """World-frame wrench applied at a named body's center of mass."""
+
+    body: str
+    force_w: torch.Tensor
+    torque_w: torch.Tensor
+
+    def __post_init__(self) -> None:
+        if not self.body.strip():
+            raise ValueError("External wrench body must not be empty")
+        for name, value in (("force_w", self.force_w), ("torque_w", self.torque_w)):
+            if value.shape != (3,):
+                raise ValueError(f"{name} must have shape (3,), got {value.shape}")
+            if not bool(torch.isfinite(value).all()):
+                raise ValueError(f"{name} must contain only finite values")
+
+
+@dataclass(frozen=True)
+class ControlOutput:
+    """Physical command produced by a controller for one robot."""
+
+    joint_target: torch.Tensor
+    completed: bool = False
+    external_wrenches: tuple[ExternalWrench, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.joint_target.shape != (G1_JOINT_COUNT,):
+            raise ValueError(
+                f"joint_target must have shape ({G1_JOINT_COUNT},), "
+                f"got {self.joint_target.shape}"
+            )
+        if not bool(torch.isfinite(self.joint_target).all()):
+            raise ValueError("joint_target must contain only finite values")
+
 
 @dataclass(frozen=True)
 class RobotState:
@@ -16,6 +54,8 @@ class RobotState:
 
     root_pos_w: torch.Tensor
     root_quat_w: torch.Tensor
+    root_lin_vel_w: torch.Tensor
+    root_ang_vel_w: torch.Tensor
     root_ang_vel_b: torch.Tensor
     projected_gravity_b: torch.Tensor
     joint_pos: torch.Tensor
@@ -27,4 +67,4 @@ class Controller(Protocol):
 
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None: ...
 
-    def act(self, state: RobotState) -> tuple[torch.Tensor, bool]: ...
+    def act(self, state: RobotState) -> ControlOutput: ...

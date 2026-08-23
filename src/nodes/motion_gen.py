@@ -15,7 +15,7 @@ from shared.arrow import (
     pipeline_error_to_arrow,
 )
 from shared.config import ArdyConfig, KinematicPlannerConfig, MotionGenConfig
-from shared.messages import SONIC_FPS, AgentCommand, MotionChunk, PipelineError
+from shared.messages import REFERENCE_HZ, AgentCommand, MotionChunk, PipelineError
 
 
 def _create_generator(cfg: MotionGenConfig) -> MotionGenerator:
@@ -136,7 +136,7 @@ def _log_motion_generated(
     encode_ms: float | None,
 ) -> None:
     output_frames = len(chunk.qpos)
-    duration_s = output_frames / SONIC_FPS
+    duration_s = output_frames / REFERENCE_HZ
     node.log(
         "info",
         f"[OBS {request.observation_id}] motion generated: "

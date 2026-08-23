@@ -5,7 +5,7 @@ import math
 import numpy as np
 import torch
 
-from shared.messages import SONIC_FPS, MotionChunk
+from shared.messages import REFERENCE_HZ, MotionChunk
 
 
 def _quat_slerp_batch(
@@ -40,7 +40,7 @@ def _quat_slerp_batch(
 def resample_qpos(source_qpos: torch.Tensor, *, source_fps: float) -> torch.Tensor:
     """Resample qpos on its current Torch device without host transfers."""
 
-    output_frames = math.floor(source_qpos.shape[0] * SONIC_FPS / source_fps)
+    output_frames = math.floor(source_qpos.shape[0] * REFERENCE_HZ / source_fps)
     source_positions = (
         torch.arange(
             output_frames,
@@ -48,7 +48,7 @@ def resample_qpos(source_qpos: torch.Tensor, *, source_fps: float) -> torch.Tens
             dtype=torch.float64,
         )
         * source_fps
-        / SONIC_FPS
+        / REFERENCE_HZ
     )
     index_0 = torch.floor(source_positions).to(torch.long)
     index_0.clamp_(max=source_qpos.shape[0] - 1)

@@ -5,112 +5,22 @@ from pathlib import Path
 import torch
 from mjlab.utils.lab_api.math import (
     matrix_from_quat,
-    quat_apply,
     quat_conjugate,
     quat_mul,
-    yaw_quat,
 )
 
 from controller import RobotState
+from controller.reference import MotionReference
 from controller.sonic.observations import ObservationLayout
 from controller.sonic.onnx_model import OnnxModel
 from shared.g1 import (
     DEFAULT_JOINT_POS_MJLAB,
     MJLAB_FROM_SONIC,
     SONIC_FROM_MJLAB,
-    standing_qpos,
 )
-from shared.messages import SONIC_FPS, MotionChunk
+from shared.messages import MotionChunk
 
 HISTORY_FRAMES = 10
-
-
-class MotionReference:
-    def __init__(self, device: torch.device) -> None:
-        self.device = device
-        self._qpos = torch.as_tensor(
-            standing_qpos()[None], dtype=torch.float32, device=device
-        )
-        self._joint_vel = torch.zeros((1, 29), dtype=torch.float32, device=device)
-        self._heading_delta = torch.tensor(
-            [1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=device
-        )
-        self._robot_origin_w = torch.zeros(3, dtype=torch.float32, device=device)
-        self._reference_origin = torch.zeros(3, dtype=torch.float32, device=device)
-        self._sonic_from_mjlab = torch.as_tensor(
-            SONIC_FROM_MJLAB, dtype=torch.long, device=device
-        )
-        self._future_offsets = torch.arange(
-            HISTORY_FRAMES, dtype=torch.long, device=device
-        )
-        self._frame = 0
-        self._active = False
-
-    def load(
-        self,
-        chunk: MotionChunk,
-        robot_pos_w: torch.Tensor,
-        robot_quat_w: torch.Tensor,
-    ) -> None:
-        self._qpos = torch.tensor(
-            chunk.qpos, dtype=torch.float32, device=self.device
-        ).contiguous()
-        if len(self._qpos) < 2:
-            raise ValueError("SONIC requires at least two reference frames")
-        natural_positions = self._qpos[:, 7:]
-        velocities = torch.empty_like(natural_positions)
-        velocities[:-1] = torch.diff(natural_positions, dim=0) * SONIC_FPS
-        velocities[-1] = velocities[-2]
-        self._joint_vel = velocities
-
-        reference_quat = self._qpos[0, 3:7]
-        self._heading_delta = quat_mul(
-            yaw_quat(robot_quat_w), quat_conjugate(yaw_quat(reference_quat))
-        )
-        self._robot_origin_w = robot_pos_w.clone()
-        self._reference_origin = self._qpos[0, :3].clone()
-        self._frame = 0
-        self._active = True
-
-    def visualization_pose(
-        self,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor] | None:
-        """Return the active reference pose aligned to the command start pose."""
-        if not self._active:
-            return None
-
-        qpos = self._qpos[self._frame]
-        root_pos_w = self._robot_origin_w + quat_apply(
-            self._heading_delta, qpos[:3] - self._reference_origin
-        )
-        root_pos_w[2] = qpos[2]  # NOTE: No Z rebasing, only X Y
-        root_quat_w = quat_mul(self._heading_delta, qpos[3:7])
-        return root_pos_w, root_quat_w, qpos[7:]
-
-    def window(self, *, step: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        indices = torch.clamp(
-            self._future_offsets * step + self._frame,
-            max=len(self._qpos) - 1,
-        )
-        qpos = self._qpos.index_select(0, indices)
-        natural_positions = qpos[:, 7:]
-        natural_velocities = self._joint_vel.index_select(0, indices)
-        positions = natural_positions.index_select(1, self._sonic_from_mjlab)
-        velocities = natural_velocities.index_select(1, self._sonic_from_mjlab)
-        reference_quats = qpos[:, 3:7]
-        aligned_quats = quat_mul(
-            self._heading_delta.expand_as(reference_quats), reference_quats
-        )
-        return positions, velocities, aligned_quats
-
-    def advance(self) -> bool:
-        if not self._active:
-            return False
-        if self._frame < len(self._qpos) - 1:
-            self._frame += 1
-            return False
-        self._active = False
-        return True
 
 
 class SonicPolicy:
@@ -164,6 +74,8 @@ class SonicPolicy:
         robot_pos_w: torch.Tensor,
         robot_quat_w: torch.Tensor,
     ) -> None:
+        if len(chunk.qpos) < 2:
+            raise ValueError("SONIC requires at least two reference frames")
         self.reference.load(chunk, robot_pos_w, robot_quat_w)
 
     def infer(self, state: RobotState) -> tuple[torch.Tensor, bool]:
@@ -172,8 +84,10 @@ class SonicPolicy:
         )
         joint_velocity = state.joint_vel.index_select(0, self._sonic_from_mjlab)
         positions, velocities, reference_quats = self.reference.window(
-            step=self.layout.g1_step
+            count=HISTORY_FRAMES, step=self.layout.g1_step
         )
+        positions = positions.index_select(1, self._sonic_from_mjlab)
+        velocities = velocities.index_select(1, self._sonic_from_mjlab)
         relative_quats = quat_mul(
             quat_conjugate(state.root_quat_w).expand_as(reference_quats),
             reference_quats,

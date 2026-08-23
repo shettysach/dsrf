@@ -5,7 +5,7 @@ import onnxruntime as ort
 import pytest
 import torch
 
-from controller import RobotState
+from controller import ControlOutput, ExternalWrench, RobotState
 from controller.sonic.policy import SonicPolicy
 from motion_gen.kinematic_planner.generator import KinematicPlanner
 from motion_gen.resample import resample_motion
@@ -29,6 +29,8 @@ def test_real_checkpoints_generate_action_and_motion() -> None:
     state = RobotState(
         root_pos_w=torch.zeros(3),
         root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
+        root_lin_vel_w=torch.zeros(3),
+        root_ang_vel_w=torch.zeros(3),
         root_ang_vel_b=torch.zeros(3),
         projected_gravity_b=torch.tensor([0.0, 0.0, -1.0]),
         joint_pos=torch.as_tensor(DEFAULT_JOINT_POS_MJLAB),
@@ -59,7 +61,9 @@ def test_mjlab_cpu_control_step() -> None:
     try:
         policy = SonicPolicy(SONIC_DIR)
         action, _ = policy.infer(simulation.robot_state())
-        simulation.step(action)
+        simulation.step(
+            ControlOutput(simulation.command_transform.decode(action.squeeze(0)))
+        )
         assert simulation.unwrapped.common_step_counter == 1
         assert simulation.cfg.sim.njmax == 128
     finally:
@@ -84,6 +88,28 @@ def test_mjlab_offscreen_capture_is_synchronized_rgbd() -> None:
         simulation.close()
 
 
+def test_known_external_wrench_changes_root_motion() -> None:
+    simulation = MjlabEnv(device="cpu")
+    target = simulation.command_transform.default_position
+    try:
+        simulation.reset()
+        simulation.step(ControlOutput(target))
+        baseline_velocity = simulation.robot_state().root_lin_vel_w.clone()
+
+        simulation.reset()
+        force = ExternalWrench(
+            "pelvis",
+            torch.tensor([100.0, 0.0, 0.0]),
+            torch.zeros(3),
+        )
+        simulation.step(ControlOutput(target, external_wrenches=(force,)))
+        assisted_velocity = simulation.robot_state().root_lin_vel_w
+
+        assert assisted_velocity[0] > baseline_velocity[0] + 0.01
+    finally:
+        simulation.close()
+
+
 @pytest.mark.skipif(not CUDA_READY, reason="CUDA Torch and ONNX Runtime are required")
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")
 def test_mjlab_and_sonic_share_one_cuda_stream() -> None:
@@ -102,7 +128,9 @@ def test_mjlab_and_sonic_share_one_cuda_stream() -> None:
         assert policy.encoder.cuda_stream_ptr == stream_ptr
         assert policy.decoder.cuda_stream_ptr == stream_ptr
         assert action.device == torch.device("cuda:0")
-        simulation.step(action)
+        simulation.step(
+            ControlOutput(simulation.command_transform.decode(action.squeeze(0)))
+        )
         assert simulation.unwrapped.common_step_counter == 1
     finally:
         simulation.close()

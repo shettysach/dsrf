@@ -11,6 +11,7 @@ import torch
 import motion_gen.kinematic_planner.generator as kinematic_planner_generator
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
+from controller import ControlOutput
 from motion_gen.ardy.adapter import ArdyMotionGenerator
 from motion_gen.kinematic_planner.adapter import KinematicPlannerMotionGenerator
 from shared.arrow import (
@@ -226,6 +227,7 @@ def test_motion_generator_adapters_validate_backend_specific_constraints() -> No
 
 class _Simulation:
     device = "cpu"
+    step_dt = 0.02
 
     def __init__(self) -> None:
         self.steps = 0
@@ -256,7 +258,7 @@ class _Controller:
     def act(self, state):
         del state
         self.calls += 1
-        return torch.zeros((1, 29)), self.calls == 2
+        return ControlOutput(torch.zeros(29), completed=self.calls == 2)
 
 
 class _Renderer:

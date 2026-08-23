@@ -7,12 +7,12 @@ import torch
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 from mjlab.viewer.native.visualizer import MujocoNativeDebugVisualizer
 
-from shared.messages import SONIC_FPS
+from shared.messages import REFERENCE_HZ
 
 if TYPE_CHECKING:
     from mjlab.viewer import EnvProtocol
 
-    from controller.sonic.policy import MotionReference
+    from controller.reference import MotionReference
     from sim.env import MjlabEnv
 
 from sim.reference_ghost import ReferenceGhost
@@ -35,7 +35,7 @@ class NativeSimViewer(NativeMujocoViewer):
         super().__init__(
             cast("EnvProtocol", simulation),
             _ViewerOnlyPolicy(),
-            frame_rate=float(SONIC_FPS),
+            frame_rate=float(REFERENCE_HZ),
             enable_perturbations=False,
         )
         self._reference_ghost = (
@@ -75,7 +75,7 @@ class ViserSimViewer(ViserPlayViewer):
         super().__init__(
             cast("EnvProtocol", simulation),
             _ViewerOnlyPolicy(),
-            frame_rate=float(SONIC_FPS),
+            frame_rate=float(REFERENCE_HZ),
         )
         self._reference_ghost = (
             ReferenceGhost(simulation.unwrapped, reference)

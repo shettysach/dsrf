@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 MOTION_COLUMNS = 36
-SONIC_FPS = 50
+REFERENCE_HZ = 50
 ARDY_EMBEDDING_SIZE = 4096
 END_EFFECTOR_NAMES = frozenset({"left_hand", "right_hand", "left_foot", "right_foot"})
 

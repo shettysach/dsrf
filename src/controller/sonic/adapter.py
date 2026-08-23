@@ -6,8 +6,10 @@ from pathlib import Path
 
 import torch
 
-from controller import RobotState
-from controller.sonic.policy import MotionReference, SonicPolicy
+from controller import ControlOutput, RobotState
+from controller.g1_command import G1CommandTransform
+from controller.reference import MotionReference
+from controller.sonic.policy import SonicPolicy
 from shared.messages import MotionChunk
 
 __all__ = ["SonicController"]
@@ -19,10 +21,12 @@ class SonicController:
     def __init__(
         self,
         bundle_dir: Path,
+        command_transform: G1CommandTransform,
         *,
         device: str = "cpu",
         cuda_stream: torch.cuda.Stream | None = None,
     ) -> None:
+        self.command_transform = command_transform
         self.policy = SonicPolicy(
             bundle_dir,
             device=device,
@@ -37,5 +41,9 @@ class SonicController:
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
         self.policy.load_motion(chunk, state.root_pos_w, state.root_quat_w)
 
-    def act(self, state: RobotState) -> tuple[torch.Tensor, bool]:
-        return self.policy.infer(state)
+    def act(self, state: RobotState) -> ControlOutput:
+        raw_action, completed = self.policy.infer(state)
+        return ControlOutput(
+            joint_target=self.command_transform.decode(raw_action.squeeze(0)),
+            completed=completed,
+        )

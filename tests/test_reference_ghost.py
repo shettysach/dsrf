@@ -4,7 +4,7 @@ from typing import Any, cast
 import numpy as np
 import torch
 
-from controller.sonic.policy import MotionReference
+from controller.reference import MotionReference
 from shared.messages import MotionChunk
 from sim.reference_ghost import ReferenceGhost
 
