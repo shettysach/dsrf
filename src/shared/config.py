@@ -5,7 +5,15 @@ import os
 from dataclasses import MISSING, dataclass, fields
 from dataclasses import field as dataclass_field
 from pathlib import Path
-from typing import Literal, TypeAliasType, get_args, get_origin, get_type_hints
+from typing import (
+    Any,
+    Literal,
+    TypeAliasType,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from tasks import TaskSpec, get_task
 
@@ -177,7 +185,7 @@ def _dataclass_from_env[T](
     """Construct a dataclass from environment values and computed fields."""
     type_hints = get_type_hints(config_type)
     values = dict(overrides or {})
-    for field in fields(config_type):
+    for field in fields(cast(Any, config_type)):
         if field.name in values:
             continue
         env_name = str(field.metadata.get("env", f"{prefix}{field.name.upper()}"))

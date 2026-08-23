@@ -20,9 +20,9 @@ from shared.messages import (
     EndEffectorTarget,
     GroundingResult,
     PipelineError,
-    ProjectionContext,
     VisualObservation,
 )
+from sim.camera import ProjectionContext
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
@@ -94,7 +94,9 @@ class SimRuntime:
                     f"got {request.observation_id}"
                 )
             if self._projection_cache is None:
-                self._projection_cache = self.renderer.capture_depth()
+                raise ValueError(
+                    "No RGB-D capture is available for the current observation"
+                )
             resolved = tuple(
                 resolve_waypoint(waypoint, self._projection_cache)
                 for waypoint in request.waypoints_2d
@@ -231,7 +233,7 @@ class SimRuntime:
         self, *, completed_command: str | None
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
-        jpeg = self.renderer.capture_jpeg()
+        jpeg, projection = self.renderer.capture_rgbd()
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,
@@ -240,7 +242,7 @@ class SimRuntime:
         )
         data, metadata = observation_to_arrow(observation)
         self.node.send_output("observation", data, metadata=metadata)
-        self._projection_cache = None
+        self._projection_cache = projection
         self._observation_published_at = time.perf_counter()
         return render_ms, len(jpeg)
 

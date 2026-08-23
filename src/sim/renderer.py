@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from io import BytesIO
+import torch
+from torchvision.io import encode_jpeg
 
-import imageio.v3 as iio
-import numpy as np
-
-from shared.messages import ProjectionContext
+from sim.camera import ProjectionContext
 from sim.env import MjlabEnv
 
 
@@ -14,23 +12,11 @@ class SimRenderer:
         self.simulation = simulation
         self.jpeg_quality = jpeg_quality
 
-    def capture_jpeg(self) -> bytes:
-        image = self.simulation.render()
-        return self._encode(image)
-
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
-        image, projection = self.simulation.render_rgbd()
-        return self._encode(image), projection
+        frame = self.simulation.capture_rgbd()
+        return self._encode(frame.rgb), frame.projection
 
-    def capture_depth(self) -> ProjectionContext:
-        return self.simulation.render_depth()
-
-    def _encode(self, image: np.ndarray) -> bytes:
-        buffer = BytesIO()
-        iio.imwrite(
-            buffer,
-            image,
-            extension=".jpg",
-            quality=self.jpeg_quality,
-        )
-        return buffer.getvalue()
+    def _encode(self, image: torch.Tensor) -> bytes:
+        encoded = encode_jpeg(image.permute(2, 0, 1), quality=self.jpeg_quality)
+        assert isinstance(encoded, torch.Tensor)
+        return encoded.cpu().numpy().tobytes()

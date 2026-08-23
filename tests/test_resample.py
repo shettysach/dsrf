@@ -1,10 +1,9 @@
 import math
 
-import numpy as np
 import torch
 from mjlab.utils.lab_api.math import quat_slerp
 
-from motion_gen.resample import resample_motion, resample_qpos
+from motion_gen.resample import resample_qpos
 
 
 def _scalar_reference(qpos: torch.Tensor, source_fps: float) -> torch.Tensor:
@@ -27,38 +26,28 @@ def _scalar_reference(qpos: torch.Tensor, source_fps: float) -> torch.Tensor:
 
 
 def test_resample_64_frames_to_106_without_mutating_input() -> None:
-    qpos = np.zeros((64, 36), dtype=np.float32)
+    qpos = torch.zeros((64, 36))
     qpos[:, 3] = 1.0
     qpos[1::2, 3] = -1.0
-    qpos[:, 7] = np.arange(64)
-    original = qpos.copy()
+    qpos[:, 7] = torch.arange(64)
+    original = qpos.clone()
 
-    chunk = resample_motion(
-        qpos,
-        source_fps=30,
-        observation_id=2,
-        command="walk forward",
+    output = resample_qpos(qpos, source_fps=30)
+
+    assert output.shape == (106, 36)
+    torch.testing.assert_close(qpos, original)
+    torch.testing.assert_close(
+        torch.linalg.vector_norm(output[:, 3:7], dim=1), torch.ones(106)
     )
-
-    assert chunk.qpos.shape == (106, 36)
-    assert chunk.observation_id == 2
-    assert chunk.command == "walk forward"
-    np.testing.assert_array_equal(qpos, original)
-    np.testing.assert_allclose(np.linalg.norm(chunk.qpos[:, 3:7], axis=1), 1.0)
 
 
 def test_resample_25_fps_backend_to_sonic_fps() -> None:
-    qpos = np.zeros((25, 36), dtype=np.float32)
+    qpos = torch.zeros((25, 36))
     qpos[:, 3] = 1.0
 
-    chunk = resample_motion(
-        qpos,
-        source_fps=25,
-        observation_id=3,
-        command="walk forward",
-    )
+    output = resample_qpos(qpos, source_fps=25)
 
-    assert chunk.qpos.shape == (50, 36)
+    assert output.shape == (50, 36)
 
 
 def test_vectorized_resampling_matches_scalar_reference() -> None:

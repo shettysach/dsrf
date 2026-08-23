@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tasks.spec import SceneSpecFn, TaskSpec, ViewerSpec
+from tasks.spec import ObservationCameraSpec, SceneSpecFn, TaskSpec
 
 
 def _make_scene() -> SceneSpecFn:
@@ -13,5 +13,9 @@ TASK = TaskSpec(
     name="stairs",
     objective="Walk to the smaller stair block without colliding with either block.",
     make_scene=_make_scene,
-    viewer=ViewerSpec(distance=4.0, elevation=-50.0, origin="robot"),
+    observation_camera=ObservationCameraSpec(
+        distance=4.0,
+        elevation=-50.0,
+        origin="robot",
+    ),
 )

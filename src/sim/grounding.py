@@ -3,10 +3,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-import numpy as np
+import torch
+from mjlab.utils.lab_api.math import quat_apply_inverse, yaw_quat
 
-from shared.geometry import world_xy_to_local, yaw_from_quat_wxyz
-from shared.messages import ProjectionContext
+from sim.camera import ProjectionContext
 
 MAX_TARGET_DISTANCE_M = 1.5
 MIN_TARGET_DISTANCE_M = 0.05
@@ -46,18 +46,14 @@ def resolve_waypoint(
             f"Selected point is not on the floor: world_z={world_point[2]:.3f}"
         )
 
-    delta = world_point - projection.root_pos_w
-    target = world_xy_to_local(
-        delta[:2],
-        yaw_from_quat_wxyz(projection.root_quat_w),
-    )
-    distance = float(np.linalg.norm(target))
+    target = _world_to_robot(world_point - projection.root_pos_w, projection)
+    distance = float(torch.linalg.vector_norm(target[:2]))
     if not math.isfinite(distance):
         raise ValueError("Local waypoint is not finite")
     if distance < MIN_TARGET_DISTANCE_M:
         raise ValueError("Selected waypoint is too close to the robot")
     if distance > max_distance:
-        target *= max_distance / distance
+        target = target * (max_distance / distance)
 
     return ResolvedWaypoint(
         normalized=waypoint,
@@ -76,13 +72,8 @@ def resolve_end_effector(
     max_distance: float | None = None,
 ) -> ResolvedEndEffector:
     pixel, depth, world_point = _unproject(target_2d, projection, patch_size)
-    delta = world_point - projection.root_pos_w
-    target_xy = world_xy_to_local(
-        delta[:2],
-        yaw_from_quat_wxyz(projection.root_quat_w),
-    )
-    target_xyz = np.array([target_xy[0], target_xy[1], delta[2]])
-    distance = float(np.linalg.norm(target_xyz))
+    target_xyz = _world_to_robot(world_point - projection.root_pos_w, projection)
+    distance = float(torch.linalg.vector_norm(target_xyz))
     if not math.isfinite(distance):
         raise ValueError("Local end-effector target is not finite")
     limit = max_distance or _reach_limit(name)
@@ -116,7 +107,7 @@ def _unproject(
     target_2d: tuple[int, int],
     projection: ProjectionContext,
     patch_size: int,
-) -> tuple[tuple[int, int], float, np.ndarray]:
+) -> tuple[tuple[int, int], float, torch.Tensor]:
     if patch_size <= 0 or patch_size % 2 == 0:
         raise ValueError("Depth patch size must be a positive odd integer")
     height, width = projection.depth.shape
@@ -130,18 +121,18 @@ def _unproject(
         max(0, u - radius) : min(width, u + radius + 1),
     ]
     valid = patch[
-        np.isfinite(patch)
+        torch.isfinite(patch)
         & (patch > projection.near)
         & (patch < projection.far * (1.0 - 1e-6))
     ]
-    if not valid.size:
+    if valid.numel() == 0:
         raise ValueError(f"No valid depth near pixel ({u},{v})")
-    depth = float(np.median(valid))
+    depth = float(torch.median(valid))
 
-    forward = _unit(projection.camera_forward_w, "camera forward")
-    up = _unit(projection.camera_up_w, "camera up")
-    right = _unit(np.cross(forward, up), "camera right")
-    half_height = projection.frustum_height * 0.5
+    right = projection.camera_rotation_w[:, 0]
+    up = projection.camera_rotation_w[:, 1]
+    forward = -projection.camera_rotation_w[:, 2]
+    half_height = math.tan(projection.fovy_rad * 0.5)
     image_x = (2.0 * (u + 0.5) / width - 1.0) * (width / height)
     image_y = 1.0 - 2.0 * (v + 0.5) / height
     world_point = (
@@ -150,13 +141,13 @@ def _unproject(
         + right * (image_x * half_height * depth)
         + up * (image_y * half_height * depth)
     )
-    if not np.isfinite(world_point).all():
+    if not bool(torch.isfinite(world_point).all()):
         raise ValueError("Unprojected target is not finite")
     return (u, v), depth, world_point
 
 
-def _unit(value: np.ndarray, name: str) -> np.ndarray:
-    norm = float(np.linalg.norm(value))
-    if not math.isfinite(norm) or norm <= 1e-8:
-        raise ValueError(f"Invalid {name} vector")
-    return np.asarray(value, dtype=np.float64) / norm
+def _world_to_robot(
+    delta_w: torch.Tensor,
+    projection: ProjectionContext,
+) -> torch.Tensor:
+    return quat_apply_inverse(yaw_quat(projection.root_quat_w), delta_w)

@@ -30,8 +30,8 @@ from shared.messages import (
     EndEffectorTarget,
     GroundingRequest,
     MotionChunk,
-    ProjectionContext,
 )
+from sim.camera import ProjectionContext
 
 
 class _Node:
@@ -85,10 +85,14 @@ def _run_motion_gen(monkeypatch, events, generate):
     return node
 
 
-def _planner_motion() -> np.ndarray:
-    qpos = np.zeros((2, 36), dtype=np.float32)
+def _planner_motion() -> torch.Tensor:
+    qpos = torch.zeros((2, 36))
     qpos[:, 3] = 1.0
     return qpos
+
+
+def _planner_motion_numpy() -> np.ndarray:
+    return _planner_motion().numpy()
 
 
 def test_motion_gen_generates_one_segment_per_command(monkeypatch) -> None:
@@ -165,7 +169,8 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     generator = SimpleNamespace(
         fps=25,
         generate=lambda embedding, target, end_effectors: (
-            generated.append((embedding, target, end_effectors)) or _planner_motion()
+            generated.append((embedding, target, end_effectors))
+            or _planner_motion_numpy()
         ),
     )
     encoder = SimpleNamespace(
@@ -207,7 +212,7 @@ def test_motion_generator_adapters_validate_backend_specific_constraints() -> No
         SimpleNamespace(fps=30, generate=lambda *args: _planner_motion())
     )
     ardy = ArdyMotionGenerator(
-        SimpleNamespace(fps=25, generate=lambda *args: _planner_motion()),
+        SimpleNamespace(fps=25, generate=lambda *args: _planner_motion_numpy()),
         SimpleNamespace(encode=lambda text: torch.ones(4096)),
     )
 
@@ -264,35 +269,23 @@ class _Controller:
 class _Renderer:
     def __init__(self, simulation: _Simulation) -> None:
         self.simulation = simulation
-        self.capture_steps: list[int] = []
-        self.jpeg_steps: list[int] = []
         self.rgbd_steps: list[int] = []
-        self.depth_steps: list[int] = []
-
-    def capture_jpeg(self) -> bytes:
-        self.capture_steps.append(self.simulation.steps)
-        self.jpeg_steps.append(self.simulation.steps)
-        return f"jpeg-{self.simulation.steps}".encode()
 
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
-        self.capture_steps.append(self.simulation.steps)
         self.rgbd_steps.append(self.simulation.steps)
         return f"jpeg-{self.simulation.steps}".encode(), _projection()
-
-    def capture_depth(self) -> ProjectionContext:
-        self.depth_steps.append(self.simulation.steps)
-        return _projection()
 
 
 def _projection() -> ProjectionContext:
     return ProjectionContext(
-        depth=np.ones((101, 101), dtype=np.float32),
-        camera_pos_w=np.zeros(3),
-        camera_forward_w=np.array([1.0, 0.0, 0.0]),
-        camera_up_w=np.array([0.0, 0.0, 1.0]),
-        frustum_height=1.0,
-        root_pos_w=np.zeros(3),
-        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
+        depth=torch.ones((101, 101)),
+        camera_pos_w=torch.zeros(3),
+        camera_rotation_w=torch.tensor(
+            [[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        ),
+        fovy_rad=2.0 * np.arctan(0.5),
+        root_pos_w=torch.zeros(3),
+        root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
         near=0.01,
         far=100.0,
     )
@@ -358,8 +351,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
 
     assert simulation.steps == 2
     assert viewer.sync_steps == [1, 2]
-    assert renderer.jpeg_steps == [0, 2]
-    assert renderer.depth_steps == []
+    assert renderer.rgbd_steps == [0, 2]
     observations = [output for output in node.outputs if output[0] == "observation"]
     first = observation_from_arrow(
         observations[0][1], cast(Any, observations[0][2]["metadata"])
@@ -374,7 +366,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     assert any("[OBS 0->1] motion complete" in message for _, message, _ in node.logs)
 
 
-def test_sim_publishes_rgb_without_eager_depth() -> None:
+def test_sim_publishes_synchronized_rgbd() -> None:
     node = _Node([{"type": "STOP"}])
     simulation = _Simulation()
     renderer = _Renderer(simulation)
@@ -387,15 +379,14 @@ def test_sim_publishes_rgb_without_eager_depth() -> None:
 
     runtime.run()
 
-    assert renderer.jpeg_steps == [0]
-    assert renderer.rgbd_steps == []
+    assert renderer.rgbd_steps == [0]
     observation = observation_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert observation.jpeg == b"jpeg-0"
 
 
-def test_sim_lazily_caches_depth_for_current_observation() -> None:
+def test_sim_reuses_depth_for_current_observation() -> None:
     node = _Node(
         [
             _grounding_request_event(0),
@@ -415,8 +406,7 @@ def test_sim_lazily_caches_depth_for_current_observation() -> None:
     runtime.run()
 
     assert simulation.steps == 0
-    assert renderer.jpeg_steps == [0]
-    assert renderer.depth_steps == [0]
+    assert renderer.rgbd_steps == [0]
     results = [output for output in node.outputs if output[0] == "grounding_result"]
     assert len(results) == 2
     assert all(
@@ -426,7 +416,7 @@ def test_sim_lazily_caches_depth_for_current_observation() -> None:
     )
 
 
-def test_sim_grounds_end_effector_with_lazy_depth() -> None:
+def test_sim_grounds_end_effector_with_published_depth() -> None:
     node = _Node(
         [
             _grounding_request_event(
@@ -448,7 +438,7 @@ def test_sim_grounds_end_effector_with_lazy_depth() -> None:
 
     runtime.run()
 
-    assert renderer.depth_steps == [0]
+    assert renderer.rgbd_steps == [0]
     output = next(output for output in node.outputs if output[0] == "grounding_result")
     result = grounding_result_from_arrow(output[1], cast(Any, output[2]["metadata"]))
     assert result.end_effectors[0].name == "right_hand"

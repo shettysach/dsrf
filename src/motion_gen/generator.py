@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-import numpy as np
+import torch
 
 from shared.messages import AgentCommand
 
@@ -15,4 +15,4 @@ class MotionGenerator(Protocol):
     fps: float
     last_encode_ms: float | None
 
-    def generate(self, command: AgentCommand) -> np.ndarray: ...
+    def generate(self, command: AgentCommand) -> torch.Tensor: ...

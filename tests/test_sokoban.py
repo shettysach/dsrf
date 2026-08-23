@@ -18,16 +18,15 @@ def test_catalog_contains_sokoban() -> None:
 
     assert task is TASKS["sokoban"]
     assert task.objective == "Push both boxes onto the two marked goal regions."
-    assert task.viewer.distance == 5.0
-    assert task.viewer.elevation == -50.0
+    assert task.observation_camera.distance == 5.0
+    assert task.observation_camera.elevation == -50.0
 
 
-def test_sokoban_uses_elevated_viewer_framing() -> None:
+def test_sokoban_uses_elevated_observation_framing() -> None:
     cfg = make_sim_env_cfg(task=get_task("sokoban"))
 
     assert cfg.scene.spec_fn is not None
-    assert cfg.viewer.distance == 5.0
-    assert cfg.viewer.elevation == -50.0
+    assert cfg.scene.sensors[0].data_types == ("rgb", "depth")
 
 
 def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:

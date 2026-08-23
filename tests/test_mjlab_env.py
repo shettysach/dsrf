@@ -1,33 +1,31 @@
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
-import numpy as np
 import pytest
 import torch
 
 from controller import ControlOutput, ExternalWrench
+from sim.camera import orbit_camera_pose
 from sim.env import MjlabEnv
 
 
-def test_render_keeps_camera_azimuth_fixed() -> None:
-    renderer = SimpleNamespace(
-        _cam=SimpleNamespace(azimuth=10.0),
-        render=lambda: np.zeros((1, 1, 3), dtype=np.uint8),
-    )
-    offline = SimpleNamespace(
-        renderer=renderer,
-        update=lambda data, debug_vis_callback: None,
-    )
-    simulation = cast(Any, MjlabEnv.__new__(MjlabEnv))
-    simulation.cuda_stream = None
-    simulation._env = SimpleNamespace(
-        _offline_renderer=offline,
-        sim=SimpleNamespace(data=object()),
+def test_observation_camera_orbits_target() -> None:
+    position, rotation = orbit_camera_pose(
+        torch.tensor([1.0, 2.0, 1.0]),
+        distance=2.0,
+        elevation_deg=-30.0,
+        azimuth_deg=0.0,
     )
 
-    simulation.render()
-
-    assert renderer._cam.azimuth == 10.0
+    torch.testing.assert_close(
+        position,
+        torch.tensor([1.0 - 3.0**0.5, 2.0, 2.0]),
+    )
+    forward = -rotation[:, 2]
+    torch.testing.assert_close(
+        forward,
+        torch.nn.functional.normalize(torch.tensor([3.0**0.5, 0.0, -1.0]), dim=0),
+    )
+    torch.testing.assert_close(rotation.T @ rotation, torch.eye(3))
 
 
 class _Robot:

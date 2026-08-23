@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tasks.spec import SceneSpecFn, TaskSpec, ViewerSpec
+from tasks.spec import ObservationCameraSpec, SceneSpecFn, TaskSpec
 
 
 def _make_scene() -> SceneSpecFn:
@@ -13,5 +13,5 @@ TASK = TaskSpec(
     name="portrait-corridors",
     objective="Stand in front of the image of the creator of Linux.",
     make_scene=_make_scene,
-    viewer=ViewerSpec(distance=3.5, elevation=-30.0),
+    observation_camera=ObservationCameraSpec(distance=3.5, elevation=-30.0),
 )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import numpy as np
+import torch
 
 from motion_gen.kinematic_planner.generator import KinematicPlanner
 from shared.messages import AgentCommand
@@ -16,7 +16,7 @@ class KinematicPlannerMotionGenerator:
         self.fps: float = float(generator.fps)
         self.last_encode_ms: float | None = None
 
-    def generate(self, command: AgentCommand) -> np.ndarray:
+    def generate(self, command: AgentCommand) -> torch.Tensor:
         if command.end_effectors:
             raise ValueError("End-effector constraints are only supported by ARDY")
         return self._generator.generate(

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import onnxruntime as ort
 import pytest
 import torch
@@ -8,7 +7,7 @@ import torch
 from controller import ControlOutput, ExternalWrench, RobotState
 from controller.sonic.policy import SonicPolicy
 from motion_gen.kinematic_planner.generator import KinematicPlanner
-from motion_gen.resample import resample_motion
+from motion_gen.resample import resample_qpos
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
@@ -44,15 +43,11 @@ def test_real_checkpoints_generate_action_and_motion() -> None:
 
     planner = KinematicPlanner(SONIC_DIR / "planner_sonic.onnx")
     planner_qpos = planner.generate("walk", ((1.0, 0.0),))
-    chunk = resample_motion(
-        planner_qpos,
-        source_fps=planner.fps,
-        observation_id=0,
-        command='{"motion":"walk","waypoints_2d":[[500,500]]}',
-    )
+    resampled = resample_qpos(planner_qpos, source_fps=planner.fps)
     assert 24 <= planner_qpos.shape[0] <= 64
     assert planner_qpos.shape[0] % 4 == 0
-    assert chunk.qpos.shape == (planner_qpos.shape[0] * 50 // 30, 36)
+    assert resampled.shape == (planner_qpos.shape[0] * 50 // 30, 36)
+    assert planner_qpos.device.type == "cpu"
 
 
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")
@@ -71,19 +66,33 @@ def test_mjlab_cpu_control_step() -> None:
 
 
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")
-def test_mjlab_offscreen_capture_is_synchronized_rgbd() -> None:
+def test_mjlab_gpu_capture_is_on_demand_and_synchronized_rgbd() -> None:
     simulation = MjlabEnv(
         device="cpu",
         image_width=160,
         image_height=120,
     )
     try:
+        sense_calls = 0
+        original_sense = simulation._camera_capture._sense
+
+        def count_sense() -> None:
+            nonlocal sense_calls
+            sense_calls += 1
+            original_sense()
+
+        simulation._camera_capture._sense = count_sense
+        simulation.reset()
+        simulation.step(ControlOutput(simulation.command_transform.default_position))
+        assert sense_calls == 0
+
         jpeg, projection = SimRenderer(simulation, jpeg_quality=80).capture_rgbd()
+        assert sense_calls == 1
         assert jpeg.startswith(b"\xff\xd8")
         assert jpeg.endswith(b"\xff\xd9")
         assert projection.depth.shape == (120, 160)
-        assert bool(np.isfinite(projection.depth).all())
-        assert projection.frustum_height > 0.0
+        assert bool(torch.isfinite(projection.depth).all())
+        assert projection.fovy_rad > 0.0
     finally:
         simulation.close()
 

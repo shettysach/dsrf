@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import time
 
-import numpy as np
+import torch
 from dora import Node
 
 from motion_gen.ardy.adapter import ArdyMotionGenerator
 from motion_gen.generator import MotionGenerator
 from motion_gen.kinematic_planner.adapter import KinematicPlannerMotionGenerator
-from motion_gen.resample import resample_motion
+from motion_gen.resample import resample_qpos
 from shared.arrow import (
     agent_command_from_arrow,
     motion_to_arrow,
@@ -56,11 +56,11 @@ def main() -> None:
         started_at = time.perf_counter()
         try:
             source_qpos = generator.generate(request)
-            chunk = resample_motion(
-                source_qpos,
-                source_fps=generator.fps,
+            qpos = resample_qpos(source_qpos, source_fps=generator.fps)
+            chunk = MotionChunk(
                 observation_id=request.observation_id,
                 command=request.text,
+                qpos=qpos.cpu().numpy(),
             )
         except ValueError as exc:
             _report_invalid_command(node, request, exc)
@@ -129,7 +129,7 @@ def _log_generation_error(
 def _log_motion_generated(
     node: Node,
     request: AgentCommand,
-    source_qpos: np.ndarray,
+    source_qpos: torch.Tensor,
     chunk: MotionChunk,
     *,
     plan_ms: float,

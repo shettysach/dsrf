@@ -10,7 +10,6 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "dora-rs==1.0.0rc4",
-    "imageio>=2.37,<3",
     "numpy>=2.4.0,<2.5",
     "pyarrow>=20",
     "pyyaml>=6.0.2",
@@ -55,7 +54,7 @@ conflicts = [
 
 [tool.uv.sources]
 ardy = { git = "https://github.com/shettysach/ardy", branch = "main" }
-mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "15ebce8840ee2205f4c62d0c20df65dd1794cab4" }
+mjlab = { git = "https://github.com/mujocolab/mjlab", tag = "v1.6.0" }
 warp-lang = { index = "nvidia", marker = "sys_platform != 'darwin'" }
 torch = [
     { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },

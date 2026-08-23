@@ -9,16 +9,25 @@ if TYPE_CHECKING:
 
 type SceneSpecFn = Callable[["MjSpec"], None]
 type SceneFactory = Callable[[], SceneSpecFn]
-type ViewerOrigin = Literal["robot", "world"]
+type CameraOrigin = Literal["robot", "world"]
 
 
 @dataclass(frozen=True)
-class ViewerSpec:
+class ObservationCameraSpec:
     distance: float = 2.0
     elevation: float = -15.0
-    origin: ViewerOrigin = "robot"
+    origin: CameraOrigin = "robot"
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     azimuth: float = 0.0
+    fovy: float = 45.0
+
+    def __post_init__(self) -> None:
+        if self.distance <= 0.0:
+            raise ValueError("Observation camera distance must be positive")
+        if not -89.0 < self.elevation < 89.0:
+            raise ValueError("Observation camera elevation must be between -89 and 89")
+        if not 0.0 < self.fovy < 180.0:
+            raise ValueError("Observation camera FOV must be between 0 and 180")
 
 
 @dataclass(frozen=True)
@@ -26,7 +35,7 @@ class TaskSpec:
     name: str
     objective: str
     make_scene: SceneFactory
-    viewer: ViewerSpec = ViewerSpec()
+    observation_camera: ObservationCameraSpec = ObservationCameraSpec()
 
     def __post_init__(self) -> None:
         if not self.name or self.name != self.name.strip():

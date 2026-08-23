@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager, nullcontext
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import mujoco
-import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv
-from tasks import TaskSpec
+from mjlab.sensor import CameraSensor
+from tasks import ObservationCameraSpec, TaskSpec
 
 from controller import ControlOutput, RobotState
 from controller.g1_command import G1CommandTransform
 from shared.g1 import G1_JOINT_NAMES_MJLAB
-from shared.messages import ProjectionContext
-from sim.config import make_sim_env_cfg
+from sim.camera import OnDemandCameraCapture, RgbdFrame
+from sim.config import OBSERVATION_CAMERA, make_sim_env_cfg
 
 if TYPE_CHECKING:
     from mjlab.envs.types import VecEnvObs, VecEnvStepReturn
@@ -30,6 +29,9 @@ class MjlabEnv:
         task: TaskSpec | None = None,
     ) -> None:
         torch_device = torch.device(device)
+        camera_spec = (
+            task.observation_camera if task is not None else ObservationCameraSpec()
+        )
         self._env = ManagerBasedRlEnv(
             cfg=make_sim_env_cfg(
                 image_width=image_width,
@@ -37,7 +39,7 @@ class MjlabEnv:
                 task=task,
             ),
             device=str(torch_device),
-            render_mode="rgb_array",
+            render_mode=None,
         )
         self.num_envs = self._env.num_envs
         self.cfg = self._env.cfg
@@ -54,6 +56,18 @@ class MjlabEnv:
             action_term.scale[0],  # ty: ignore[unresolved-attribute]
         )
         self._robot = self._env.scene["robot"]
+        camera = self._env.scene[OBSERVATION_CAMERA]
+        if not isinstance(camera, CameraSensor):
+            raise RuntimeError("Observation sensor is not an MJLab CameraSensor")
+        sensor_context = self._env.scene.sensor_context
+        if sensor_context is None:
+            raise RuntimeError("Observation camera has no MJLab sensor context")
+        self._camera_capture = OnDemandCameraCapture(
+            self._env.sim,
+            camera,
+            sensor_context,
+            camera_spec,
+        )
         self._body_ids = {
             name: index for index, name in enumerate(self._robot.body_names)
         }
@@ -128,78 +142,12 @@ class MjlabEnv:
         with self.compute_context():
             return self._env.reset()
 
-    def render(self) -> np.ndarray:
+    def capture_rgbd(self) -> RgbdFrame:
         with self.compute_context():
-            renderer = self._update_offscreen_renderer()
-            return renderer.render().copy()
-
-    def render_depth(self) -> ProjectionContext:
-        with self.compute_context():
-            renderer = self._update_offscreen_renderer()
-            renderer.enable_depth_rendering()
-            try:
-                depth = renderer.render().copy()
-            finally:
-                renderer.disable_depth_rendering()
-            return self._projection_context(renderer, depth)
-
-    def render_rgbd(self) -> tuple[np.ndarray, ProjectionContext]:
-        with self.compute_context():
-            renderer = self._update_offscreen_renderer()
-            rgb = renderer.render().copy()
-            renderer.enable_depth_rendering()
-            try:
-                depth = renderer.render().copy()
-            finally:
-                renderer.disable_depth_rendering()
-
-            projection = self._projection_context(renderer, depth)
-        return rgb, projection
-
-    def _update_offscreen_renderer(self) -> Any:
-        offline = self._env._offline_renderer
-        if offline is None:
-            raise RuntimeError("MJLab offscreen renderer is not initialized")
-        debug_callback = (
-            self._env.update_visualizers
-            if hasattr(self._env, "update_visualizers")
-            else None
-        )
-        offline.update(self._env.sim.data, debug_vis_callback=debug_callback)
-        return offline.renderer
-
-    def _projection_context(
-        self, renderer: Any, depth: np.ndarray
-    ) -> ProjectionContext:
-        camera_pos = np.empty(3, dtype=np.float64)
-        camera_forward = np.empty(3, dtype=np.float64)
-        camera_up = np.empty(3, dtype=np.float64)
-        mujoco.mjv_cameraInModel(  # ty: ignore[unresolved-attribute]
-            camera_pos,
-            camera_forward,
-            camera_up,
-            renderer.scene,
-        )
-        model = renderer.model
-        extent = float(model.stat.extent)
-        state = self.robot_state()
-        return ProjectionContext(
-            depth=depth,
-            camera_pos_w=camera_pos,
-            camera_forward_w=camera_forward,
-            camera_up_w=camera_up,
-            frustum_height=float(
-                mujoco.mjv_frustumHeight(  # ty: ignore[unresolved-attribute]
-                    renderer.scene
-                )
-            ),
-            root_pos_w=state.root_pos_w.detach().cpu().numpy(),
-            root_quat_w=state.root_quat_w.detach().cpu().numpy(),
-            near=float(model.vis.map.znear) * extent,
-            far=float(model.vis.map.zfar) * extent,
-        )
+            return self._camera_capture.capture(self.robot_state())
 
     def close(self) -> None:
+        self._camera_capture.close()
         self._env.close()
 
 
@@ -212,8 +160,6 @@ def connect_torch_to_mjlab(
 ) -> torch.cuda.Stream:
     import warp as wp
 
-    torch.cuda.synchronize(device)
-    wp.synchronize_device(simulation.wp_device)
     return wp.stream_to_torch(simulation.wp_device)
 
 

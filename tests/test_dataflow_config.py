@@ -4,8 +4,6 @@ from pathlib import Path
 import yaml
 from tasks import get_task
 
-from sim.config import make_sim_env_cfg
-
 
 def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     descriptor = yaml.safe_load(Path("corridors.yml").read_text())
@@ -88,13 +86,11 @@ def test_seesaw_dataflow_uses_ardy() -> None:
     assert nodes["sim"]["env"]["TASK"] == "seesaw"
 
 
-def test_seesaw_tracks_position_with_a_fixed_azimuth() -> None:
-    cfg = make_sim_env_cfg(task=get_task("seesaw"))
+def test_seesaw_observation_camera_tracks_with_a_fixed_azimuth() -> None:
+    camera = get_task("seesaw").observation_camera
 
-    assert cfg.viewer.origin_type is cfg.viewer.OriginType.ASSET_BODY
-    assert cfg.viewer.entity_name == "robot"
-    assert cfg.viewer.body_name == "torso_link"
-    assert cfg.viewer.azimuth == 0.0
+    assert camera.origin == "robot"
+    assert camera.azimuth == 0.0
 
 
 def test_stairs_dataflow_uses_ardy() -> None:

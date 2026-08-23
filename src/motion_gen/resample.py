@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
 import torch
 
-from shared.messages import REFERENCE_HZ, MotionChunk
+from shared.messages import REFERENCE_HZ
 
 
 def _quat_slerp_batch(
@@ -64,25 +63,3 @@ def resample_qpos(source_qpos: torch.Tensor, *, source_fps: float) -> torch.Tens
         blend,
     )
     return output.contiguous()
-
-
-def resample_motion(
-    source_qpos: np.ndarray,
-    *,
-    source_fps: float,
-    observation_id: int,
-    command: str,
-) -> MotionChunk:
-    """Convert NumPy backend output to a CPU MotionChunk at SONIC's frequency.
-
-    Torch backends should call ``resample_qpos`` directly to remain on-device.
-    """
-
-    qpos = torch.as_tensor(source_qpos, dtype=torch.float32)
-    output = resample_qpos(qpos, source_fps=source_fps)
-
-    return MotionChunk(
-        observation_id=observation_id,
-        command=command,
-        qpos=output.numpy(),
-    )

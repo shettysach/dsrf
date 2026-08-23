@@ -1,8 +1,6 @@
-from types import SimpleNamespace
-from typing import Any, cast
-
 import numpy as np
 import pytest
+import torch
 
 from motion_gen.kinematic_planner import PlannerMode, planner_direction, planner_mode
 from motion_gen.kinematic_planner.generator import KinematicPlanner
@@ -23,18 +21,18 @@ def test_navigation_directions_map_to_local_vectors() -> None:
 
 
 def test_kinematic_planner_visits_waypoints_in_order() -> None:
-    captured: list[dict[str, np.ndarray]] = []
+    captured: list[dict[str, torch.Tensor]] = []
 
-    def run(_outputs, inputs):
-        captured.append(inputs)
-        qpos = np.tile(_standing(), (1, 8, 1))
+    def run(inputs):
+        captured.append({name: value.clone() for name, value in inputs.items()})
+        qpos = _standing().repeat(1, 8, 1)
         qpos[0, :, 0] = inputs["specific_target_positions"][0, 0, 0]
         qpos[0, :, 1] = inputs["specific_target_positions"][0, 0, 1]
-        return qpos, np.array([8], dtype=np.int64)
+        return {"mujoco_qpos": qpos, "num_pred_frames": torch.tensor([8])}
 
     planner = KinematicPlanner.__new__(KinematicPlanner)
-    planner.session = cast(Any, SimpleNamespace(run=run))
-    planner._context = np.tile(_standing(), (1, 4, 1))
+    planner.model = _Model(run)
+    planner._context = _standing().repeat(1, 4, 1)
 
     qpos = planner.generate("walk", ((1.0, 0.5), (2.0, -0.5)))
 
@@ -49,16 +47,15 @@ def test_kinematic_planner_visits_waypoints_in_order() -> None:
 
 
 def test_local_lateral_target_uses_world_target_and_preserves_heading() -> None:
-    captured: dict[str, np.ndarray] = {}
+    captured: dict[str, torch.Tensor] = {}
 
-    def run(_outputs, inputs):
-        captured.update(inputs)
-        qpos = np.tile(_standing(), (1, 8, 1))
-        return qpos, np.array([8], dtype=np.int64)
+    def run(inputs):
+        captured.update({name: value.clone() for name, value in inputs.items()})
+        return _outputs()
 
     planner = KinematicPlanner.__new__(KinematicPlanner)
-    planner.session = cast(Any, SimpleNamespace(run=run))
-    planner._context = np.tile(_standing(), (1, 4, 1))
+    planner.model = _Model(run)
+    planner._context = _standing().repeat(1, 4, 1)
     planner.generate("walk", ((1.0, 0.5),))
 
     np.testing.assert_allclose(
@@ -71,16 +68,15 @@ def test_local_lateral_target_uses_world_target_and_preserves_heading() -> None:
 
 
 def test_stand_has_no_specific_target() -> None:
-    captured: dict[str, np.ndarray] = {}
+    captured: dict[str, torch.Tensor] = {}
 
-    def run(_outputs, inputs):
-        captured.update(inputs)
-        qpos = np.tile(_standing(), (1, 8, 1))
-        return qpos, np.array([8], dtype=np.int64)
+    def run(inputs):
+        captured.update({name: value.clone() for name, value in inputs.items()})
+        return _outputs()
 
     planner = KinematicPlanner.__new__(KinematicPlanner)
-    planner.session = cast(Any, SimpleNamespace(run=run))
-    planner._context = np.tile(_standing(), (1, 4, 1))
+    planner.model = _Model(run)
+    planner._context = _standing().repeat(1, 4, 1)
     planner.generate("stand", ())
 
     assert captured["has_specific_target"].tolist() == [[0]]
@@ -88,16 +84,15 @@ def test_stand_has_no_specific_target() -> None:
 
 
 def test_stand_direction_can_cue_a_turn() -> None:
-    captured: dict[str, np.ndarray] = {}
+    captured: dict[str, torch.Tensor] = {}
 
-    def run(_outputs, inputs):
-        captured.update(inputs)
-        qpos = np.tile(_standing(), (1, 8, 1))
-        return qpos, np.array([8], dtype=np.int64)
+    def run(inputs):
+        captured.update({name: value.clone() for name, value in inputs.items()})
+        return _outputs()
 
     planner = KinematicPlanner.__new__(KinematicPlanner)
-    planner.session = cast(Any, SimpleNamespace(run=run))
-    planner._context = np.tile(_standing(), (1, 4, 1))
+    planner.model = _Model(run)
+    planner._context = _standing().repeat(1, 4, 1)
     planner.generate("stand", (), "left")
 
     assert captured["has_specific_target"].tolist() == [[0]]
@@ -105,20 +100,19 @@ def test_stand_direction_can_cue_a_turn() -> None:
 
 
 def test_direction_is_robot_relative() -> None:
-    captured: dict[str, np.ndarray] = {}
+    captured: dict[str, torch.Tensor] = {}
 
-    def run(_outputs, inputs):
-        captured.update(inputs)
-        qpos = np.tile(_standing(), (1, 8, 1))
-        return qpos, np.array([8], dtype=np.int64)
+    def run(inputs):
+        captured.update({name: value.clone() for name, value in inputs.items()})
+        return _outputs()
 
     planner = KinematicPlanner.__new__(KinematicPlanner)
-    planner.session = cast(Any, SimpleNamespace(run=run))
+    planner.model = _Model(run)
     context_frame = _standing()
     yaw = np.pi / 2.0
-    context_frame[3] = np.cos(yaw / 2.0)
-    context_frame[6] = np.sin(yaw / 2.0)
-    planner._context = np.tile(context_frame, (1, 4, 1))
+    context_frame[0, 0, 3] = np.cos(yaw / 2.0)
+    context_frame[0, 0, 6] = np.sin(yaw / 2.0)
+    planner._context = context_frame.repeat(1, 4, 1)
 
     planner.generate("walk", (), "forward")
 
@@ -130,7 +124,19 @@ def test_direction_is_robot_relative() -> None:
     )
 
 
-def _standing() -> np.ndarray:
-    qpos = np.zeros(36, dtype=np.float32)
-    qpos[3] = 1.0
+class _Model:
+    def __init__(self, run) -> None:
+        self.run = run
+
+
+def _outputs() -> dict[str, torch.Tensor]:
+    return {
+        "mujoco_qpos": _standing().repeat(1, 8, 1),
+        "num_pred_frames": torch.tensor([8]),
+    }
+
+
+def _standing() -> torch.Tensor:
+    qpos = torch.zeros((1, 1, 36))
+    qpos[0, 0, 3] = 1.0
     return qpos

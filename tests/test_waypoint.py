@@ -1,19 +1,22 @@
 import math
 
-import numpy as np
 import pytest
+import torch
 
 from motion_gen.ardy.parser import parse_ardy_command
-from shared.messages import GroundingRequest, ProjectionContext
+from shared.messages import GroundingRequest
+from sim.camera import ProjectionContext
 from sim.grounding import resolve_end_effector, resolve_waypoint
 
 
 def _floor_projection() -> ProjectionContext:
     size = 101
-    camera_pos = np.array([0.0, 0.0, 1.0])
-    forward = np.array([math.sqrt(0.5), 0.0, -math.sqrt(0.5)])
-    up = np.array([math.sqrt(0.5), 0.0, math.sqrt(0.5)])
-    depth = np.full((size, size), np.nan, dtype=np.float32)
+    camera_pos = torch.tensor([0.0, 0.0, 1.0])
+    forward = torch.tensor([math.sqrt(0.5), 0.0, -math.sqrt(0.5)])
+    up = torch.tensor([math.sqrt(0.5), 0.0, math.sqrt(0.5)])
+    right = torch.cross(forward, up, dim=0)
+    rotation = torch.stack((right, up, -forward), dim=1)
+    depth = torch.full((size, size), math.nan)
     for v in range(size):
         image_y = 1.0 - 2.0 * (v + 0.5) / size
         ray_z = forward[2] + up[2] * image_y * 0.5
@@ -22,11 +25,10 @@ def _floor_projection() -> ProjectionContext:
     return ProjectionContext(
         depth=depth,
         camera_pos_w=camera_pos,
-        camera_forward_w=forward,
-        camera_up_w=up,
-        frustum_height=1.0,
-        root_pos_w=np.zeros(3),
-        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
+        camera_rotation_w=rotation,
+        fovy_rad=2.0 * math.atan(0.5),
+        root_pos_w=torch.zeros(3),
+        root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
         near=0.01,
         far=100.0,
     )
@@ -54,7 +56,7 @@ def test_higher_floor_pixel_is_farther_than_lower_pixel() -> None:
 
 def test_depth_patch_uses_valid_median_and_clamps_horizon() -> None:
     projection = _floor_projection()
-    projection.depth[48:53, 48:53] = np.nan
+    projection.depth[48:53, 48:53] = math.nan
     projection.depth[49:52, 49:52] = math.sqrt(2.0)
     projection.depth[50, 50] = 50.0
     result = resolve_waypoint((500, 500), projection, max_distance=0.5)
@@ -150,20 +152,21 @@ def test_expressive_motion_prompt_can_optionally_have_a_waypoint() -> None:
 
 def test_invalid_depth_fails() -> None:
     projection = _floor_projection()
-    projection.depth[:] = np.nan
+    projection.depth[:] = math.nan
     with pytest.raises(ValueError, match="No valid depth"):
         resolve_waypoint((500, 500), projection)
 
 
 def test_end_effector_pixel_resolves_to_local_3d_target() -> None:
     projection = ProjectionContext(
-        depth=np.full((101, 101), 0.5, dtype=np.float32),
-        camera_pos_w=np.array([0.0, 0.0, 0.8]),
-        camera_forward_w=np.array([1.0, 0.0, 0.0]),
-        camera_up_w=np.array([0.0, 0.0, 1.0]),
-        frustum_height=1.0,
-        root_pos_w=np.zeros(3),
-        root_quat_w=np.array([1.0, 0.0, 0.0, 0.0]),
+        depth=torch.full((101, 101), 0.5),
+        camera_pos_w=torch.tensor([0.0, 0.0, 0.8]),
+        camera_rotation_w=torch.tensor(
+            [[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        ),
+        fovy_rad=2.0 * math.atan(0.5),
+        root_pos_w=torch.zeros(3),
+        root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
         near=0.01,
         far=100.0,
     )

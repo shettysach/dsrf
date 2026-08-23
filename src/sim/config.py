@@ -15,10 +15,13 @@ from mjlab.entity import EntityArticulationInfoCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.scene import SceneCfg
+from mjlab.sensor import CameraSensorCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
-from tasks import TaskSpec, ViewerSpec
+from tasks import ObservationCameraSpec, TaskSpec
+
+OBSERVATION_CAMERA = "observation_camera"
 
 
 def make_sim_env_cfg(
@@ -62,15 +65,26 @@ def make_sim_env_cfg(
                 0.25 * float(actuator.effort_limit) / actuator.stiffness
             )
 
+    camera_spec = (
+        task.observation_camera if task is not None else ObservationCameraSpec()
+    )
     scene = SceneCfg(
         num_envs=1,
         terrain=TerrainEntityCfg(terrain_type="plane"),
         entities={"robot": robot_cfg},
+        sensors=(
+            CameraSensorCfg(
+                name=OBSERVATION_CAMERA,
+                width=image_width,
+                height=image_height,
+                data_types=("rgb", "depth"),
+                fovy=camera_spec.fovy,
+                clone_data=False,
+            ),
+        ),
     )
     if task is not None:
         scene.spec_fn = task.make_scene()
-
-    viewer_spec = task.viewer if task is not None else ViewerSpec()
 
     return ManagerBasedRlEnvCfg(
         decimation=4,
@@ -84,21 +98,6 @@ def make_sim_env_cfg(
             )
         },
         sim=SimulationCfg(njmax=128, mujoco=MujocoCfg(timestep=0.005)),
-        viewer=ViewerConfig(
-            origin_type=(
-                ViewerConfig.OriginType.WORLD
-                if viewer_spec.origin == "world"
-                else ViewerConfig.OriginType.ASSET_BODY
-            ),
-            entity_name="robot" if viewer_spec.origin == "robot" else None,
-            body_name="torso_link" if viewer_spec.origin == "robot" else None,
-            lookat=viewer_spec.lookat,
-            distance=viewer_spec.distance,
-            elevation=viewer_spec.elevation,
-            azimuth=viewer_spec.azimuth,
-            width=image_width,
-            height=image_height,
-            max_extra_envs=0,
-        ),
+        viewer=ViewerConfig(width=image_width, height=image_height, max_extra_envs=0),
         episode_length_s=0.0,
     )

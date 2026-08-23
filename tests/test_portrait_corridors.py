@@ -13,8 +13,8 @@ def test_catalog_contains_portrait_corridors() -> None:
     assert definition.objective == (
         "Stand in front of the image of the creator of Linux."
     )
-    assert definition.viewer.distance == 3.5
-    assert definition.viewer.elevation == -30.0
+    assert definition.observation_camera.distance == 3.5
+    assert definition.observation_camera.elevation == -30.0
 
 
 def test_catalog_rejects_unknown_task() -> None:
@@ -27,21 +27,20 @@ def test_sonic_config_applies_task_scene_and_camera_distance() -> None:
     plain_cfg = make_sim_env_cfg(task=None)
 
     assert task_cfg.scene.spec_fn is not None
-    assert task_cfg.viewer.distance == 3.5
-    assert task_cfg.viewer.elevation == -30.0
+    task_camera = task_cfg.scene.sensors[0]
+    plain_camera = plain_cfg.scene.sensors[0]
+    assert task_camera.fovy == 45.0
+    assert task_camera.data_types == ("rgb", "depth")
+    assert task_camera.width == 640
+    assert plain_camera.fovy == 45.0
     assert plain_cfg.scene.spec_fn is None
-    assert plain_cfg.viewer.distance == 2.0
-    assert plain_cfg.viewer.elevation == -15.0
 
 
-def test_sonic_config_uses_third_person_torso_camera() -> None:
-    camera = make_sim_env_cfg().viewer
+def test_interactive_viewer_is_not_task_camera_config() -> None:
+    plain = make_sim_env_cfg()
+    task = make_sim_env_cfg(task=get_task("portrait-corridors"))
 
-    assert camera.origin_type == camera.OriginType.ASSET_BODY
-    assert camera.entity_name == "robot"
-    assert camera.body_name == "torso_link"
-    assert camera.azimuth == 0.0
-    assert camera.elevation == -15.0
+    assert task.viewer == plain.viewer
 
 
 def test_portrait_corridors_spec_adds_portraits_walls_and_cameras() -> None:
