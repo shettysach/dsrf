@@ -4,11 +4,12 @@ from typing import Optional
 
 from dora import Node
 
-from shared.config import SimConfig
+from shared.config import SimConfig, SonicConfig
+from sim.controllers import Controller
+from sim.controllers.sonic import Sonic
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
-from sim.sonic.policy import SonicPolicy
 from sim.viewer import NativeSimViewer, SimViewer, ViserSimViewer
 
 
@@ -26,13 +27,9 @@ def main() -> None:
 
     try:
         with simulation.compute_context():
-            policy = SonicPolicy(
-                cfg.sonic_dir,
-                device=cfg.device,
-                cuda_stream=simulation.cuda_stream,
-            )
+            controller = _create_controller(cfg, simulation)
         if cfg.viewer in {"native", "viser"}:
-            reference = policy.reference if cfg.reference_ghost else None
+            reference = getattr(controller, "reference", None) if cfg.reference_ghost else None
             viewer = (
                 NativeSimViewer(simulation, reference)
                 if cfg.viewer == "native"
@@ -43,7 +40,7 @@ def main() -> None:
         SimRuntime(
             node,
             simulation,
-            policy,
+            controller,
             renderer,
             viewer,
         ).run()
@@ -70,3 +67,13 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "reference_ghost": str(cfg.reference_ghost).lower(),
         },
     )
+
+
+def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
+    match cfg.controller:
+        case SonicConfig():
+            return Sonic(
+                cfg.controller.sonic_dir,
+                device=cfg.device,
+                cuda_stream=simulation.cuda_stream,
+            )

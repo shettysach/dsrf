@@ -9,6 +9,7 @@ from shared.config import (
     KinematicPlannerConfig,
     MotionGenConfig,
     SimConfig,
+    SonicConfig,
 )
 
 
@@ -63,6 +64,7 @@ def test_motion_gen_config_rejects_unknown_backend(monkeypatch) -> None:
 
 def test_sim_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "portrait-corridors")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
@@ -72,8 +74,8 @@ def test_sim_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("REFERENCE_GHOST", "true")
 
     assert SimConfig.from_env() == SimConfig(
-        sonic_dir=Path("/models/sonic"),
         device="cpu",
+        controller=SonicConfig(sonic_dir=Path("/models/sonic")),
         task=get_task("portrait-corridors"),
         image_width=640,
         image_height=480,
@@ -85,6 +87,7 @@ def test_sim_config_from_env(monkeypatch) -> None:
 
 def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
@@ -98,6 +101,7 @@ def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
 
 def test_sim_config_rejects_unknown_viewer(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
@@ -112,6 +116,7 @@ def test_sim_config_rejects_unknown_viewer(monkeypatch) -> None:
 
 def test_sim_config_rejects_invalid_reference_ghost(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")

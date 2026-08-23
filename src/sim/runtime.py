@@ -22,10 +22,10 @@ from shared.messages import (
     ProjectionContext,
     VisualObservation,
 )
+from sim.controllers import Controller
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
-from sim.sonic.policy import SonicPolicy
 from sim.viewer import SimViewer
 
 CONTROL_PERIOD = 1.0 / SONIC_FPS
@@ -43,13 +43,13 @@ class SimRuntime:
         self,
         node: Node,
         simulation: MjlabEnv,
-        policy: SonicPolicy,
+        controller: Controller,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
     ) -> None:
         self.node = node
         self.simulation = simulation
-        self.policy = policy
+        self.controller = controller
         self.renderer = renderer
         self.viewer = viewer
         self.observation_id = 0
@@ -147,7 +147,7 @@ class SimRuntime:
         with self.simulation.compute_context():
             state = self.simulation.robot_state()
             try:
-                self.policy.load_motion(chunk, state.root_pos_w, state.root_quat_w)
+                self.controller.load_motion(chunk, state)
             except ValueError as exc:
                 self._report_error(str(exc))
                 return
@@ -201,7 +201,7 @@ class SimRuntime:
 
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
-                    action, completed = self.policy.infer(state)
+                    action, completed = self.controller.infer(state)
                 self.simulation.step(action)
                 if self.viewer is not None:
                     self.viewer.sync()

@@ -2,9 +2,9 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from tasks import get_task
 
 from sim.config import make_sim_env_cfg
-from tasks import get_task
 
 
 def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
@@ -25,6 +25,7 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     }
     assert nodes["sim"]["env"] == {
         "DEVICE": "cuda",
+        "CONTROLLER": "sonic",
         "SONIC_DIR": "/tmp/GEAR-SONIC",
         "TASK": "portrait-corridors",
         "IMAGE_WIDTH": "640",

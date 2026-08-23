@@ -213,13 +213,13 @@ class _Simulation:
         self.steps += 1
 
 
-class _Policy:
+class _Controller:
     def __init__(self) -> None:
         self.calls = 0
         self.loaded: MotionChunk | None = None
 
-    def load_motion(self, chunk, root_pos_w, root_quat_w) -> None:
-        del root_pos_w, root_quat_w
+    def load_motion(self, chunk, state) -> None:
+        del state
         self.loaded = chunk
 
     def infer(self, state):
@@ -309,7 +309,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     chunk = MotionChunk(0, "walk forward", qpos)
     node = _Node([_motion_event(chunk), {"type": "STOP"}])
     simulation = _Simulation()
-    policy = _Policy()
+    controller = _Controller()
     renderer = _Renderer(simulation)
     viewer = _Viewer(simulation)
     monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
@@ -317,7 +317,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, policy),
+        cast(Any, controller),
         cast(Any, renderer),
         cast(Any, viewer),
     )
@@ -348,7 +348,7 @@ def test_sim_publishes_rgb_without_eager_depth() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Policy()),
+        cast(Any, _Controller()),
         cast(Any, renderer),
     )
 
@@ -375,7 +375,7 @@ def test_sim_lazily_caches_depth_for_current_observation() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Policy()),
+        cast(Any, _Controller()),
         cast(Any, renderer),
     )
 
@@ -409,7 +409,7 @@ def test_sim_grounds_end_effector_with_lazy_depth() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Policy()),
+        cast(Any, _Controller()),
         cast(Any, renderer),
     )
 
@@ -432,7 +432,7 @@ def test_sonic_rejects_motion_for_stale_observation() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Policy()),
+        cast(Any, _Controller()),
         cast(Any, _Renderer(simulation)),
     )
     runtime._accept_motion(

@@ -49,8 +49,8 @@ class ArdyConfig:
 
 @dataclass(frozen=True)
 class SimConfig:
-    sonic_dir: Path
     device: str
+    controller: SonicConfig
     task: TaskSpec | None
     image_width: int
     image_height: int
@@ -61,8 +61,8 @@ class SimConfig:
     @classmethod
     def from_env(cls) -> "SimConfig":
         return cls(
-            sonic_dir=Path(os.environ["SONIC_DIR"]),
             device=os.environ["DEVICE"],
+            controller=_controller(),
             task=_optional_task(),
             image_width=_positive_int("IMAGE_WIDTH"),
             image_height=_positive_int("IMAGE_HEIGHT"),
@@ -70,6 +70,11 @@ class SimConfig:
             viewer=_viewer_mode(),
             reference_ghost=_boolean("REFERENCE_GHOST"),
         )
+
+
+@dataclass(frozen=True)
+class SonicConfig:
+    sonic_dir: Path
 
 
 @dataclass(frozen=True)
@@ -136,6 +141,13 @@ def _motion_generator() -> Literal["kinematic_planner", "ardy"]:
     if value not in {"kinematic_planner", "ardy"}:
         raise ValueError("MOTION_GENERATOR must be 'kinematic_planner' or 'ardy'")
     return value
+
+
+def _controller() -> SonicConfig:
+    value = os.environ["CONTROLLER"].strip().lower()
+    if value != "sonic":
+        raise ValueError("CONTROLLER must be 'sonic'")
+    return SonicConfig(sonic_dir=Path(os.environ["SONIC_DIR"]))
 
 
 def _boolean(name: str) -> bool:
