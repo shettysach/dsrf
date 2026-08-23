@@ -70,10 +70,7 @@ def build_constraints(
     if end_effectors:
         frame = generated_frames + history_frames - 1
         local_2d = torch.tensor(
-            [
-                [target.target_xyz[1], target.target_xyz[0]]
-                for target in end_effectors
-            ],
+            [[target.target_xyz[1], target.target_xyz[0]] for target in end_effectors],
             dtype=current_root.dtype,
             device=device,
         )

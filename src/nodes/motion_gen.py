@@ -82,10 +82,6 @@ def main() -> None:
         node.send_output("motion", data, metadata=motion_metadata)
 
 
-if __name__ == "__main__":
-    main()
-
-
 def _report_invalid_command(
     node: Node,
     request: AgentCommand,
@@ -158,3 +154,7 @@ def _log_motion_generated(
             **({"encode_ms": f"{encode_ms:.1f}"} if encode_ms is not None else {}),
         },
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -29,7 +29,9 @@ def main() -> None:
         with simulation.compute_context():
             controller = _create_controller(cfg, simulation)
         if cfg.viewer in {"native", "viser"}:
-            reference = getattr(controller, "reference", None) if cfg.reference_ghost else None
+            reference = (
+                getattr(controller, "reference", None) if cfg.reference_ghost else None
+            )
             viewer = (
                 NativeSimViewer(simulation, reference)
                 if cfg.viewer == "native"
@@ -48,10 +50,6 @@ def main() -> None:
         if viewer is not None:
             viewer.close()
         simulation.close()
-
-
-if __name__ == "__main__":
-    main()
 
 
 def _log_init(node: Node, cfg: SimConfig) -> None:
@@ -77,3 +75,7 @@ def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
                 device=cfg.device,
                 cuda_stream=simulation.cuda_stream,
             )
+
+
+if __name__ == "__main__":
+    main()

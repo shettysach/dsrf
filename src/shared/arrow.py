@@ -134,9 +134,7 @@ def grounding_request_from_arrow(
             for index in range(0, waypoint_count * 2, 2)
         ),
         end_effectors_2d=tuple(
-            EndEffectorSelection(
-                name, (int(waypoint[index]), int(waypoint[index + 1]))
-            )
+            EndEffectorSelection(name, (int(waypoint[index]), int(waypoint[index + 1])))
             for name, index in zip(
                 end_effector_names,
                 range(waypoint_count * 2, len(waypoint), 2),
@@ -261,7 +259,9 @@ def _waypoint_count(metadata: dict[str, Any]) -> int:
 
 def _end_effector_names(metadata: dict[str, Any]) -> tuple[str, ...]:
     values = json.loads(str(metadata.get("end_effectors", "[]")))
-    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+    if not isinstance(values, list) or not all(
+        isinstance(value, str) for value in values
+    ):
         raise ValueError("end_effectors metadata must contain a list of names")
     return tuple(values)
 

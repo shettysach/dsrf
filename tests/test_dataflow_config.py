@@ -41,8 +41,7 @@ def test_demo_dataflow_configures_the_agent_system_prompt() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert (
-        nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"]
-        == "tasks/portrait_corridors/TASK.md"
+        nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/portrait_corridors/TASK.md"
     )
     assert "TASK" not in nodes["agent"]["env"]
 

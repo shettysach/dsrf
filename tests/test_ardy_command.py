@@ -33,7 +33,9 @@ def _conditions():
             "right_toe_base",
         ],
     )
-    return SimpleNamespace(create_conditions=create_conditions, skeleton=skeleton), received
+    return SimpleNamespace(
+        create_conditions=create_conditions, skeleton=skeleton
+    ), received
 
 
 def test_local_waypoint_becomes_ardy_root_endpoint() -> None:

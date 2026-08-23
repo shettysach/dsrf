@@ -150,10 +150,7 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
 
     assert completion.command == '{"motion":"walk","direction":"left"}'
     assert posted[0]["tools"] == [KINEMATIC_PLANNER_TOOL]
-    assert (
-        posted[0]["tool_choice"]["function"]["name"]
-        == "kinematic_planner_command"
-    )
+    assert posted[0]["tool_choice"]["function"]["name"] == "kinematic_planner_command"
 
 
 class _Node:
@@ -377,9 +374,7 @@ def test_agent_grounds_end_effector_before_sending_command() -> None:
         command_output[1], cast(Any, command_output[2]["metadata"])
     )
     assert command.end_effectors[0].name == target.name
-    np.testing.assert_allclose(
-        command.end_effectors[0].target_xyz, target.target_xyz
-    )
+    np.testing.assert_allclose(command.end_effectors[0].target_xyz, target.target_xyz)
 
 
 def test_agent_retries_motion_gen_errors() -> None:

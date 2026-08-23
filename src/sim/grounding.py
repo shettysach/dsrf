@@ -105,7 +105,11 @@ def resolve_end_effector(
 
 
 def _reach_limit(name: str) -> float:
-    return MAX_FOOT_TARGET_DISTANCE_M if name.endswith("_foot") else MAX_HAND_TARGET_DISTANCE_M
+    return (
+        MAX_FOOT_TARGET_DISTANCE_M
+        if name.endswith("_foot")
+        else MAX_HAND_TARGET_DISTANCE_M
+    )
 
 
 def _unproject(

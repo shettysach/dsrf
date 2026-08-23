@@ -119,8 +119,7 @@ def test_foot_end_effector_command_parses_without_waypoints() -> None:
     "text",
     [
         '{"motion":"reach","end_effectors":null}',
-        '{"motion":"reach","end_effectors":'
-        '[{"name":"head","target_2d":[500,500]}]}',
+        '{"motion":"reach","end_effectors":[{"name":"head","target_2d":[500,500]}]}',
     ],
 )
 def test_invalid_end_effector_commands_fail(text: str) -> None:

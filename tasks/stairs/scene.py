@@ -165,6 +165,7 @@ def _add_step(
         conaffinity=1,
     )
 
+
 def _sample_step_starts(
     seed: int | None,
 ) -> tuple[tuple[float, float], tuple[float, float]]:

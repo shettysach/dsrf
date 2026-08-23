@@ -448,9 +448,7 @@ def test_sim_grounds_end_effector_with_lazy_depth() -> None:
 
     assert renderer.depth_steps == [0]
     output = next(output for output in node.outputs if output[0] == "grounding_result")
-    result = grounding_result_from_arrow(
-        output[1], cast(Any, output[2]["metadata"])
-    )
+    result = grounding_result_from_arrow(output[1], cast(Any, output[2]["metadata"]))
     assert result.end_effectors[0].name == "right_hand"
     np.testing.assert_allclose(
         result.end_effectors[0].target_xyz, (1.0, 0.0, 0.0), atol=0.3
