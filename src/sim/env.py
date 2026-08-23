@@ -11,7 +11,7 @@ from tasks import TaskSpec
 from controller import ControlOutput, RobotState
 from controller.g1_command import G1CommandTransform
 from shared.g1 import G1_JOINT_NAMES_MJLAB
-from sim.camera import OnDemandCameraCapture, RgbdFrame
+from sim.camera import OnDemandCameraCapture, ProjectionContext
 from sim.config import OBSERVATION_CAMERA, make_sim_env_cfg
 
 if TYPE_CHECKING:
@@ -56,13 +56,9 @@ class MjlabEnv:
         camera = self._env.scene[OBSERVATION_CAMERA]
         if not isinstance(camera, CameraSensor):
             raise RuntimeError("Observation sensor is not an MJLab CameraSensor")
-        sensor_context = self._env.scene.sensor_context
-        if sensor_context is None:
-            raise RuntimeError("Observation camera has no MJLab sensor context")
         self._camera_capture = OnDemandCameraCapture(
             self._env.sim,
             camera,
-            sensor_context,
         )
         self._body_ids = {
             name: index for index, name in enumerate(self._robot.body_names)
@@ -138,7 +134,7 @@ class MjlabEnv:
         with self.compute_context():
             return self._env.reset()
 
-    def capture_rgbd(self) -> RgbdFrame:
+    def capture_rgbd(self) -> tuple[torch.Tensor, ProjectionContext]:
         with self.compute_context():
             return self._camera_capture.capture(self.robot_state())
 

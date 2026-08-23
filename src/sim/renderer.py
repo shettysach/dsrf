@@ -13,8 +13,8 @@ class SimRenderer:
         self.jpeg_quality = jpeg_quality
 
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
-        frame = self.simulation.capture_rgbd()
-        return self._encode(frame.rgb), frame.projection
+        image, projection = self.simulation.capture_rgbd()
+        return self._encode(image), projection
 
     def _encode(self, image: torch.Tensor) -> bytes:
         encoded = encode_jpeg(image.permute(2, 0, 1), quality=self.jpeg_quality)
