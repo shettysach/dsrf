@@ -7,7 +7,6 @@ from dora import Node
 
 from motion_gen.ardy.adapter import ArdyMotionGenerator
 from motion_gen.generator import MotionGenerator
-from motion_gen.kinematic_planner import KinematicPlanner
 from motion_gen.kinematic_planner.adapter import KinematicPlannerMotionGenerator
 from motion_gen.resample import resample_motion
 from shared.arrow import (
@@ -34,6 +33,8 @@ def _create_generator(cfg: MotionGenConfig) -> MotionGenerator:
             )
 
         case KinematicPlannerConfig():
+            from motion_gen.kinematic_planner.generator import KinematicPlanner
+
             return KinematicPlannerMotionGenerator(
                 KinematicPlanner(cfg.backend.planner_onnx, device=cfg.device)
             )

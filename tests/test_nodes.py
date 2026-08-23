@@ -8,6 +8,7 @@ import pyarrow as pa
 import pytest
 import torch
 
+import motion_gen.kinematic_planner.generator as kinematic_planner_generator
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
 from motion_gen.ardy.adapter import ArdyMotionGenerator
@@ -75,7 +76,9 @@ def _run_motion_gen(monkeypatch, events, generate):
     monkeypatch.setattr(motion_gen_node.MotionGenConfig, "from_env", lambda: config)
     monkeypatch.setattr(motion_gen_node, "Node", lambda: node)
     monkeypatch.setattr(
-        motion_gen_node, "KinematicPlanner", lambda *args, **kwargs: generator
+        kinematic_planner_generator,
+        "KinematicPlanner",
+        lambda *args, **kwargs: generator,
     )
     motion_gen_node.main()
     return node

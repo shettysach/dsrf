@@ -4,12 +4,8 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from motion_gen.kinematic_planner import (
-    KinematicPlanner,
-    PlannerMode,
-    planner_direction,
-    planner_mode,
-)
+from motion_gen.kinematic_planner import PlannerMode, planner_direction, planner_mode
+from motion_gen.kinematic_planner.generator import KinematicPlanner
 
 
 def test_navigation_modes_are_intentionally_small() -> None:

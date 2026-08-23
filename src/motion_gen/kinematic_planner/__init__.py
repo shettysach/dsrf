@@ -10,17 +10,8 @@ from motion_gen.kinematic_planner.parser import (
 
 __all__ = [
     "PlannerMode",
-    "KinematicPlanner",
     "KinematicPlannerCommand",
     "parse_kinematic_planner_command",
     "planner_direction",
     "planner_mode",
 ]
-
-
-def __getattr__(name: str):
-    if name == "KinematicPlanner":
-        from motion_gen.kinematic_planner.generator import KinematicPlanner
-
-        return KinematicPlanner
-    raise AttributeError(name)
