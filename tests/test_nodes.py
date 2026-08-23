@@ -222,7 +222,7 @@ class _Controller:
         del state
         self.loaded = chunk
 
-    def infer(self, state):
+    def act(self, state):
         del state
         self.calls += 1
         return torch.zeros((1, 29)), self.calls == 2

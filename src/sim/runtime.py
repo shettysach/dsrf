@@ -22,7 +22,7 @@ from shared.messages import (
     ProjectionContext,
     VisualObservation,
 )
-from sim.controllers import Controller
+from sim.controller import Controller
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer

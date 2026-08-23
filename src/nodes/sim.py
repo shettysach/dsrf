@@ -5,8 +5,8 @@ from typing import Optional
 from dora import Node
 
 from shared.config import SimConfig, SonicConfig
-from sim.controllers import Controller
-from sim.controllers.sonic import Sonic
+from sim.controller import Controller
+from sim.controller.sonic import Sonic
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
