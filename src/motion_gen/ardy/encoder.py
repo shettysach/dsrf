@@ -20,8 +20,6 @@ def prepare_conditioning(
         dtype=torch.float32,
         non_blocking=True,
     )
-    if not bool(torch.isfinite(text_feat).all()):
-        raise ValueError("ARDY embedding contains NaN or infinite values")
 
     text_feat = text_feat.reshape(1, 1, ARDY_EMBEDDING_SIZE)
     text_pad_mask = torch.ones((1, 1), device=device, dtype=torch.bool)

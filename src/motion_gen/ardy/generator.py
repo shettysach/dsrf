@@ -113,11 +113,6 @@ class Ardy:
                 raise ValueError("ARDY global_root_heading must have shape [B, T, 2]")
             next_root_history = root_positions[0, -2:].detach().clone()
             final_heading = root_headings[0, -1]
-            if (
-                not torch.isfinite(final_heading).all()
-                or torch.linalg.vector_norm(final_heading) <= 1e-8
-            ):
-                raise ValueError("ARDY generated an invalid root heading")
             next_root_heading = (
                 torch.atan2(final_heading[1], final_heading[0]).detach().clone()
             )

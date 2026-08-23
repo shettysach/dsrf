@@ -37,8 +37,8 @@ def build_constraints(
 
     current_root = root_history[-1].to(device=device)
     current_root_2d = current_root[[0, 2]]
-    if root_heading.numel() != 1 or not torch.isfinite(root_heading).all():
-        raise ValueError("ARDY root heading must be one finite angle")
+    if root_heading.numel() != 1:
+        raise ValueError("ARDY root heading must contain one angle")
     if not target_xys and not end_effectors:
         raise ValueError("ARDY constraints require at least one target")
     heading = root_heading.reshape(()).to(dtype=current_root_2d.dtype, device=device)

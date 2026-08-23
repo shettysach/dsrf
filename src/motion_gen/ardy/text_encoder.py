@@ -42,6 +42,4 @@ class TextEncoder:
                 "Text encoder must produce shape "
                 f"[1, {ARDY_EMBEDDING_SIZE}], got {tuple(embedding.shape)}"
             )
-        if not bool(torch.isfinite(embedding).all()):
-            raise ValueError("Text encoder produced NaN or infinite values")
         return embedding[0].float().contiguous()

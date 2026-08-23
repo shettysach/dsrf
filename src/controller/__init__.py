@@ -26,8 +26,6 @@ class ExternalWrench:
         for name, value in (("force_w", self.force_w), ("torque_w", self.torque_w)):
             if value.shape != (3,):
                 raise ValueError(f"{name} must have shape (3,), got {value.shape}")
-            if not bool(torch.isfinite(value).all()):
-                raise ValueError(f"{name} must contain only finite values")
 
 
 @dataclass(frozen=True)
@@ -44,8 +42,6 @@ class ControlOutput:
                 f"joint_target must have shape ({G1_JOINT_COUNT},), "
                 f"got {self.joint_target.shape}"
             )
-        if not bool(torch.isfinite(self.joint_target).all()):
-            raise ValueError("joint_target must contain only finite values")
 
 
 @dataclass(frozen=True)

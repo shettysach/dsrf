@@ -68,10 +68,10 @@ class VirtualForcesController:
 
 
 def _with_deadband(value: torch.Tensor, deadband: float) -> torch.Tensor:
-    return (
-        torch.zeros_like(value)
-        if torch.linalg.vector_norm(value) <= deadband
-        else value
+    return torch.where(
+        torch.linalg.vector_norm(value) <= deadband,
+        torch.zeros_like(value),
+        value,
     )
 
 

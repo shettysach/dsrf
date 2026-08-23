@@ -62,13 +62,11 @@ def test_sonic_controller_preserves_raw_action_through_physical_boundary() -> No
     assert output.completed
 
 
-def test_control_contract_rejects_bad_shapes_and_nonfinite_values() -> None:
+def test_control_contract_rejects_bad_shapes() -> None:
     with pytest.raises(ValueError, match="joint_target"):
         ControlOutput(torch.zeros((1, 29)))
     with pytest.raises(ValueError, match="force_w"):
         ExternalWrench("pelvis", torch.zeros(2), torch.zeros(3))
-    with pytest.raises(ValueError, match="finite"):
-        ExternalWrench("pelvis", torch.tensor([float("nan"), 0, 0]), torch.zeros(3))
 
 
 def test_shared_reference_accepts_one_frame() -> None:

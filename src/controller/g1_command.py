@@ -19,12 +19,11 @@ class G1CommandTransform:
                 "G1 command transform tensors must both have shape "
                 f"{expected}, got {default_position.shape} and {scale.shape}"
             )
-        if not bool(torch.isfinite(default_position).all()) or not bool(
-            torch.isfinite(scale).all()
-        ):
-            raise ValueError("G1 command transform must contain only finite values")
-        if bool((scale == 0.0).any()):
-            raise ValueError("G1 command scales must be nonzero")
+        if default_position.device != scale.device:
+            raise ValueError(
+                "G1 command transform tensors must be on the same device, got "
+                f"{default_position.device} and {scale.device}"
+            )
         self._default_position = default_position
         self._scale = scale
 
@@ -52,5 +51,3 @@ class G1CommandTransform:
             raise ValueError(
                 f"{name} must have shape ({G1_JOINT_COUNT},), got {value.shape}"
             )
-        if not bool(torch.isfinite(value).all()):
-            raise ValueError(f"{name} must contain only finite values")

@@ -113,8 +113,6 @@ class SonicPolicy:
             state.projected_gravity_b,
         )
         action_sonic = self.decoder.run().reshape(29)
-        if self.device.type == "cpu" and not bool(torch.isfinite(action_sonic).all()):
-            raise RuntimeError("SONIC decoder returned NaN or infinite actions")
         self._last_action.copy_(action_sonic)
         completed = self.reference.advance()
         action_mjlab = action_sonic.index_select(0, self._mjlab_from_sonic)
