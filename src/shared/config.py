@@ -98,11 +98,34 @@ class SonicConfig:
 
 @dataclass(frozen=True)
 class DirectConfig:
-    pin_root: bool = True
+    """Gains and safety limits for physical root-reference tracking."""
+
+    root_pos_kp: float = 1_500.0
+    root_pos_kd: float = 150.0
+    root_rot_kp: float = 500.0
+    root_rot_kd: float = 50.0
+    max_force: float = 1_000.0
+    max_torque: float = 200.0
 
     @classmethod
     def from_env(cls) -> "DirectConfig":
         return _dataclass_from_env(cls, prefix="DIRECT_")
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("DIRECT_ROOT_POS_KP", self.root_pos_kp),
+            ("DIRECT_ROOT_POS_KD", self.root_pos_kd),
+            ("DIRECT_ROOT_ROT_KP", self.root_rot_kp),
+            ("DIRECT_ROOT_ROT_KD", self.root_rot_kd),
+        ):
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"{name} must be finite and non-negative")
+        for name, value in (
+            ("DIRECT_MAX_FORCE", self.max_force),
+            ("DIRECT_MAX_TORQUE", self.max_torque),
+        ):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"{name} must be finite and positive")
 
 
 @dataclass(frozen=True)

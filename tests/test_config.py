@@ -110,12 +110,17 @@ def test_sim_config_accepts_direct_controller(monkeypatch) -> None:
     monkeypatch.setenv("JPEG_QUALITY", "85")
     monkeypatch.setenv("VIEWER", "none")
     monkeypatch.setenv("REFERENCE_GHOST", "false")
-    monkeypatch.setenv("DIRECT_PIN_ROOT", "false")
+    monkeypatch.setenv("DIRECT_ROOT_POS_KP", "123.0")
+    monkeypatch.setenv("DIRECT_ROOT_POS_KD", "12.0")
+    monkeypatch.setenv("DIRECT_ROOT_ROT_KP", "45.0")
+    monkeypatch.setenv("DIRECT_ROOT_ROT_KD", "6.0")
+    monkeypatch.setenv("DIRECT_MAX_FORCE", "789.0")
+    monkeypatch.setenv("DIRECT_MAX_TORQUE", "10.0")
 
     config = SimConfig.from_env().controller
 
     assert isinstance(config, DirectConfig)
-    assert not config.pin_root
+    assert config == DirectConfig(123.0, 12.0, 45.0, 6.0, 789.0, 10.0)
 
 
 def test_direct_config_uses_dataclass_defaults(monkeypatch) -> None:

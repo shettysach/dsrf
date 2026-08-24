@@ -4,7 +4,7 @@ import pytest
 import torch
 from mjlab.actuator import BuiltinPdActuatorCfg
 
-from controller import ControlOutput, ExternalWrench, RootTarget
+from controller import ControlOutput, ExternalWrench
 from controller.g1_command import G1CommandTransform
 from sim.config import make_sim_env_cfg
 from sim.env import MjlabEnv
@@ -37,18 +37,9 @@ def test_pd_configuration_adds_velocity_actions_and_pd_actuators() -> None:
 class _Robot:
     def __init__(self) -> None:
         self.writes: list[tuple[torch.Tensor, torch.Tensor]] = []
-        self.root_poses: list[torch.Tensor] = []
-        self.root_velocities: list[torch.Tensor] = []
 
     def write_external_wrench_to_sim(self, forces, torques) -> None:
         self.writes.append((forces.clone(), torques.clone()))
-
-    def write_root_link_pose_to_sim(self, pose) -> None:
-        self.root_poses.append(pose.clone())
-
-    def write_root_link_velocity_to_sim(self, velocity) -> None:
-        self.root_velocities.append(velocity.clone())
-
 
 def _wrench_env() -> MjlabEnv:
     simulation = MjlabEnv.__new__(MjlabEnv)
@@ -134,27 +125,3 @@ def test_external_wrench_rejects_unknown_and_duplicate_bodies() -> None:
         simulation._apply_wrenches(
             ControlOutput(torch.zeros(29), external_wrenches=(wrench, wrench))
         )
-
-
-def test_root_target_is_optional_and_writes_only_the_floating_base() -> None:
-    simulation = _wrench_env()
-    simulation._apply_root_target(ControlOutput(torch.zeros(29)))
-    target = RootTarget(
-        pos_w=torch.tensor([1.0, 2.0, 3.0]),
-        quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
-        lin_vel_w=torch.tensor([4.0, 5.0, 6.0]),
-        ang_vel_w=torch.tensor([7.0, 8.0, 9.0]),
-    )
-
-    simulation._apply_root_target(ControlOutput(torch.zeros(29), root_target=target))
-
-    robot = cast(_Robot, simulation._robot)
-    assert len(robot.root_poses) == 1
-    assert len(robot.root_velocities) == 1
-    torch.testing.assert_close(
-        robot.root_poses[0], torch.cat((target.pos_w, target.quat_w)).unsqueeze(0)
-    )
-    torch.testing.assert_close(
-        robot.root_velocities[0],
-        torch.cat((target.lin_vel_w, target.ang_vel_w)).unsqueeze(0),
-    )

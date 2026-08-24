@@ -54,12 +54,17 @@ Use `CONTROLLER: sonic` with `SONIC_DIR` for the learned SONIC policy, or
 `CONTROLLER: direct` for motion-reference tracking through MJLab's built-in G1
 actuator PD model.
 
-Direct tracking can optionally pin the floating base to the reference pose and
-velocity. Disable pinning to test the same joint targets with a free root:
+Direct tracking uses a bounded world-frame spring-damper wrench on the pelvis
+to follow the reference root. It never writes the floating-base pose directly:
 
 ```yaml
 CONTROLLER: direct
-DIRECT_PIN_ROOT: "${DIRECT_PIN_ROOT:-true}"
+DIRECT_ROOT_POS_KP: "${DIRECT_ROOT_POS_KP:-1500}"
+DIRECT_ROOT_POS_KD: "${DIRECT_ROOT_POS_KD:-150}"
+DIRECT_ROOT_ROT_KP: "${DIRECT_ROOT_ROT_KP:-500}"
+DIRECT_ROOT_ROT_KD: "${DIRECT_ROOT_ROT_KD:-50}"
+DIRECT_MAX_FORCE: "${DIRECT_MAX_FORCE:-1000}"
+DIRECT_MAX_TORQUE: "${DIRECT_MAX_TORQUE:-200}"
 ```
 
 ## ARDY closed loop

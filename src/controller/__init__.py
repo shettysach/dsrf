@@ -28,26 +28,6 @@ class ExternalWrench:
 
 
 @dataclass(frozen=True)
-class RootTarget:
-    """Desired world-frame floating-base state for simulator-side pinning."""
-
-    pos_w: torch.Tensor
-    quat_w: torch.Tensor
-    lin_vel_w: torch.Tensor
-    ang_vel_w: torch.Tensor
-
-    def __post_init__(self) -> None:
-        for name, value, shape in (
-            ("pos_w", self.pos_w, (3,)),
-            ("quat_w", self.quat_w, (4,)),
-            ("lin_vel_w", self.lin_vel_w, (3,)),
-            ("ang_vel_w", self.ang_vel_w, (3,)),
-        ):
-            if value.shape != shape:
-                raise ValueError(f"{name} must have shape {shape}, got {value.shape}")
-
-
-@dataclass(frozen=True)
 class ControlOutput:
     """Physical command produced by a controller for one robot."""
 
@@ -55,7 +35,6 @@ class ControlOutput:
     completed: bool = False
     external_wrenches: tuple[ExternalWrench, ...] = ()
     joint_velocity_target: torch.Tensor | None = None
-    root_target: RootTarget | None = None
 
     def __post_init__(self) -> None:
         if self.joint_target.shape != (G1_JOINT_COUNT,):

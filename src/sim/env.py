@@ -113,18 +113,8 @@ class MjlabEnv:
 
     def step(self, output: ControlOutput) -> VecEnvStepReturn:
         with self.compute_context():
-            self._apply_root_target(output)
             self._apply_wrenches(output)
             return self._env.step(self._control_to_action(output))
-
-    def _apply_root_target(self, output: ControlOutput) -> None:
-        target = output.root_target
-        if target is None:
-            return
-        pose = torch.cat((target.pos_w, target.quat_w)).unsqueeze(0)
-        velocity = torch.cat((target.lin_vel_w, target.ang_vel_w)).unsqueeze(0)
-        self._robot.write_root_link_pose_to_sim(pose)
-        self._robot.write_root_link_velocity_to_sim(velocity)
 
     def _control_to_action(self, output: ControlOutput) -> torch.Tensor:
         """Translate a physical controller command to this environment's action API."""

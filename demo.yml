@@ -42,7 +42,12 @@ nodes:
       DEVICE: cuda
       # Direct tracking consumes the planner's qpos reference through MJLab PD.
       CONTROLLER: direct
-      DIRECT_PIN_ROOT: "${DIRECT_PIN_ROOT:-true}"
+      DIRECT_ROOT_POS_KP: "${DIRECT_ROOT_POS_KP:-1500}"
+      DIRECT_ROOT_POS_KD: "${DIRECT_ROOT_POS_KD:-150}"
+      DIRECT_ROOT_ROT_KP: "${DIRECT_ROOT_ROT_KP:-500}"
+      DIRECT_ROOT_ROT_KD: "${DIRECT_ROOT_ROT_KD:-50}"
+      DIRECT_MAX_FORCE: "${DIRECT_MAX_FORCE:-1000}"
+      DIRECT_MAX_TORQUE: "${DIRECT_MAX_TORQUE:-200}"
       TASK: portrait-corridors
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"
