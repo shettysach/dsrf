@@ -40,8 +40,10 @@ nodes:
     min_log_level: warn
     env:
       DEVICE: cuda
-      CONTROLLER: sonic
-      SONIC_DIR: /tmp/GEAR-SONIC
+      # The virtual-forces controller consumes the kinematic planner's qpos
+      # reference directly; it does not need the SONIC policy checkpoints.
+      CONTROLLER: virtual_forces
+      VF_ASSISTANCE_ENABLED: "true"
       TASK: portrait-corridors
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"
