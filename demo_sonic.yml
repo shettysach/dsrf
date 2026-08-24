@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dora-rs/dora/v1.0.0-rc.4/dora-schema.json
+
+nodes:
+  - id: agent
+    path: uv
+    args: run dsrf-agent
+    min_log_level: warn
+    env:
+      VLM_URL: http://127.0.0.1:8080
+      VLM_TIMEOUT: "120"
+      VLM_SYSTEM_PROMPT: tasks/portrait_corridors/TASK.md
+      VLM_USER_PROMPT: prompt/PLANNER_USER.md
+      MOTION_GENERATOR: kinematic_planner
+    inputs:
+      observation: sim/observation
+      grounding_result: sim/grounding_result
+      planning_error: motion-gen/error
+      sim_error: sim/error
+    outputs:
+      - command
+      - grounding_request
+
+  - id: motion-gen
+    path: uv
+    args: run dsrf-motion-gen
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      MOTION_GENERATOR: kinematic_planner
+      PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
+    inputs:
+      command: agent/command
+    outputs:
+      - motion
+      - error
+
+  - id: sim
+    path: uv
+    args: run dsrf-sim
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      CONTROLLER: sonic
+      SONIC_DIR: /tmp/GEAR-SONIC
+      TASK: portrait-corridors
+      IMAGE_WIDTH: "640"
+      IMAGE_HEIGHT: "480"
+      JPEG_QUALITY: "85"
+      VIEWER: native
+      REFERENCE_GHOST: "false"
+    inputs:
+      motion: motion-gen/motion
+      grounding_request: agent/grounding_request
+    outputs:
+      - observation
+      - grounding_result
+      - error
