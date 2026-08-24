@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -57,6 +58,18 @@ def _action_env(control_mode: str) -> MjlabEnv:
         torch.linspace(-0.3, 0.3, 29), torch.full((29,), 0.1)
     )
     return simulation
+
+
+def test_robot_mass_uses_only_mjlab_robot_bodies() -> None:
+    model = SimpleNamespace(
+        body_mass=torch.tensor([0.0, 3.0, 4.0, 99.0]),
+        body=lambda name: SimpleNamespace(id={"pelvis": 1, "torso": 2}[name]),
+    )
+    simulation = MjlabEnv.__new__(MjlabEnv)
+    simulation._env = SimpleNamespace(sim=SimpleNamespace(mj_model=model))
+    simulation._robot = SimpleNamespace(body_names=("pelvis", "torso"))
+
+    assert simulation.robot_mass == 7.0
 
 
 def test_pd_control_action_encodes_position_and_appends_physical_velocity() -> None:

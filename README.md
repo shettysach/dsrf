@@ -54,19 +54,17 @@ Use `CONTROLLER: sonic` with `SONIC_DIR` for the learned SONIC policy, or
 `CONTROLLER: direct` for motion-reference tracking through MJLab's built-in G1
 actuator PD model.
 
-Direct tracking uses a bounded world-frame spring-damper wrench on the pelvis
-to follow the reference root. It never writes the floating-base pose directly:
+Direct tracking uses one bounded world-frame pelvis wrench for partial vertical
+weight support and roll/pitch stabilization. It never writes the floating-base
+pose directly:
 
 ```yaml
 CONTROLLER: direct
-DIRECT_ROOT_XY_KP: "${DIRECT_ROOT_XY_KP:-0}"
-DIRECT_ROOT_XY_KD: "${DIRECT_ROOT_XY_KD:-50}"
-DIRECT_ROOT_Z_KP: "${DIRECT_ROOT_Z_KP:-500}"
-DIRECT_ROOT_Z_KD: "${DIRECT_ROOT_Z_KD:-100}"
-DIRECT_ROOT_RP_KP: "${DIRECT_ROOT_RP_KP:-100}"
-DIRECT_ROOT_RP_KD: "${DIRECT_ROOT_RP_KD:-25}"
-DIRECT_ROOT_YAW_KP: "${DIRECT_ROOT_YAW_KP:-0}"
-DIRECT_ROOT_YAW_KD: "${DIRECT_ROOT_YAW_KD:-10}"
+DIRECT_ROOT_GRAVITY_SUPPORT: "${DIRECT_ROOT_GRAVITY_SUPPORT:-0.3}"
+DIRECT_ROOT_Z_KP: "${DIRECT_ROOT_Z_KP:-300}"
+DIRECT_ROOT_Z_KD: "${DIRECT_ROOT_Z_KD:-75}"
+DIRECT_ROOT_RP_KP: "${DIRECT_ROOT_RP_KP:-75}"
+DIRECT_ROOT_RP_KD: "${DIRECT_ROOT_RP_KD:-30}"
 DIRECT_MAX_FORCE: "${DIRECT_MAX_FORCE:-1000}"
 DIRECT_MAX_TORQUE: "${DIRECT_MAX_TORQUE:-200}"
 DIRECT_WRENCH_LOG_PATH: "${DIRECT_WRENCH_LOG_PATH:-/tmp/direct-wrench.csv}"

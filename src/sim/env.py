@@ -111,6 +111,18 @@ class MjlabEnv:
     def step_dt(self) -> float:
         return float(self._env.step_dt)
 
+    @property
+    def robot_mass(self) -> float:
+        """Total mass of the configured G1 bodies from the MJLab model."""
+        model = self._env.sim.mj_model
+        return float(
+            sum(model.body_mass[model.body(name).id] for name in self._robot.body_names)
+        )
+
+    @property
+    def gravity_magnitude(self) -> float:
+        return float(torch.linalg.vector_norm(torch.as_tensor(self._env.sim.mj_model.opt.gravity)))
+
     def step(self, output: ControlOutput) -> VecEnvStepReturn:
         with self.compute_context():
             self._apply_wrenches(output)

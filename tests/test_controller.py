@@ -143,7 +143,13 @@ def _reference(**overrides: torch.Tensor) -> ReferenceFrame:
 def _wrench(
     target: ReferenceFrame, state: RobotState | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    return DirectController(DirectConfig())._root_wrench(target, state or _state())
+    return _controller(DirectConfig(root_gravity_support=0.0))._root_wrench(
+        target, state or _state()
+    )
+
+
+def _controller(config: DirectConfig) -> DirectController:
+    return DirectController(config, robot_mass=10.0, gravity_magnitude=10.0)
 
 
 def test_root_wrench_is_zero_for_matching_reference() -> None:
@@ -153,50 +159,47 @@ def test_root_wrench_is_zero_for_matching_reference() -> None:
     torch.testing.assert_close(torque, torch.zeros(3))
 
 
-def test_root_wrench_pulls_toward_positive_position_error() -> None:
+def test_root_wrench_ignores_lateral_position_and_velocity_error() -> None:
     target = _reference(
-        root_pos_w=_state().root_pos_w + torch.tensor([1.0, 0.0, 0.0])
+        root_pos_w=_state().root_pos_w + torch.tensor([1.0, 1.0, 0.0]),
+        root_lin_vel_w=torch.tensor([1.0, 1.0, 0.0]),
     )
     force, _ = _wrench(target)
 
-    assert force[0] > 0.0
+    torch.testing.assert_close(force, torch.zeros(3))
 
 
-def test_root_wrench_uses_separate_xy_and_z_position_gains() -> None:
-    controller = DirectController(
-        DirectConfig(root_xy_kp=0.0, root_z_kp=100.0, max_force=1_000.0)
+def test_root_wrench_combines_gravity_support_and_z_tracking() -> None:
+    controller = _controller(
+        DirectConfig(
+            root_gravity_support=0.3,
+            root_z_kp=100.0,
+            root_z_kd=10.0,
+            max_force=1_000.0,
+        )
     )
     target = _reference(
-        root_pos_w=_state().root_pos_w + torch.tensor([1.0, 0.0, 1.0])
+        root_pos_w=_state().root_pos_w + torch.tensor([0.0, 0.0, 1.0]),
+        root_lin_vel_w=torch.tensor([0.0, 0.0, 2.0]),
     )
 
     force, _ = controller._root_wrench(target, _state())
 
-    torch.testing.assert_close(force, torch.tensor([0.0, 0.0, 100.0]))
+    torch.testing.assert_close(force, torch.tensor([0.0, 0.0, 150.0]))
 
 
-def test_root_wrench_damps_excess_positive_velocity() -> None:
-    state = _state()
-    state = RobotState(
-        **{**state.__dict__, "root_lin_vel_w": torch.tensor([1.0, 0.0, 0.0])}
-    )
-    force, _ = _wrench(_reference(), state)
-
-    assert force[0] < 0.0
-
-
-def test_root_wrench_applies_positive_torque_for_positive_yaw_error() -> None:
+def test_root_wrench_ignores_yaw_error() -> None:
     yaw = torch.tensor(0.2)
     target_quat = torch.stack(
         (torch.cos(yaw / 2), torch.tensor(0.0), torch.tensor(0.0), torch.sin(yaw / 2))
     )
     _, torque = _wrench(_reference(root_quat_w=target_quat))
 
-    assert torque[2] > 0.0
+    torch.testing.assert_close(torque, torch.zeros(3))
 
 
-def test_root_wrench_can_disable_yaw_position_tracking_without_disabling_roll() -> None:
-    controller = DirectController(DirectConfig(root_rp_kp=100.0, root_yaw_kp=0.0))
+def test_root_wrench_stabilizes_roll_without_yaw_torque() -> None:
+    controller = _controller(DirectConfig(root_gravity_support=0.0, root_rp_kp=100.0))
     angle = torch.tensor(0.2)
     yaw_target = torch.stack(
         (torch.cos(angle / 2), torch.tensor(0.0), torch.tensor(0.0), torch.sin(angle / 2))
@@ -205,9 +208,7 @@ def test_root_wrench_can_disable_yaw_position_tracking_without_disabling_roll() 
         (torch.cos(angle / 2), torch.sin(angle / 2), torch.tensor(0.0), torch.tensor(0.0))
     )
 
-    _, yaw_torque = controller._root_wrench(
-        _reference(root_quat_w=yaw_target), _state()
-    )
+    _, yaw_torque = controller._root_wrench(_reference(root_quat_w=yaw_target), _state())
     _, roll_torque = controller._root_wrench(
         _reference(root_quat_w=roll_target), _state()
     )
@@ -217,11 +218,11 @@ def test_root_wrench_can_disable_yaw_position_tracking_without_disabling_roll() 
 
 
 def test_root_wrench_clamps_force_and_torque_by_vector_norm() -> None:
-    config = DirectConfig(max_force=10.0, max_torque=5.0)
-    controller = DirectController(config)
+    config = DirectConfig(root_gravity_support=0.0, max_force=10.0, max_torque=5.0)
+    controller = _controller(config)
     target = _reference(
-        root_pos_w=_state().root_pos_w + torch.tensor([100.0, 100.0, 100.0]),
-        root_quat_w=torch.tensor([0.0, 0.0, 0.0, 1.0]),
+        root_pos_w=_state().root_pos_w + torch.tensor([0.0, 0.0, 100.0]),
+        root_quat_w=torch.tensor([0.0, 1.0, 0.0, 0.0]),
     )
 
     force, torque = controller._root_wrench(target, _state())
@@ -231,7 +232,7 @@ def test_root_wrench_clamps_force_and_torque_by_vector_norm() -> None:
 
 
 def test_direct_controller_outputs_joint_targets_and_pelvis_wrench() -> None:
-    controller = DirectController(DirectConfig())
+    controller = _controller(DirectConfig())
     controller.load_motion(_motion(), _state())
     expected = controller.reference.current()
 
@@ -245,7 +246,7 @@ def test_direct_controller_outputs_joint_targets_and_pelvis_wrench() -> None:
 
 def test_direct_controller_writes_root_tracking_csv(tmp_path) -> None:
     path = tmp_path / "wrenches.csv"
-    controller = DirectController(DirectConfig(wrench_log_path=str(path)))
+    controller = _controller(DirectConfig(wrench_log_path=str(path)))
     controller.load_motion(_motion(), _state())
 
     controller.act(_state())

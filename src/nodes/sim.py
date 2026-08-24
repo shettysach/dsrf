@@ -82,7 +82,12 @@ def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
                 cuda_stream=simulation.cuda_stream,
             )
         case DirectConfig():
-            return DirectController(cfg.controller, device=cfg.device)
+            return DirectController(
+                cfg.controller,
+                robot_mass=simulation.robot_mass,
+                gravity_magnitude=simulation.gravity_magnitude,
+                device=cfg.device,
+            )
 
 
 if __name__ == "__main__":

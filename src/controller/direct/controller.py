@@ -32,10 +32,17 @@ class DirectController:
         self,
         config: DirectConfig,
         *,
+        robot_mass: float,
+        gravity_magnitude: float,
         device: str | torch.device = "cpu",
     ) -> None:
+        if robot_mass <= 0.0 or gravity_magnitude <= 0.0:
+            raise ValueError("robot_mass and gravity_magnitude must be positive")
         self.config = config
         self.reference = MotionReference(device)
+        self._gravity_force = (
+            config.root_gravity_support * robot_mass * gravity_magnitude
+        )
         self._wrench_logger = _WrenchCsvLogger(config.wrench_log_path)
         self._tracking_frame = 0
         self._observation_id = 0
@@ -82,27 +89,29 @@ class DirectController:
     ) -> RootTrackingDiagnostic:
         position_error = target.root_pos_w - state.root_pos_w
         velocity_error = target.root_lin_vel_w - state.root_lin_vel_w
-        position_kp = position_error.new_tensor(
-            (self.config.root_xy_kp, self.config.root_xy_kp, self.config.root_z_kp)
-        )
-        position_kd = velocity_error.new_tensor(
-            (self.config.root_xy_kd, self.config.root_xy_kd, self.config.root_z_kd)
-        )
-        force_w = (
-            position_kp * position_error + position_kd * velocity_error
+        force_w = torch.stack(
+            (
+                torch.zeros((), dtype=position_error.dtype, device=position_error.device),
+                torch.zeros((), dtype=position_error.dtype, device=position_error.device),
+                position_error.new_tensor(self._gravity_force)
+                + self.config.root_z_kp * position_error[2]
+                + self.config.root_z_kd * velocity_error[2],
+            )
         )
         orientation_error = quat_box_minus(
             target.root_quat_w[None], state.root_quat_w[None]
         )[0]
         angular_velocity_error = target.root_ang_vel_w - state.root_ang_vel_w
-        rotation_kp = orientation_error.new_tensor(
-            (self.config.root_rp_kp, self.config.root_rp_kp, self.config.root_yaw_kp)
-        )
-        rotation_kd = angular_velocity_error.new_tensor(
-            (self.config.root_rp_kd, self.config.root_rp_kd, self.config.root_yaw_kd)
-        )
-        torque_w = (
-            rotation_kp * orientation_error + rotation_kd * angular_velocity_error
+        torque_w = torch.stack(
+            (
+                self.config.root_rp_kp * orientation_error[0]
+                + self.config.root_rp_kd * angular_velocity_error[0],
+                self.config.root_rp_kp * orientation_error[1]
+                + self.config.root_rp_kd * angular_velocity_error[1],
+                torch.zeros(
+                    (), dtype=orientation_error.dtype, device=orientation_error.device
+                ),
+            )
         )
         force_norm = torch.linalg.vector_norm(force_w)
         torque_norm = torch.linalg.vector_norm(torque_w)

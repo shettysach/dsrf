@@ -100,14 +100,11 @@ class SonicConfig:
 class DirectConfig:
     """Gains and safety limits for physical root-reference tracking."""
 
-    root_xy_kp: float = 1_500.0
-    root_xy_kd: float = 150.0
-    root_z_kp: float = 1_500.0
-    root_z_kd: float = 150.0
-    root_rp_kp: float = 500.0
-    root_rp_kd: float = 50.0
-    root_yaw_kp: float = 500.0
-    root_yaw_kd: float = 50.0
+    root_gravity_support: float = 0.3
+    root_z_kp: float = 300.0
+    root_z_kd: float = 75.0
+    root_rp_kp: float = 75.0
+    root_rp_kd: float = 30.0
     max_force: float = 1_000.0
     max_torque: float = 200.0
     wrench_log_path: str = ""
@@ -118,17 +115,16 @@ class DirectConfig:
 
     def __post_init__(self) -> None:
         for name, value in (
-            ("DIRECT_ROOT_XY_KP", self.root_xy_kp),
-            ("DIRECT_ROOT_XY_KD", self.root_xy_kd),
+            ("DIRECT_ROOT_GRAVITY_SUPPORT", self.root_gravity_support),
             ("DIRECT_ROOT_Z_KP", self.root_z_kp),
             ("DIRECT_ROOT_Z_KD", self.root_z_kd),
             ("DIRECT_ROOT_RP_KP", self.root_rp_kp),
             ("DIRECT_ROOT_RP_KD", self.root_rp_kd),
-            ("DIRECT_ROOT_YAW_KP", self.root_yaw_kp),
-            ("DIRECT_ROOT_YAW_KD", self.root_yaw_kd),
         ):
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative")
+        if self.root_gravity_support > 1.0:
+            raise ValueError("DIRECT_ROOT_GRAVITY_SUPPORT must be in [0, 1]")
         for name, value in (
             ("DIRECT_MAX_FORCE", self.max_force),
             ("DIRECT_MAX_TORQUE", self.max_torque),
