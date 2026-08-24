@@ -98,48 +98,11 @@ class SonicConfig:
 
 @dataclass(frozen=True)
 class DirectConfig:
-    """Gains and safety limits for physical root-reference tracking."""
-
-    root_gravity_support: float = 0.3
-    root_z_kp: float = 300.0
-    root_z_kd: float = 75.0
-    root_rp_kp: float = 75.0
-    root_rp_kd: float = 30.0
-    foot_pos_kp: float = 75.0
-    foot_pos_kd: float = 15.0
-    torso_rp_kp: float = 50.0
-    torso_rp_kd: float = 20.0
-    max_force: float = 1_000.0
-    max_torque: float = 200.0
-    wrench_log_path: str = ""
+    """Configuration marker for pure motion-reference joint tracking."""
 
     @classmethod
     def from_env(cls) -> "DirectConfig":
         return _dataclass_from_env(cls, prefix="DIRECT_")
-
-    def __post_init__(self) -> None:
-        for name, value in (
-            ("DIRECT_ROOT_GRAVITY_SUPPORT", self.root_gravity_support),
-            ("DIRECT_ROOT_Z_KP", self.root_z_kp),
-            ("DIRECT_ROOT_Z_KD", self.root_z_kd),
-            ("DIRECT_ROOT_RP_KP", self.root_rp_kp),
-            ("DIRECT_ROOT_RP_KD", self.root_rp_kd),
-            ("DIRECT_FOOT_POS_KP", self.foot_pos_kp),
-            ("DIRECT_FOOT_POS_KD", self.foot_pos_kd),
-            ("DIRECT_TORSO_RP_KP", self.torso_rp_kp),
-            ("DIRECT_TORSO_RP_KD", self.torso_rp_kd),
-        ):
-            if not math.isfinite(value) or value < 0.0:
-                raise ValueError(f"{name} must be finite and non-negative")
-        if self.root_gravity_support > 1.0:
-            raise ValueError("DIRECT_ROOT_GRAVITY_SUPPORT must be in [0, 1]")
-        for name, value in (
-            ("DIRECT_MAX_FORCE", self.max_force),
-            ("DIRECT_MAX_TORQUE", self.max_torque),
-        ):
-            if not math.isfinite(value) or value <= 0.0:
-                raise ValueError(f"{name} must be finite and positive")
-        object.__setattr__(self, "wrench_log_path", self.wrench_log_path.strip())
 
 
 @dataclass(frozen=True)

@@ -110,28 +110,11 @@ def test_sim_config_accepts_direct_controller(monkeypatch) -> None:
     monkeypatch.setenv("JPEG_QUALITY", "85")
     monkeypatch.setenv("VIEWER", "none")
     monkeypatch.setenv("REFERENCE_GHOST", "false")
-    monkeypatch.setenv("DIRECT_ROOT_GRAVITY_SUPPORT", "0.25")
-    monkeypatch.setenv("DIRECT_ROOT_Z_KP", "45.0")
-    monkeypatch.setenv("DIRECT_ROOT_Z_KD", "6.0")
-    monkeypatch.setenv("DIRECT_ROOT_RP_KP", "78.0")
-    monkeypatch.setenv("DIRECT_ROOT_RP_KD", "9.0")
-    monkeypatch.setenv("DIRECT_MAX_FORCE", "789.0")
-    monkeypatch.setenv("DIRECT_MAX_TORQUE", "12.0")
-    monkeypatch.setenv("DIRECT_WRENCH_LOG_PATH", "/tmp/wrenches.csv")
 
     config = SimConfig.from_env().controller
 
     assert isinstance(config, DirectConfig)
-    assert config == DirectConfig(
-        root_gravity_support=0.25,
-        root_z_kp=45.0,
-        root_z_kd=6.0,
-        root_rp_kp=78.0,
-        root_rp_kd=9.0,
-        max_force=789.0,
-        max_torque=12.0,
-        wrench_log_path="/tmp/wrenches.csv",
-    )
+    assert config == DirectConfig()
 
 
 def test_direct_config_uses_dataclass_defaults(monkeypatch) -> None:
