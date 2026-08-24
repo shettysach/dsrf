@@ -38,15 +38,16 @@ def main() -> None:
         raise ValueError(f"No samples found in {args.csv_path}")
 
     time_s = _column(rows, "time_s")
+    discontinuous_time_s = _discontinuous(rows, "time_s")
     figure, axes = plt.subplots(4, 1, sharex=True, figsize=(12, 11), layout="constrained")
-    _plot_components(axes[0], time_s, rows, "force", "Force (N)")
-    axes[0].plot(time_s, _column(rows, "force_norm"), "k--", label="norm")
+    _plot_components(axes[0], discontinuous_time_s, rows, "force", "Force (N)")
+    axes[0].plot(discontinuous_time_s, _discontinuous(rows, "force_norm"), "k--", label="norm")
     _plot_clipping(axes[0], time_s, rows, "force_clipped")
-    _plot_components(axes[1], time_s, rows, "torque", "Torque (Nm)")
-    axes[1].plot(time_s, _column(rows, "torque_norm"), "k--", label="norm")
+    _plot_components(axes[1], discontinuous_time_s, rows, "torque", "Torque (Nm)")
+    axes[1].plot(discontinuous_time_s, _discontinuous(rows, "torque_norm"), "k--", label="norm")
     _plot_clipping(axes[1], time_s, rows, "torque_clipped")
-    _plot_components(axes[2], time_s, rows, "err", "Position error (m)")
-    _plot_components(axes[3], time_s, rows, "rot_err", "Orientation error (rad)")
+    _plot_components(axes[2], discontinuous_time_s, rows, "err", "Position error (m)")
+    _plot_components(axes[3], discontinuous_time_s, rows, "rot_err", "Orientation error (rad)")
 
     for axis in axes:
         axis.axhline(0.0, color="black", linewidth=0.75)
@@ -68,6 +69,17 @@ def _column(rows: list[dict[str, str]], name: str) -> list[float]:
     return [float(row[name]) for row in rows]
 
 
+def _discontinuous(rows: list[dict[str, str]], name: str) -> list[float]:
+    values: list[float] = []
+    previous_observation_id: str | None = None
+    for row in rows:
+        if previous_observation_id is not None and row["observation_id"] != previous_observation_id:
+            values.append(float("nan"))
+        values.append(float(row[name]))
+        previous_observation_id = row["observation_id"]
+    return values
+
+
 def _plot_components(
     axis: plt.Axes,
     time_s: list[float],
@@ -76,7 +88,7 @@ def _plot_components(
     ylabel: str,
 ) -> None:
     for component in "xyz":
-        axis.plot(time_s, _column(rows, f"{prefix}_{component}"), label=component)
+        axis.plot(time_s, _discontinuous(rows, f"{prefix}_{component}"), label=component)
     axis.set_ylabel(ylabel)
 
 

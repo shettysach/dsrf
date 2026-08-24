@@ -93,6 +93,25 @@ def test_shared_reference_accepts_one_frame() -> None:
     assert reference.advance()
 
 
+def test_shared_reference_starts_at_the_live_root_pose() -> None:
+    motion = _motion()
+    motion.qpos[0, :7] = [10.0, 20.0, 1.25, 0.5, 0.5, 0.5, 0.5]
+    state = _state()
+    state = RobotState(
+        **{
+            **state.__dict__,
+            "root_quat_w": torch.tensor([0.5, -0.5, 0.5, 0.5]),
+        }
+    )
+    reference = MotionReference("cpu")
+
+    reference.load(motion, state.root_pos_w, state.root_quat_w)
+    frame = reference.current()
+
+    torch.testing.assert_close(frame.root_pos_w, state.root_pos_w)
+    torch.testing.assert_close(frame.root_quat_w, state.root_quat_w)
+
+
 def test_shared_reference_derives_known_joint_velocity() -> None:
     reference = MotionReference("cpu")
     motion = _motion()

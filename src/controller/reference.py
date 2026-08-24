@@ -10,7 +10,6 @@ from mjlab.utils.lab_api.math import (
     quat_box_minus,
     quat_conjugate,
     quat_mul,
-    yaw_quat,
 )
 
 from shared.g1 import standing_qpos
@@ -53,16 +52,16 @@ class MotionReference:
         qpos = torch.as_tensor(
             chunk.qpos, dtype=torch.float32, device=self.device
         ).contiguous()
-        heading_delta = quat_mul(
-            yaw_quat(robot_quat_w), quat_conjugate(yaw_quat(qpos[0, 3:7]))
+        orientation_delta = quat_mul(
+            robot_quat_w, quat_conjugate(qpos[0, 3:7])
         )
         root_delta = qpos[:, :3] - qpos[0, :3]
         self._root_pos_w = robot_pos_w + quat_apply(
-            heading_delta.expand(len(qpos), -1), root_delta
+            orientation_delta.expand(len(qpos), -1), root_delta
         )
-        # Preserve the generated absolute root height for compatibility.
-        self._root_pos_w[:, 2] = qpos[:, 2]
-        self._root_quat_w = quat_mul(heading_delta.expand(len(qpos), -1), qpos[:, 3:7])
+        self._root_quat_w = quat_mul(
+            orientation_delta.expand(len(qpos), -1), qpos[:, 3:7]
+        )
         self._joint_pos = qpos[:, 7:]
         self._root_lin_vel_w = _finite_difference(self._root_pos_w)
         self._joint_vel = _finite_difference(self._joint_pos)

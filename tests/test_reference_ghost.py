@@ -44,7 +44,7 @@ def test_reference_visualization_pose_is_aligned_and_advances() -> None:
     assert reference.visualization_pose() is None
 
 
-def test_reference_preserves_generated_root_z() -> None:
+def test_reference_preserves_generated_relative_root_z() -> None:
     motion = _motion()
     motion.qpos[0, 2] = 0.5
     motion.qpos[1, 2] = 0.45
@@ -57,12 +57,12 @@ def test_reference_preserves_generated_root_z() -> None:
 
     initial = reference.visualization_pose()
     assert initial is not None
-    np.testing.assert_allclose(initial[0].numpy(), [10.0, 20.0, 0.5])
+    np.testing.assert_allclose(initial[0].numpy(), [10.0, 20.0, 0.8])
 
     assert not reference.advance()
     current = reference.visualization_pose()
     assert current is not None
-    np.testing.assert_allclose(current[0].numpy(), [11.0, 20.0, 0.45])
+    np.testing.assert_allclose(current[0].numpy(), [11.0, 20.0, 0.75])
 
 
 class _RecordingVisualizer:
