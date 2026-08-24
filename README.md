@@ -59,13 +59,22 @@ to follow the reference root. It never writes the floating-base pose directly:
 
 ```yaml
 CONTROLLER: direct
-DIRECT_ROOT_POS_KP: "${DIRECT_ROOT_POS_KP:-1500}"
-DIRECT_ROOT_POS_KD: "${DIRECT_ROOT_POS_KD:-150}"
-DIRECT_ROOT_ROT_KP: "${DIRECT_ROOT_ROT_KP:-500}"
-DIRECT_ROOT_ROT_KD: "${DIRECT_ROOT_ROT_KD:-50}"
+DIRECT_ROOT_XY_KP: "${DIRECT_ROOT_XY_KP:-0}"
+DIRECT_ROOT_XY_KD: "${DIRECT_ROOT_XY_KD:-50}"
+DIRECT_ROOT_Z_KP: "${DIRECT_ROOT_Z_KP:-500}"
+DIRECT_ROOT_Z_KD: "${DIRECT_ROOT_Z_KD:-100}"
+DIRECT_ROOT_RP_KP: "${DIRECT_ROOT_RP_KP:-100}"
+DIRECT_ROOT_RP_KD: "${DIRECT_ROOT_RP_KD:-25}"
+DIRECT_ROOT_YAW_KP: "${DIRECT_ROOT_YAW_KP:-0}"
+DIRECT_ROOT_YAW_KD: "${DIRECT_ROOT_YAW_KD:-10}"
 DIRECT_MAX_FORCE: "${DIRECT_MAX_FORCE:-1000}"
 DIRECT_MAX_TORQUE: "${DIRECT_MAX_TORQUE:-200}"
+DIRECT_WRENCH_LOG_PATH: "${DIRECT_WRENCH_LOG_PATH:-/tmp/direct-wrench.csv}"
 ```
+
+Set `DIRECT_WRENCH_LOG_PATH` for a per-frame CSV trace of root reference,
+state, errors, applied wrench norms, and clipping flags. Leave it empty to
+disable diagnostic logging.
 
 ## ARDY closed loop
 

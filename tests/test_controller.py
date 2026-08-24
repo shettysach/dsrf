@@ -1,3 +1,4 @@
+import csv
 from types import SimpleNamespace
 
 import numpy as np
@@ -142,6 +143,19 @@ def test_root_wrench_pulls_toward_positive_position_error() -> None:
     assert force[0] > 0.0
 
 
+def test_root_wrench_uses_separate_xy_and_z_position_gains() -> None:
+    controller = DirectController(
+        DirectConfig(root_xy_kp=0.0, root_z_kp=100.0, max_force=1_000.0)
+    )
+    target = _reference(
+        root_pos_w=_state().root_pos_w + torch.tensor([1.0, 0.0, 1.0])
+    )
+
+    force, _ = controller._root_wrench(target, _state())
+
+    torch.testing.assert_close(force, torch.tensor([0.0, 0.0, 100.0]))
+
+
 def test_root_wrench_damps_excess_positive_velocity() -> None:
     state = _state()
     state = RobotState(
@@ -160,6 +174,27 @@ def test_root_wrench_applies_positive_torque_for_positive_yaw_error() -> None:
     _, torque = _wrench(_reference(root_quat_w=target_quat))
 
     assert torque[2] > 0.0
+
+
+def test_root_wrench_can_disable_yaw_position_tracking_without_disabling_roll() -> None:
+    controller = DirectController(DirectConfig(root_rp_kp=100.0, root_yaw_kp=0.0))
+    angle = torch.tensor(0.2)
+    yaw_target = torch.stack(
+        (torch.cos(angle / 2), torch.tensor(0.0), torch.tensor(0.0), torch.sin(angle / 2))
+    )
+    roll_target = torch.stack(
+        (torch.cos(angle / 2), torch.sin(angle / 2), torch.tensor(0.0), torch.tensor(0.0))
+    )
+
+    _, yaw_torque = controller._root_wrench(
+        _reference(root_quat_w=yaw_target), _state()
+    )
+    _, roll_torque = controller._root_wrench(
+        _reference(root_quat_w=roll_target), _state()
+    )
+
+    torch.testing.assert_close(yaw_torque, torch.zeros(3))
+    assert roll_torque[0] > 0.0
 
 
 def test_root_wrench_clamps_force_and_torque_by_vector_norm() -> None:
@@ -187,3 +222,20 @@ def test_direct_controller_outputs_joint_targets_and_pelvis_wrench() -> None:
     torch.testing.assert_close(output.joint_velocity_target, expected.joint_vel)
     assert len(output.external_wrenches) == 1
     assert output.external_wrenches[0].body == "pelvis"
+
+
+def test_direct_controller_writes_root_tracking_csv(tmp_path) -> None:
+    path = tmp_path / "wrenches.csv"
+    controller = DirectController(DirectConfig(wrench_log_path=str(path)))
+    controller.load_motion(_motion(), _state())
+
+    controller.act(_state())
+
+    with path.open(newline="") as file:
+        rows = list(csv.DictReader(file))
+    assert len(rows) == 1
+    assert rows[0]["frame"] == "0"
+    assert rows[0]["observation_id"] == "0"
+    assert {"err_x", "force_z", "torque_y", "force_clipped", "torque_clipped"} <= (
+        rows[0].keys()
+    )

@@ -100,12 +100,17 @@ class SonicConfig:
 class DirectConfig:
     """Gains and safety limits for physical root-reference tracking."""
 
-    root_pos_kp: float = 1_500.0
-    root_pos_kd: float = 150.0
-    root_rot_kp: float = 500.0
-    root_rot_kd: float = 50.0
+    root_xy_kp: float = 1_500.0
+    root_xy_kd: float = 150.0
+    root_z_kp: float = 1_500.0
+    root_z_kd: float = 150.0
+    root_rp_kp: float = 500.0
+    root_rp_kd: float = 50.0
+    root_yaw_kp: float = 500.0
+    root_yaw_kd: float = 50.0
     max_force: float = 1_000.0
     max_torque: float = 200.0
+    wrench_log_path: str = ""
 
     @classmethod
     def from_env(cls) -> "DirectConfig":
@@ -113,10 +118,14 @@ class DirectConfig:
 
     def __post_init__(self) -> None:
         for name, value in (
-            ("DIRECT_ROOT_POS_KP", self.root_pos_kp),
-            ("DIRECT_ROOT_POS_KD", self.root_pos_kd),
-            ("DIRECT_ROOT_ROT_KP", self.root_rot_kp),
-            ("DIRECT_ROOT_ROT_KD", self.root_rot_kd),
+            ("DIRECT_ROOT_XY_KP", self.root_xy_kp),
+            ("DIRECT_ROOT_XY_KD", self.root_xy_kd),
+            ("DIRECT_ROOT_Z_KP", self.root_z_kp),
+            ("DIRECT_ROOT_Z_KD", self.root_z_kd),
+            ("DIRECT_ROOT_RP_KP", self.root_rp_kp),
+            ("DIRECT_ROOT_RP_KD", self.root_rp_kd),
+            ("DIRECT_ROOT_YAW_KP", self.root_yaw_kp),
+            ("DIRECT_ROOT_YAW_KD", self.root_yaw_kd),
         ):
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative")
@@ -126,6 +135,7 @@ class DirectConfig:
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name} must be finite and positive")
+        object.__setattr__(self, "wrench_log_path", self.wrench_log_path.strip())
 
 
 @dataclass(frozen=True)
