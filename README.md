@@ -51,27 +51,16 @@ dora run stairs.yml
 
 The simulator accepts physical G1 joint targets in radians from either controller.
 Use `CONTROLLER: sonic` with `SONIC_DIR` for the learned SONIC policy, or
-`CONTROLLER: virtual_forces` for direct motion-reference tracking through MJLab's
-G1 actuator PD model.
+`CONTROLLER: direct` for motion-reference tracking through MJLab's built-in G1
+actuator PD model.
 
-Virtual-force assistance is disabled by default. Enable and tune it with:
+Direct tracking can optionally pin the floating base to the reference pose and
+velocity. Disable pinning to test the same joint targets with a free root:
 
 ```yaml
-CONTROLLER: virtual_forces
-VF_ASSISTANCE_ENABLED: "true"
-VF_TARGET_BODY: pelvis
-VF_POSITION_KP: "400"
-VF_POSITION_KD: "40"
-VF_ORIENTATION_KP: "100"
-VF_ORIENTATION_KD: "10"
-VF_POSITION_DEADBAND: "0.02"
-VF_ORIENTATION_DEADBAND: "0.05"
-VF_FORCE_LIMIT: "300"
-VF_TORQUE_LIMIT: "100"
+CONTROLLER: direct
+DIRECT_PIN_ROOT: "${DIRECT_PIN_ROOT:-true}"
 ```
-
-Forces and torques are world-frame values applied at the named body's center of
-mass. Limits are in newtons and newton-metres, respectively.
 
 ## ARDY closed loop
 

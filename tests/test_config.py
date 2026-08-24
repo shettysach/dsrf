@@ -7,11 +7,11 @@ from tasks import get_task
 from shared.config import (
     AgentConfig,
     ArdyConfig,
+    DirectConfig,
     KinematicPlannerConfig,
     MotionGenConfig,
     SimConfig,
     SonicConfig,
-    VirtualForcesConfig,
 )
 
 
@@ -101,30 +101,28 @@ def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
     assert SimConfig.from_env().viewer == "viser"
 
 
-def test_sim_config_accepts_virtual_forces_controller(monkeypatch) -> None:
+def test_sim_config_accepts_direct_controller(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "virtual_forces")
+    monkeypatch.setenv("CONTROLLER", "direct")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
     monkeypatch.setenv("IMAGE_HEIGHT", "480")
     monkeypatch.setenv("JPEG_QUALITY", "85")
     monkeypatch.setenv("VIEWER", "none")
     monkeypatch.setenv("REFERENCE_GHOST", "false")
-    monkeypatch.setenv("VF_ASSISTANCE_ENABLED", "true")
-    monkeypatch.setenv("VF_FORCE_LIMIT", "250")
+    monkeypatch.setenv("DIRECT_PIN_ROOT", "false")
 
     config = SimConfig.from_env().controller
 
-    assert isinstance(config, VirtualForcesConfig)
-    assert config.assistance_enabled
-    assert config.force_limit == 250.0
+    assert isinstance(config, DirectConfig)
+    assert not config.pin_root
 
 
-def test_virtual_forces_config_uses_dataclass_defaults(monkeypatch) -> None:
-    for field in fields(VirtualForcesConfig):
-        monkeypatch.delenv(f"VF_{field.name.upper()}", raising=False)
+def test_direct_config_uses_dataclass_defaults(monkeypatch) -> None:
+    for field in fields(DirectConfig):
+        monkeypatch.delenv(f"DIRECT_{field.name.upper()}", raising=False)
 
-    assert VirtualForcesConfig.from_env() == VirtualForcesConfig()
+    assert DirectConfig.from_env() == DirectConfig()
 
 
 def test_sim_config_rejects_unknown_viewer(monkeypatch) -> None:

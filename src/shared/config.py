@@ -58,7 +58,7 @@ class ArdyConfig:
 @dataclass(frozen=True)
 class SimConfig:
     device: str
-    controller: SonicConfig | VirtualForcesConfig
+    controller: SonicConfig | DirectConfig
     task: TaskSpec | None
     image_width: int
     image_height: int
@@ -97,30 +97,12 @@ class SonicConfig:
 
 
 @dataclass(frozen=True)
-class VirtualForcesConfig:
-    assistance_enabled: bool = False
-    target_body: str = "pelvis"
-    position_kp: float = 400.0
-    position_kd: float = 40.0
-    orientation_kp: float = 100.0
-    orientation_kd: float = 10.0
-    position_deadband: float = 0.02
-    orientation_deadband: float = 0.05
-    force_limit: float = 300.0
-    torque_limit: float = 100.0
+class DirectConfig:
+    pin_root: bool = True
 
     @classmethod
-    def from_env(cls) -> "VirtualForcesConfig":
-        return _dataclass_from_env(cls, prefix="VF_")
-
-    def __post_init__(self) -> None:
-        if not self.target_body.strip():
-            raise ValueError("VF_TARGET_BODY must not be empty")
-        for field in fields(self):
-            value = getattr(self, field.name)
-            if isinstance(value, float) and (not math.isfinite(value) or value < 0.0):
-                name = f"VF_{field.name.upper()}"
-                raise ValueError(f"{name} must be finite and nonnegative")
+    def from_env(cls) -> "DirectConfig":
+        return _dataclass_from_env(cls, prefix="DIRECT_")
 
 
 @dataclass(frozen=True)
@@ -167,13 +149,13 @@ def _motion_generator() -> Literal["kinematic_planner", "ardy"]:
     return value
 
 
-def _controller() -> SonicConfig | VirtualForcesConfig:
+def _controller() -> SonicConfig | DirectConfig:
     value = os.environ["CONTROLLER"].strip().lower()
     if value == "sonic":
         return SonicConfig.from_env()
-    if value == "virtual_forces":
-        return VirtualForcesConfig.from_env()
-    raise ValueError("CONTROLLER must be 'sonic' or 'virtual_forces'")
+    if value == "direct":
+        return DirectConfig.from_env()
+    raise ValueError("CONTROLLER must be 'sonic' or 'direct'")
 
 
 def _dataclass_from_env[T](

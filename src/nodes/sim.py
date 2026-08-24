@@ -5,9 +5,9 @@ from typing import Optional
 from dora import Node
 
 from controller import Controller
+from controller.direct import DirectController
 from controller.sonic import SonicController
-from controller.virtual_forces import VirtualForcesController
-from shared.config import SimConfig, SonicConfig, VirtualForcesConfig
+from shared.config import DirectConfig, SimConfig, SonicConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
@@ -24,7 +24,7 @@ def main() -> None:
         image_width=cfg.image_width,
         image_height=cfg.image_height,
         control_mode=(
-            "pd" if isinstance(cfg.controller, VirtualForcesConfig) else "position"
+            "pd" if isinstance(cfg.controller, DirectConfig) else "position"
         ),
     )
     viewer: Optional[SimViewer] = None
@@ -81,8 +81,8 @@ def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
                 device=cfg.device,
                 cuda_stream=simulation.cuda_stream,
             )
-        case VirtualForcesConfig():
-            return VirtualForcesController(cfg.controller, device=cfg.device)
+        case DirectConfig():
+            return DirectController(cfg.controller, device=cfg.device)
 
 
 if __name__ == "__main__":

@@ -40,18 +40,9 @@ nodes:
     min_log_level: warn
     env:
       DEVICE: cuda
-      # The virtual-forces controller consumes the kinematic planner's qpos
-      # reference directly; it does not need the SONIC policy checkpoints.
-      CONTROLLER: virtual_forces
-      VF_ASSISTANCE_ENABLED: "true"
-      VF_POSITION_KP: "800"
-      VF_POSITION_KD: "80"
-      VF_ORIENTATION_KP: "400"
-      VF_ORIENTATION_KD: "40"
-      VF_POSITION_DEADBAND: "0"
-      VF_ORIENTATION_DEADBAND: "0"
-      VF_FORCE_LIMIT: "500"
-      VF_TORQUE_LIMIT: "200"
+      # Direct tracking consumes the planner's qpos reference through MJLab PD.
+      CONTROLLER: direct
+      DIRECT_PIN_ROOT: "${DIRECT_PIN_ROOT:-true}"
       TASK: portrait-corridors
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"

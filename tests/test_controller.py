@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 import torch
 
-from controller import ControlOutput, ExternalWrench, RobotState
+from controller import ControlOutput, ExternalWrench, RobotState, RootTarget
+from controller.direct import DirectController
 from controller.g1_command import G1CommandTransform
 from controller.reference import MotionReference
 from controller.sonic import SonicController
-from controller.virtual_forces import VirtualForcesController
-from shared.config import VirtualForcesConfig
+from shared.config import DirectConfig
 from shared.messages import MotionChunk
 
 
@@ -72,6 +72,28 @@ def test_control_contract_rejects_bad_shapes() -> None:
         ControlOutput(torch.zeros(29), joint_velocity_target=torch.zeros((1, 29)))
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("pos_w", torch.zeros(2)),
+        ("quat_w", torch.zeros(3)),
+        ("lin_vel_w", torch.zeros(2)),
+        ("ang_vel_w", torch.zeros(2)),
+    ),
+)
+def test_root_target_rejects_bad_shapes(field: str, value: torch.Tensor) -> None:
+    values = {
+        "pos_w": torch.zeros(3),
+        "quat_w": torch.zeros(4),
+        "lin_vel_w": torch.zeros(3),
+        "ang_vel_w": torch.zeros(3),
+    }
+    values[field] = value
+
+    with pytest.raises(ValueError, match=field):
+        RootTarget(**values)
+
+
 def test_control_contract_accepts_velocity_target_without_changing_positional_fields() -> (
     None
 ):
@@ -107,8 +129,8 @@ def test_shared_reference_derives_known_joint_velocity() -> None:
     torch.testing.assert_close(second.joint_vel, torch.ones(29))
 
 
-def test_virtual_forces_controller_tracks_reference_without_assistance() -> None:
-    controller = VirtualForcesController(VirtualForcesConfig())
+def test_direct_controller_tracks_joint_reference() -> None:
+    controller = DirectController(DirectConfig(pin_root=False))
     controller.load_motion(_motion(), _state())
 
     first = controller.act(_state())
@@ -123,25 +145,21 @@ def test_virtual_forces_controller_tracks_reference_without_assistance() -> None
         second.joint_velocity_target, torch.arange(29).float() * 50
     )
     assert first.external_wrenches == ()
+    assert first.root_target is None
     assert not first.completed
     assert second.completed
 
 
-def test_virtual_force_is_bounded() -> None:
-    config = VirtualForcesConfig(
-        assistance_enabled=True,
-        position_kp=1000.0,
-        position_kd=0.0,
-        force_limit=10.0,
-    )
-    controller = VirtualForcesController(config)
-    motion = _motion()
-    motion.qpos[0, :3] = [0.0, 0.0, 2.0]
-    controller.load_motion(motion, _state())
+def test_direct_controller_includes_reference_root_when_pinning_enabled() -> None:
+    controller = DirectController(DirectConfig(pin_root=True))
+    controller.load_motion(_motion(), _state())
+    expected = controller.reference.current()
 
     output = controller.act(_state())
 
-    assert len(output.external_wrenches) == 1
-    assert float(
-        torch.linalg.vector_norm(output.external_wrenches[0].force_w)
-    ) == pytest.approx(10.0)
+    assert output.root_target is not None
+    torch.testing.assert_close(output.root_target.pos_w, expected.root_pos_w)
+    torch.testing.assert_close(output.root_target.quat_w, expected.root_quat_w)
+    torch.testing.assert_close(output.root_target.lin_vel_w, expected.root_lin_vel_w)
+    torch.testing.assert_close(output.root_target.ang_vel_w, expected.root_ang_vel_w)
+    assert output.external_wrenches == ()
