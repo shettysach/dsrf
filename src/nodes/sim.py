@@ -7,7 +7,8 @@ from dora import Node
 from controller import Controller
 from controller.direct import DirectController
 from controller.sonic import SonicController
-from shared.config import DirectConfig, SimConfig, SonicConfig
+from controller.wbc import WbcController
+from shared.config import DirectConfig, SimConfig, SonicConfig, WbcConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
@@ -24,7 +25,9 @@ def main() -> None:
         image_width=cfg.image_width,
         image_height=cfg.image_height,
         control_mode=(
-            "pd" if isinstance(cfg.controller, DirectConfig) else "position"
+            "pd"
+            if isinstance(cfg.controller, (DirectConfig, WbcConfig))
+            else "position"
         ),
     )
     viewer: Optional[SimViewer] = None
@@ -83,6 +86,8 @@ def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
             )
         case DirectConfig():
             return DirectController(cfg.controller, device=cfg.device)
+        case WbcConfig():
+            return WbcController(cfg.controller, device=cfg.device)
 
 
 if __name__ == "__main__":

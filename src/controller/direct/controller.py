@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 
-from controller import ControlOutput, RobotState
+from controller import ControlOutput, DynamicsSnapshot, RobotState
 from controller.reference import MotionReference
 from shared.config import DirectConfig
 from shared.messages import MotionChunk
@@ -23,8 +23,10 @@ class DirectController:
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
         self.reference.load(chunk, state.root_pos_w, state.root_quat_w)
 
-    def act(self, state: RobotState) -> ControlOutput:
-        del state
+    def act(
+        self, state: RobotState, dynamics: DynamicsSnapshot | None = None
+    ) -> ControlOutput:
+        del state, dynamics
         target = self.reference.current()
         completed = self.reference.advance()
         return ControlOutput(

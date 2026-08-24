@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 
-from controller import ControlOutput, RobotState
+from controller import ControlOutput, DynamicsSnapshot, RobotState
 from controller.g1_command import G1CommandTransform
 from controller.reference import MotionReference
 from controller.sonic.policy import SonicPolicy
@@ -41,7 +41,10 @@ class SonicController:
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
         self.policy.load_motion(chunk, state.root_pos_w, state.root_quat_w)
 
-    def act(self, state: RobotState) -> ControlOutput:
+    def act(
+        self, state: RobotState, dynamics: DynamicsSnapshot | None = None
+    ) -> ControlOutput:
+        del dynamics
         raw_action, completed = self.policy.infer(state)
         return ControlOutput(
             joint_target=self.command_transform.decode(raw_action.squeeze(0)),

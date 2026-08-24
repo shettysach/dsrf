@@ -207,7 +207,8 @@ class SimRuntime:
 
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
-                    output = self.controller.act(state)
+                    dynamics = self.simulation.dynamics_snapshot(state)
+                    output = self.controller.act(state, dynamics)
                 self.simulation.step(output)
                 if self.viewer is not None:
                     self.viewer.sync()

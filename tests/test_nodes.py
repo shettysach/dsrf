@@ -242,6 +242,10 @@ class _Simulation:
             root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
         )
 
+    def dynamics_snapshot(self, state):
+        del state
+        return None
+
     def step(self, action) -> None:
         del action
         self.steps += 1
@@ -256,8 +260,8 @@ class _Controller:
         del state
         self.loaded = chunk
 
-    def act(self, state):
-        del state
+    def act(self, state, dynamics=None):
+        del state, dynamics
         self.calls += 1
         return ControlOutput(torch.zeros(29), completed=self.calls == 2)
 

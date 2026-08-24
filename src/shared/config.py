@@ -58,7 +58,7 @@ class ArdyConfig:
 @dataclass(frozen=True)
 class SimConfig:
     device: str
-    controller: SonicConfig | DirectConfig
+    controller: SonicConfig | DirectConfig | WbcConfig
     task: TaskSpec | None
     image_width: int
     image_height: int
@@ -106,6 +106,25 @@ class DirectConfig:
 
 
 @dataclass(frozen=True)
+class WbcConfig:
+    """Small, motion-independent gains for equality-constrained WBC v1."""
+
+    root_translation_kp: float = 20.0
+    root_translation_kd: float = 5.0
+    root_rotation_kp: float = 20.0
+    root_rotation_kd: float = 5.0
+    joints_kp: float = 20.0
+    joints_kd: float = 5.0
+    acceleration_weight: float = 1.0
+    pd_weight: float = 0.1
+    force_weight: float = 1.0e-4
+
+    @classmethod
+    def from_env(cls) -> "WbcConfig":
+        return _dataclass_from_env(cls, prefix="WBC_")
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     vlm_url: str
     vlm_timeout: float
@@ -149,13 +168,15 @@ def _motion_generator() -> Literal["kinematic_planner", "ardy"]:
     return value
 
 
-def _controller() -> SonicConfig | DirectConfig:
+def _controller() -> SonicConfig | DirectConfig | WbcConfig:
     value = os.environ["CONTROLLER"].strip().lower()
     if value == "sonic":
         return SonicConfig.from_env()
     if value == "direct":
         return DirectConfig.from_env()
-    raise ValueError("CONTROLLER must be 'sonic' or 'direct'")
+    if value == "wbc":
+        return WbcConfig.from_env()
+    raise ValueError("CONTROLLER must be 'sonic', 'direct', or 'wbc'")
 
 
 def _dataclass_from_env[T](

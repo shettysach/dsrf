@@ -22,8 +22,11 @@ class ReferenceFrame:
     root_quat_w: torch.Tensor
     root_lin_vel_w: torch.Tensor
     root_ang_vel_w: torch.Tensor
+    root_lin_acc_w: torch.Tensor
+    root_ang_acc_w: torch.Tensor
     joint_pos: torch.Tensor
     joint_vel: torch.Tensor
+    joint_acc: torch.Tensor
 
 
 class MotionReference:
@@ -40,6 +43,9 @@ class MotionReference:
         self._root_lin_vel_w = torch.zeros((1, 3), device=self.device)
         self._root_ang_vel_w = torch.zeros((1, 3), device=self.device)
         self._joint_vel = torch.zeros((1, 29), device=self.device)
+        self._root_lin_acc_w = torch.zeros((1, 3), device=self.device)
+        self._root_ang_acc_w = torch.zeros((1, 3), device=self.device)
+        self._joint_acc = torch.zeros((1, 29), device=self.device)
         self._frame = 0
         self._active = False
 
@@ -74,6 +80,9 @@ class MotionReference:
                 * REFERENCE_HZ
             )
             self._root_ang_vel_w[-1] = self._root_ang_vel_w[-2]
+        self._root_lin_acc_w = _finite_difference(self._root_lin_vel_w)
+        self._root_ang_acc_w = _finite_difference(self._root_ang_vel_w)
+        self._joint_acc = _finite_difference(self._joint_vel)
         self._frame = 0
         self._active = True
 
@@ -100,8 +109,11 @@ class MotionReference:
             root_quat_w=self._root_quat_w[index],
             root_lin_vel_w=self._root_lin_vel_w[index],
             root_ang_vel_w=self._root_ang_vel_w[index],
+            root_lin_acc_w=self._root_lin_acc_w[index],
+            root_ang_acc_w=self._root_ang_acc_w[index],
             joint_pos=self._joint_pos[index],
             joint_vel=self._joint_vel[index],
+            joint_acc=self._joint_acc[index],
         )
 
     def visualization_pose(

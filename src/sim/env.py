@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import re
 from contextlib import AbstractContextManager, nullcontext
 from typing import TYPE_CHECKING
 
+import mujoco
+import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
 from tasks import TaskSpec
 
-from controller import BodyState, ControlOutput, RobotState
+from controller import ContactDynamics, ControlOutput, DynamicsSnapshot, RobotState
 from controller.g1_command import G1CommandTransform
 from shared.g1 import G1_JOINT_COUNT, G1_JOINT_NAMES_MJLAB
 from sim.camera import OnDemandCameraCapture, ProjectionContext
@@ -75,18 +78,16 @@ class MjlabEnv:
         self._body_ids = {
             name: index for index, name in enumerate(self._robot.body_names)
         }
-        self._virtual_spring_bodies = (
-            "pelvis",
-            "torso_link",
-            "left_ankle_roll_link",
-            "right_ankle_roll_link",
-        )
         self._wrench_forces = torch.zeros(
             (self.num_envs, self._robot.num_bodies, 3),
             dtype=torch.float32,
             device=self.device,
         )
         self._wrench_torques = torch.zeros_like(self._wrench_forces)
+        self._dynamics_data = mujoco.MjData(self._env.sim.mj_model)
+        self._joint_stiffness, self._joint_damping, self._effort_limits = (
+            self._pd_parameters()
+        )
 
         self.cuda_stream = (
             connect_torch_to_mjlab(self._env.sim, torch_device)
@@ -111,38 +112,120 @@ class MjlabEnv:
             projected_gravity_b=data.projected_gravity_b[0],
             joint_pos=data.joint_pos[0],
             joint_vel=data.joint_vel[0],
-            body_states={
-                name: BodyState(
-                    pos_w=data.body_link_pos_w[0, self._body_ids[name]],
-                    quat_w=data.body_link_quat_w[0, self._body_ids[name]],
-                    lin_vel_w=data.body_link_lin_vel_w[0, self._body_ids[name]],
-                    ang_vel_w=data.body_link_ang_vel_w[0, self._body_ids[name]],
-                )
-                for name in self._virtual_spring_bodies
-            },
         )
+
+    def dynamics_snapshot(self, state: RobotState | None = None) -> DynamicsSnapshot:
+        """Extract shadow MuJoCo dynamics for exactly this controller state.
+
+        MJLab owns the live physics state.  A local MuJoCo data object is used
+        only to evaluate its model functions at the RobotState sampled in the
+        current compute context; it is never stepped by this wrapper.
+        """
+        state = self.robot_state() if state is None else state
+        model = self._env.sim.mj_model
+        data = self._dynamics_data
+        indexing = self._robot.indexing
+        data.qpos[:] = 0.0
+        data.qvel[:] = 0.0
+        free_q = indexing.free_joint_q_adr.cpu().numpy()
+        joint_q = indexing.joint_q_adr.cpu().numpy()
+        free_v = indexing.free_joint_v_adr.cpu().numpy()
+        joint_v = indexing.joint_v_adr.cpu().numpy()
+        data.qpos[free_q[:3]] = state.root_pos_w.detach().cpu().numpy()
+        data.qpos[free_q[3:]] = state.root_quat_w.detach().cpu().numpy()
+        data.qpos[joint_q] = state.joint_pos.detach().cpu().numpy()
+        data.qvel[free_v[:3]] = state.root_lin_vel_w.detach().cpu().numpy()
+        data.qvel[free_v[3:]] = state.root_ang_vel_w.detach().cpu().numpy()
+        data.qvel[joint_v] = state.joint_vel.detach().cpu().numpy()
+        mujoco.mj_forward(model, data)
+        mass = np.empty((model.nv, model.nv), dtype=np.float64)
+        mujoco.mj_fullM(model, data, mass)
+        contacts = tuple(self._support_contacts(data))
+        device = state.joint_pos.device
+        return DynamicsSnapshot(
+            qpos=torch.as_tensor(data.qpos.copy(), dtype=torch.float64, device=device),
+            qvel=torch.as_tensor(data.qvel.copy(), dtype=torch.float64, device=device),
+            mass_matrix=torch.as_tensor(mass, dtype=torch.float64, device=device),
+            bias_force=torch.as_tensor(
+                data.qfrc_bias.copy(), dtype=torch.float64, device=device
+            ),
+            contacts=contacts,
+            actuated_dof_indices=torch.as_tensor(
+                joint_v, dtype=torch.long, device=device
+            ),
+            joint_stiffness=self._joint_stiffness.to(device=device, dtype=torch.float64),
+            joint_damping=self._joint_damping.to(device=device, dtype=torch.float64),
+            effort_limits=self._effort_limits.to(device=device, dtype=torch.float64),
+        )
+
+    def _support_contacts(self, data: object) -> list[ContactDynamics]:
+        model = self._env.sim.mj_model
+        contacts: list[ContactDynamics] = []
+        selected_bodies: set[str] = set()
+        support_bodies = {"left_ankle_roll_link", "right_ankle_roll_link"}
+        for index in range(data.ncon):  # ty: ignore[unresolved-attribute]
+            contact = data.contact[index]  # ty: ignore[unresolved-attribute]
+            body_ids = (model.geom_bodyid[contact.geom1], model.geom_bodyid[contact.geom2])
+            names = tuple(
+                mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, int(body_id))
+                for body_id in body_ids
+            )
+            robot_name = next(
+                (name for name in names if name and name.removeprefix("robot/") in support_bodies),
+                None,
+            )
+            if robot_name is None or not any(name == "terrain" for name in names):
+                continue
+            local_name = robot_name.removeprefix("robot/")
+            # MuJoCo usually reports many geom pairs under one foot.  One
+            # point per support body keeps the equality system independent in
+            # this deliberately minimal v1 controller.
+            if local_name in selected_bodies:
+                continue
+            selected_bodies.add(local_name)
+            point = np.asarray(contact.pos, dtype=np.float64)
+            jacobian = np.empty((3, model.nv), dtype=np.float64)
+            jacobian_dot = np.empty((3, model.nv), dtype=np.float64)
+            mujoco.mj_jac(model, data, jacobian, None, point, int(body_ids[names.index(robot_name)]))
+            mujoco.mj_jacDot(model, data, jacobian_dot, None, point, int(body_ids[names.index(robot_name)]))
+            device = self._joint_stiffness.device
+            contacts.append(
+                ContactDynamics(
+                    body=local_name,
+                    position_w=torch.as_tensor(point, dtype=torch.float64, device=device),
+                    frame_w=torch.as_tensor(
+                        np.asarray(contact.frame, dtype=np.float64).reshape(3, 3),
+                        dtype=torch.float64,
+                        device=device,
+                    ),
+                    jacobian=torch.as_tensor(jacobian, dtype=torch.float64, device=device),
+                    jacobian_dot_velocity=torch.as_tensor(
+                        jacobian_dot @ data.qvel, dtype=torch.float64, device=device
+                    ),
+                )
+            )
+        return contacts
+
+    def _pd_parameters(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Read the exact configured PD parameters in canonical joint order."""
+        cfgs = self.cfg.scene.entities["robot"].articulation.actuators
+        stiffness, damping, effort = [], [], []
+        for joint in G1_JOINT_NAMES_MJLAB:
+            actuator = next(
+                (item for item in cfgs if any(re.fullmatch(pattern, joint) for pattern in item.target_names_expr)),
+                None,
+            )
+            if actuator is None or actuator.effort_limit is None:
+                raise RuntimeError(f"No PD actuator configuration for {joint}")
+            stiffness.append(float(actuator.stiffness))
+            damping.append(float(actuator.damping))
+            effort.append(float(actuator.effort_limit))
+        return tuple(torch.tensor(values, dtype=torch.float64) for values in (stiffness, damping, effort))  # ty: ignore[invalid-return-type]
 
     @property
     def step_dt(self) -> float:
         return float(self._env.step_dt)
 
-    @property
-    def robot_mass(self) -> float:
-        """Total mass of the configured G1 bodies from the MJLab model."""
-        model = self._env.sim.mj_model
-        return float(sum(_model_body_mass(model, name) for name in self._robot.body_names))
-
-    @property
-    def gravity_magnitude(self) -> float:
-        return float(torch.linalg.vector_norm(torch.as_tensor(self._env.sim.mj_model.opt.gravity)))
-
-    @property
-    def mj_model(self) -> object:
-        return self._env.sim.mj_model
-
-    @property
-    def robot_indexing(self) -> object:
-        return self._robot.indexing
 
     def step(self, output: ControlOutput) -> VecEnvStepReturn:
         with self.compute_context():
@@ -198,15 +281,6 @@ class MjlabEnv:
     def close(self) -> None:
         self._camera_capture.close()
         self._env.close()
-
-
-def _model_body_mass(model: object, name: str) -> object:
-    """Look up an MJLab body with or without its scene-entity namespace."""
-    try:
-        body = model.body(name)  # ty: ignore[unresolved-attribute]
-    except KeyError:
-        body = model.body(f"robot/{name}")  # ty: ignore[unresolved-attribute]
-    return model.body_mass[body.id]  # ty: ignore[unresolved-attribute]
 
 
 # CUDA

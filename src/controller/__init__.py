@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 import torch
@@ -64,17 +64,36 @@ class RobotState:
     projected_gravity_b: torch.Tensor
     joint_pos: torch.Tensor
     joint_vel: torch.Tensor
-    body_states: dict[str, BodyState] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
-class BodyState:
-    """World-frame state for a named rigid body."""
+class ContactDynamics:
+    """One active robot support contact expressed in world coordinates."""
 
-    pos_w: torch.Tensor
-    quat_w: torch.Tensor
-    lin_vel_w: torch.Tensor
-    ang_vel_w: torch.Tensor
+    body: str
+    position_w: torch.Tensor
+    frame_w: torch.Tensor
+    jacobian: torch.Tensor
+    jacobian_dot_velocity: torch.Tensor
+
+
+@dataclass(frozen=True)
+class DynamicsSnapshot:
+    """Simulator-owned quantities for one inverse-dynamics control step.
+
+    This deliberately contains numerical arrays rather than MuJoCo objects, so
+    controllers cannot accidentally observe a different simulation frame.
+    """
+
+    qpos: torch.Tensor
+    qvel: torch.Tensor
+    mass_matrix: torch.Tensor
+    bias_force: torch.Tensor
+    contacts: tuple[ContactDynamics, ...]
+    actuated_dof_indices: torch.Tensor
+    joint_stiffness: torch.Tensor
+    joint_damping: torch.Tensor
+    effort_limits: torch.Tensor
 
 
 class Controller(Protocol):
@@ -82,4 +101,6 @@ class Controller(Protocol):
 
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None: ...
 
-    def act(self, state: RobotState) -> ControlOutput: ...
+    def act(
+        self, state: RobotState, dynamics: DynamicsSnapshot | None = None
+    ) -> ControlOutput: ...
