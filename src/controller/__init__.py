@@ -34,12 +34,21 @@ class ControlOutput:
     joint_target: torch.Tensor
     completed: bool = False
     external_wrenches: tuple[ExternalWrench, ...] = ()
+    joint_velocity_target: torch.Tensor | None = None
 
     def __post_init__(self) -> None:
         if self.joint_target.shape != (G1_JOINT_COUNT,):
             raise ValueError(
                 f"joint_target must have shape ({G1_JOINT_COUNT},), "
                 f"got {self.joint_target.shape}"
+            )
+        if (
+            self.joint_velocity_target is not None
+            and self.joint_velocity_target.shape != (G1_JOINT_COUNT,)
+        ):
+            raise ValueError(
+                f"joint_velocity_target must have shape ({G1_JOINT_COUNT},), "
+                f"got {self.joint_velocity_target.shape}"
             )
 
 

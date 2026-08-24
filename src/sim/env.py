@@ -10,9 +10,9 @@ from tasks import TaskSpec
 
 from controller import ControlOutput, RobotState
 from controller.g1_command import G1CommandTransform
-from shared.g1 import G1_JOINT_NAMES_MJLAB
+from shared.g1 import G1_JOINT_COUNT, G1_JOINT_NAMES_MJLAB
 from sim.camera import OnDemandCameraCapture, ProjectionContext
-from sim.config import OBSERVATION_CAMERA, make_sim_env_cfg
+from sim.config import OBSERVATION_CAMERA, ControlMode, make_sim_env_cfg
 
 if TYPE_CHECKING:
     from mjlab.envs.types import VecEnvObs, VecEnvStepReturn
@@ -27,6 +27,7 @@ class MjlabEnv:
         image_width: int = 640,
         image_height: int = 480,
         task: TaskSpec | None = None,
+        control_mode: ControlMode = "position",
     ) -> None:
         torch_device = torch.device(device)
         self._env = ManagerBasedRlEnv(
@@ -34,6 +35,7 @@ class MjlabEnv:
                 image_width=image_width,
                 image_height=image_height,
                 task=task,
+                control_mode=control_mode,
             ),
             device=str(torch_device),
             render_mode=None,
@@ -42,16 +44,27 @@ class MjlabEnv:
         self.cfg = self._env.cfg
         self.device = self._env.device
         self.unwrapped = self._env
+        self.control_mode = control_mode
 
         action_term = self._env.action_manager.get_term("joint_position")
         if tuple(action_term.target_names) != G1_JOINT_NAMES_MJLAB:  # ty: ignore[unresolved-attribute]
             raise RuntimeError(
                 "MJLab joint action order does not match canonical G1 order"
             )
+        if action_term.action_dim != G1_JOINT_COUNT:  # ty: ignore[unresolved-attribute]
+            raise RuntimeError("MJLab joint position action must have 29 targets")
         self.command_transform = G1CommandTransform(
             action_term.offset[0],  # ty: ignore[unresolved-attribute]
             action_term.scale[0],  # ty: ignore[unresolved-attribute]
         )
+        if self.control_mode == "pd":
+            velocity_term = self._env.action_manager.get_term("joint_velocity")
+            if tuple(velocity_term.target_names) != G1_JOINT_NAMES_MJLAB:  # ty: ignore[unresolved-attribute]
+                raise RuntimeError(
+                    "MJLab joint velocity action order does not match canonical G1 order"
+                )
+            if velocity_term.action_dim != G1_JOINT_COUNT:  # ty: ignore[unresolved-attribute]
+                raise RuntimeError("MJLab joint velocity action must have 29 targets")
         self._robot = self._env.scene["robot"]
         camera = self._env.scene[OBSERVATION_CAMERA]
         assert isinstance(camera, CameraSensor)
@@ -101,8 +114,24 @@ class MjlabEnv:
     def step(self, output: ControlOutput) -> VecEnvStepReturn:
         with self.compute_context():
             self._apply_wrenches(output)
-            action = self.command_transform.encode(output.joint_target).unsqueeze(0)
-            return self._env.step(action)
+            return self._env.step(self._control_to_action(output))
+
+    def _control_to_action(self, output: ControlOutput) -> torch.Tensor:
+        """Translate a physical controller command to this environment's action API."""
+        position_action = self.command_transform.encode(output.joint_target)
+        if self.control_mode == "position":
+            if output.joint_velocity_target is not None:
+                raise ValueError(
+                    "Position control mode does not accept velocity targets"
+                )
+            return position_action.unsqueeze(0)
+
+        velocity_action = (
+            output.joint_velocity_target
+            if output.joint_velocity_target is not None
+            else torch.zeros_like(output.joint_target)
+        )
+        return torch.cat((position_action, velocity_action)).unsqueeze(0)
 
     def _apply_wrenches(self, output: ControlOutput) -> None:
         self._wrench_forces.zero_()

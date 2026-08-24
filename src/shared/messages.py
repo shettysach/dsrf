@@ -61,9 +61,7 @@ class MotionChunk:
         # writable buffer here because controllers convert qpos to Torch tensors,
         # whose writable-storage contract cannot be satisfied by those views.
         object.__setattr__(
-            self,
-            "qpos",
-            np.array(qpos, dtype=np.float32, order="C", copy=True),
+            self, "qpos", np.array(qpos, dtype=np.float32, order="C", copy=True)
         )
 
 

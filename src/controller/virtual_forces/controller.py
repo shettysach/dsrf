@@ -64,6 +64,7 @@ class VirtualForcesController:
             joint_target=target.joint_pos,
             completed=completed,
             external_wrenches=wrenches,
+            joint_velocity_target=target.joint_vel,
         )
 
 

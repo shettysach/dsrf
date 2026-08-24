@@ -60,6 +60,7 @@ def test_sonic_controller_preserves_raw_action_through_physical_boundary() -> No
 
     torch.testing.assert_close(transform.encode(output.joint_target), raw_action)
     assert output.completed
+    assert output.joint_velocity_target is None
 
 
 def test_control_contract_rejects_bad_shapes() -> None:
@@ -67,6 +68,17 @@ def test_control_contract_rejects_bad_shapes() -> None:
         ControlOutput(torch.zeros((1, 29)))
     with pytest.raises(ValueError, match="force_w"):
         ExternalWrench("pelvis", torch.zeros(2), torch.zeros(3))
+    with pytest.raises(ValueError, match="joint_velocity_target"):
+        ControlOutput(torch.zeros(29), joint_velocity_target=torch.zeros((1, 29)))
+
+
+def test_control_contract_accepts_velocity_target_without_changing_positional_fields() -> (
+    None
+):
+    output = ControlOutput(torch.zeros(29), True, (), torch.ones(29))
+
+    assert output.completed
+    torch.testing.assert_close(output.joint_velocity_target, torch.ones(29))
 
 
 def test_shared_reference_accepts_one_frame() -> None:
@@ -80,6 +92,21 @@ def test_shared_reference_accepts_one_frame() -> None:
     assert reference.advance()
 
 
+def test_shared_reference_derives_known_joint_velocity() -> None:
+    reference = MotionReference("cpu")
+    motion = _motion()
+    motion.qpos[0, 7:] = 0.0
+    motion.qpos[1, 7:] = 0.02
+    reference.load(motion, _state().root_pos_w, _state().root_quat_w)
+
+    first = reference.current()
+    reference.advance()
+    second = reference.current()
+
+    torch.testing.assert_close(first.joint_vel, torch.ones(29))
+    torch.testing.assert_close(second.joint_vel, torch.ones(29))
+
+
 def test_virtual_forces_controller_tracks_reference_without_assistance() -> None:
     controller = VirtualForcesController(VirtualForcesConfig())
     controller.load_motion(_motion(), _state())
@@ -89,6 +116,12 @@ def test_virtual_forces_controller_tracks_reference_without_assistance() -> None
 
     torch.testing.assert_close(first.joint_target, torch.zeros(29))
     torch.testing.assert_close(second.joint_target, torch.arange(29).float())
+    torch.testing.assert_close(
+        first.joint_velocity_target, torch.arange(29).float() * 50
+    )
+    torch.testing.assert_close(
+        second.joint_velocity_target, torch.arange(29).float() * 50
+    )
     assert first.external_wrenches == ()
     assert not first.completed
     assert second.completed
