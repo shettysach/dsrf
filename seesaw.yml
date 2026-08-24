@@ -49,7 +49,7 @@ nodes:
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
       VIEWER: native
-      REFERENCE_GHOST: "false"
+      REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
     inputs:
       motion: motion-gen/motion
       grounding_request: agent/grounding_request
