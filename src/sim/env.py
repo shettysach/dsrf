@@ -115,9 +115,7 @@ class MjlabEnv:
     def robot_mass(self) -> float:
         """Total mass of the configured G1 bodies from the MJLab model."""
         model = self._env.sim.mj_model
-        return float(
-            sum(model.body_mass[model.body(name).id] for name in self._robot.body_names)
-        )
+        return float(sum(_model_body_mass(model, name) for name in self._robot.body_names))
 
     @property
     def gravity_magnitude(self) -> float:
@@ -177,6 +175,15 @@ class MjlabEnv:
     def close(self) -> None:
         self._camera_capture.close()
         self._env.close()
+
+
+def _model_body_mass(model: object, name: str) -> object:
+    """Look up an MJLab body with or without its scene-entity namespace."""
+    try:
+        body = model.body(name)  # ty: ignore[unresolved-attribute]
+    except KeyError:
+        body = model.body(f"robot/{name}")  # ty: ignore[unresolved-attribute]
+    return model.body_mass[body.id]  # ty: ignore[unresolved-attribute]
 
 
 # CUDA
