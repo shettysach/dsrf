@@ -33,6 +33,7 @@ def test_motion_arrow_round_trip() -> None:
     assert restored.observation_id == 7
     assert restored.command == "walk forward 0.4"
     np.testing.assert_array_equal(restored.qpos, chunk.qpos)
+    assert restored.qpos.flags.writeable
 
 
 def test_agent_command_arrow_round_trip() -> None:

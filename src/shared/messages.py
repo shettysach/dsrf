@@ -57,7 +57,14 @@ class MotionChunk:
             raise ValueError("Motion chunk must contain at least one frame")
         if not np.isfinite(qpos).all():
             raise ValueError("Motion chunk contains NaN or infinite values")
-        object.__setattr__(self, "qpos", np.ascontiguousarray(qpos))
+        # Arrow exposes received numeric buffers as read-only NumPy views.  Own a
+        # writable buffer here because controllers convert qpos to Torch tensors,
+        # whose writable-storage contract cannot be satisfied by those views.
+        object.__setattr__(
+            self,
+            "qpos",
+            np.array(qpos, dtype=np.float32, order="C", copy=True),
+        )
 
 
 @dataclass(frozen=True)
