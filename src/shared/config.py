@@ -105,6 +105,10 @@ class DirectConfig:
     root_z_kd: float = 75.0
     root_rp_kp: float = 75.0
     root_rp_kd: float = 30.0
+    foot_pos_kp: float = 75.0
+    foot_pos_kd: float = 15.0
+    torso_rp_kp: float = 50.0
+    torso_rp_kd: float = 20.0
     max_force: float = 1_000.0
     max_torque: float = 200.0
     wrench_log_path: str = ""
@@ -120,6 +124,10 @@ class DirectConfig:
             ("DIRECT_ROOT_Z_KD", self.root_z_kd),
             ("DIRECT_ROOT_RP_KP", self.root_rp_kp),
             ("DIRECT_ROOT_RP_KD", self.root_rp_kd),
+            ("DIRECT_FOOT_POS_KP", self.foot_pos_kp),
+            ("DIRECT_FOOT_POS_KD", self.foot_pos_kd),
+            ("DIRECT_TORSO_RP_KP", self.torso_rp_kp),
+            ("DIRECT_TORSO_RP_KD", self.torso_rp_kd),
         ):
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative")

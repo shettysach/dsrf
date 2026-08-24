@@ -8,7 +8,7 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
 from tasks import TaskSpec
 
-from controller import ControlOutput, RobotState
+from controller import BodyState, ControlOutput, RobotState
 from controller.g1_command import G1CommandTransform
 from shared.g1 import G1_JOINT_COUNT, G1_JOINT_NAMES_MJLAB
 from sim.camera import OnDemandCameraCapture, ProjectionContext
@@ -75,6 +75,12 @@ class MjlabEnv:
         self._body_ids = {
             name: index for index, name in enumerate(self._robot.body_names)
         }
+        self._virtual_spring_bodies = (
+            "pelvis",
+            "torso_link",
+            "left_ankle_roll_link",
+            "right_ankle_roll_link",
+        )
         self._wrench_forces = torch.zeros(
             (self.num_envs, self._robot.num_bodies, 3),
             dtype=torch.float32,
@@ -105,6 +111,15 @@ class MjlabEnv:
             projected_gravity_b=data.projected_gravity_b[0],
             joint_pos=data.joint_pos[0],
             joint_vel=data.joint_vel[0],
+            body_states={
+                name: BodyState(
+                    pos_w=data.body_link_pos_w[0, self._body_ids[name]],
+                    quat_w=data.body_link_quat_w[0, self._body_ids[name]],
+                    lin_vel_w=data.body_link_lin_vel_w[0, self._body_ids[name]],
+                    ang_vel_w=data.body_link_ang_vel_w[0, self._body_ids[name]],
+                )
+                for name in self._virtual_spring_bodies
+            },
         )
 
     @property
@@ -120,6 +135,14 @@ class MjlabEnv:
     @property
     def gravity_magnitude(self) -> float:
         return float(torch.linalg.vector_norm(torch.as_tensor(self._env.sim.mj_model.opt.gravity)))
+
+    @property
+    def mj_model(self) -> object:
+        return self._env.sim.mj_model
+
+    @property
+    def robot_indexing(self) -> object:
+        return self._robot.indexing
 
     def step(self, output: ControlOutput) -> VecEnvStepReturn:
         with self.compute_context():

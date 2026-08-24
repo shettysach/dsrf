@@ -81,6 +81,16 @@ class MotionReference:
     def frame_count(self) -> int:
         return len(self._joint_pos)
 
+    @property
+    def frame_index(self) -> int:
+        return self._frame
+
+    def trajectory(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return aligned root poses and joints for reference-only FK."""
+        if not self._active:
+            raise RuntimeError("No active motion reference")
+        return self._root_pos_w, self._root_quat_w, self._joint_pos
+
     def current(self) -> ReferenceFrame:
         if not self._active:
             raise RuntimeError("No active motion reference")
