@@ -54,6 +54,18 @@ class MjlabEnv:
         with self.compute_context():
             self._env.reset()
 
+    @property
+    def cfg(self):
+        return self._env.cfg
+
+    @property
+    def device(self) -> torch.device | str:
+        return self._env.device
+
+    @property
+    def num_envs(self) -> int:
+        return self._env.num_envs
+
     def compute_context(self) -> AbstractContextManager[None]:
         return stream_context(self.cuda_stream)
 
