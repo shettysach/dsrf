@@ -8,7 +8,6 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
 from tasks import TaskSpec
 
-from shared.g1 import G1_JOINT_COUNT, G1_JOINT_NAMES_MJLAB
 from sim.camera import OnDemandCameraCapture, ProjectionContext
 from sim.config import OBSERVATION_CAMERA, make_sim_env_cfg
 from tracker.state import RobotState
@@ -39,13 +38,6 @@ class MjlabEnv:
         )
         self.unwrapped = self._env
 
-        action_term = self._env.action_manager.get_term("joint_position")
-        if tuple(action_term.target_names) != G1_JOINT_NAMES_MJLAB:  # ty: ignore[unresolved-attribute]
-            raise RuntimeError(
-                "MJLab joint action order does not match canonical G1 order"
-            )
-        if action_term.action_dim != G1_JOINT_COUNT:
-            raise RuntimeError("MJLab joint position action must have 29 targets")
         self._robot = self._env.scene["robot"]
         camera = self._env.scene[OBSERVATION_CAMERA]
         assert isinstance(camera, CameraSensor)
@@ -81,11 +73,6 @@ class MjlabEnv:
         return float(self._env.step_dt)
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        if action.shape != (1, G1_JOINT_COUNT):
-            raise ValueError(
-                f"SONIC action must have shape (1, {G1_JOINT_COUNT}), "
-                f"got {tuple(action.shape)}"
-            )
         with self.compute_context():
             return self._env.step(action)
 

@@ -63,8 +63,6 @@ class SonicTracker:
         self._last_action = torch.zeros(29, dtype=torch.float32, device=self.device)
 
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
-        if len(chunk.qpos) < 2:
-            raise ValueError("SONIC requires at least two reference frames")
         self.reference.load(chunk, state.root_pos_w, state.root_quat_w)
 
     def act(self, state: RobotState) -> tuple[torch.Tensor, bool]:

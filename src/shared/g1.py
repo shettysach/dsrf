@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 
 G1_JOINT_COUNT = 29
-G1_QPOS_SIZE = 7 + G1_JOINT_COUNT
 
 G1_JOINT_NAMES_MJLAB = (
     "left_hip_pitch_joint",

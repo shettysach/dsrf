@@ -15,7 +15,6 @@ from shared.arrow import (
     pipeline_error_to_arrow,
 )
 from shared.messages import (
-    REFERENCE_HZ,
     EndEffectorTarget,
     GroundingResult,
     PipelineError,
@@ -53,12 +52,6 @@ class SimRuntime:
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
-        expected_step_dt = 1.0 / REFERENCE_HZ
-        if abs(self.simulation.step_dt - expected_step_dt) >= 1.0e-9:
-            raise ValueError(
-                f"Simulation step_dt must be {expected_step_dt}, "
-                f"got {self.simulation.step_dt}"
-            )
 
     def run(self) -> None:
         render_ms, jpeg_size = self._publish_observation(completed_command=None)
@@ -152,11 +145,7 @@ class SimRuntime:
 
         with self.simulation.compute_context():
             state = self.simulation.robot_state()
-            try:
-                self.tracker.load_motion(chunk, state)
-            except ValueError as exc:
-                self._report_error(str(exc))
-                return
+            self.tracker.load_motion(chunk, state)
 
         published_at = self._observation_published_at
         pause_ms = (
