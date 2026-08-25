@@ -15,7 +15,6 @@ def test_observation_camera_is_attached_to_torso() -> None:
 
 def test_step_rejects_non_sonic_action_shape() -> None:
     simulation = MjlabEnv.__new__(MjlabEnv)
-    simulation.num_envs = 1
 
     with pytest.raises(ValueError, match="SONIC action"):
         simulation.step(torch.zeros(29))

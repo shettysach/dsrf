@@ -11,10 +11,10 @@ from tasks import TaskSpec
 from shared.g1 import G1_JOINT_COUNT, G1_JOINT_NAMES_MJLAB
 from sim.camera import OnDemandCameraCapture, ProjectionContext
 from sim.config import OBSERVATION_CAMERA, make_sim_env_cfg
-from tracker import RobotState
+from tracker.state import RobotState
 
 if TYPE_CHECKING:
-    from mjlab.envs.types import VecEnvObs, VecEnvStepReturn
+    from mjlab.envs.types import VecEnvStepReturn
     from mjlab.sim import Simulation
 
 
@@ -37,9 +37,6 @@ class MjlabEnv:
             device=str(torch_device),
             render_mode=None,
         )
-        self.num_envs = self._env.num_envs
-        self.cfg = self._env.cfg
-        self.device = self._env.device
         self.unwrapped = self._env
 
         action_term = self._env.action_manager.get_term("joint_position")
@@ -73,8 +70,6 @@ class MjlabEnv:
         return RobotState(
             root_pos_w=data.root_link_pos_w[0],
             root_quat_w=data.root_link_quat_w[0],
-            root_lin_vel_w=data.root_link_lin_vel_w[0],
-            root_ang_vel_w=data.root_link_ang_vel_w[0],
             root_ang_vel_b=data.root_link_ang_vel_b[0],
             projected_gravity_b=data.projected_gravity_b[0],
             joint_pos=data.joint_pos[0],
@@ -86,17 +81,13 @@ class MjlabEnv:
         return float(self._env.step_dt)
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        if action.shape != (self.num_envs, G1_JOINT_COUNT):
+        if action.shape != (1, G1_JOINT_COUNT):
             raise ValueError(
-                f"SONIC action must have shape ({self.num_envs}, {G1_JOINT_COUNT}), "
+                f"SONIC action must have shape (1, {G1_JOINT_COUNT}), "
                 f"got {tuple(action.shape)}"
             )
         with self.compute_context():
             return self._env.step(action)
-
-    def reset(self) -> tuple[VecEnvObs, dict[str, object]]:
-        with self.compute_context():
-            return self._env.reset()
 
     def capture_rgbd(self) -> tuple[torch.Tensor, ProjectionContext]:
         with self.compute_context():

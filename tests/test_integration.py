@@ -9,8 +9,8 @@ from motion_gen.resample import resample_qpos
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
-from tracker import RobotState
 from tracker.sonic import SonicTracker
+from tracker.state import RobotState
 
 SONIC_DIR = Path("/tmp/GEAR-SONIC")
 
@@ -28,8 +28,6 @@ def test_real_checkpoints_generate_action_and_motion() -> None:
     state = RobotState(
         root_pos_w=torch.zeros(3),
         root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
-        root_lin_vel_w=torch.zeros(3),
-        root_ang_vel_w=torch.zeros(3),
         root_ang_vel_b=torch.zeros(3),
         projected_gravity_b=torch.tensor([0.0, 0.0, -1.0]),
         joint_pos=torch.as_tensor(DEFAULT_JOINT_POS_MJLAB),
@@ -58,7 +56,6 @@ def test_mjlab_cpu_control_step() -> None:
         action, _ = tracker.act(simulation.robot_state())
         simulation.step(action)
         assert simulation.unwrapped.common_step_counter == 1
-        assert simulation.cfg.sim.njmax == 128
     finally:
         simulation.close()
 
@@ -80,7 +77,6 @@ def test_mjlab_gpu_capture_is_on_demand_and_synchronized_rgbd() -> None:
             original_sense()
 
         simulation._camera_capture._sense = count_sense
-        simulation.reset()
         simulation.step(torch.zeros((1, 29)))
         assert sense_calls == 0
 

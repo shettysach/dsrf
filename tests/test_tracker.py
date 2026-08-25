@@ -2,16 +2,14 @@ import numpy as np
 import torch
 
 from shared.messages import MotionChunk
-from tracker import RobotState
 from tracker.reference import MotionReference
+from tracker.state import RobotState
 
 
 def _state() -> RobotState:
     return RobotState(
         root_pos_w=torch.tensor([3.0, 4.0, 0.8]),
         root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
-        root_lin_vel_w=torch.zeros(3),
-        root_ang_vel_w=torch.zeros(3),
         root_ang_vel_b=torch.zeros(3),
         projected_gravity_b=torch.tensor([0.0, 0.0, -1.0]),
         joint_pos=torch.zeros(29),
@@ -33,6 +31,7 @@ def test_reference_starts_at_live_root_pose() -> None:
     motion.qpos[0, :7] = [1.0, 2.0, 1.3, 0.5, 0.5, 0.5, 0.5]
     state = _state()
     reference.load(motion, state.root_pos_w, state.root_quat_w)
-    frame = reference.current()
-    torch.testing.assert_close(frame.root_pos_w, state.root_pos_w)
-    torch.testing.assert_close(frame.root_quat_w, state.root_quat_w)
+    pose = reference.visualization_pose()
+    assert pose is not None
+    torch.testing.assert_close(pose[0], state.root_pos_w)
+    torch.testing.assert_close(pose[1], state.root_quat_w)

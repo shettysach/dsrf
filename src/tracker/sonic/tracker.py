@@ -15,10 +15,10 @@ from shared.g1 import (
     SONIC_FROM_MJLAB,
 )
 from shared.messages import MotionChunk
-from tracker import RobotState
 from tracker.reference import MotionReference
 from tracker.sonic.observations import ObservationLayout
 from tracker.sonic.onnx_model import OnnxModel
+from tracker.state import RobotState
 
 HISTORY_FRAMES = 10
 
@@ -61,12 +61,6 @@ class SonicTracker:
         self._g1_encoder_mode = torch.zeros(4, dtype=torch.float32, device=self.device)
         self.reference = MotionReference(self.device)
         self._last_action = torch.zeros(29, dtype=torch.float32, device=self.device)
-
-    def reset(self) -> None:
-        self.reference = MotionReference(self.device)
-        self._last_action.zero_()
-        self.encoder.input.zero_()
-        self.decoder.input.zero_()
 
     def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
         if len(chunk.qpos) < 2:

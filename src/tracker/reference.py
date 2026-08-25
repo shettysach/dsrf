@@ -2,31 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from mjlab.utils.lab_api.math import (
     quat_apply,
-    quat_box_minus,
     quat_conjugate,
     quat_mul,
 )
 
 from shared.g1 import standing_qpos
 from shared.messages import REFERENCE_HZ, MotionChunk
-
-
-@dataclass(frozen=True)
-class ReferenceFrame:
-    root_pos_w: torch.Tensor
-    root_quat_w: torch.Tensor
-    root_lin_vel_w: torch.Tensor
-    root_ang_vel_w: torch.Tensor
-    root_lin_acc_w: torch.Tensor
-    root_ang_acc_w: torch.Tensor
-    joint_pos: torch.Tensor
-    joint_vel: torch.Tensor
-    joint_acc: torch.Tensor
 
 
 class MotionReference:
@@ -40,12 +24,7 @@ class MotionReference:
         self._root_pos_w = initial[:, :3]
         self._root_quat_w = initial[:, 3:7]
         self._joint_pos = initial[:, 7:]
-        self._root_lin_vel_w = torch.zeros((1, 3), device=self.device)
-        self._root_ang_vel_w = torch.zeros((1, 3), device=self.device)
         self._joint_vel = torch.zeros((1, 29), device=self.device)
-        self._root_lin_acc_w = torch.zeros((1, 3), device=self.device)
-        self._root_ang_acc_w = torch.zeros((1, 3), device=self.device)
-        self._joint_acc = torch.zeros((1, 29), device=self.device)
         self._frame = 0
         self._active = False
 
@@ -67,20 +46,7 @@ class MotionReference:
             orientation_delta.expand(len(qpos), -1), qpos[:, 3:7]
         )
         self._joint_pos = qpos[:, 7:]
-        self._root_lin_vel_w = _finite_difference(self._root_pos_w)
         self._joint_vel = _finite_difference(self._joint_pos)
-        self._root_ang_vel_w = torch.zeros(
-            (len(qpos), 3), dtype=torch.float32, device=self.device
-        )
-        if len(qpos) > 1:
-            self._root_ang_vel_w[:-1] = (
-                quat_box_minus(self._root_quat_w[1:], self._root_quat_w[:-1])
-                * REFERENCE_HZ
-            )
-            self._root_ang_vel_w[-1] = self._root_ang_vel_w[-2]
-        self._root_lin_acc_w = _finite_difference(self._root_lin_vel_w)
-        self._root_ang_acc_w = _finite_difference(self._root_ang_vel_w)
-        self._joint_acc = _finite_difference(self._joint_vel)
         self._frame = 0
         self._active = True
 
@@ -92,35 +58,16 @@ class MotionReference:
     def frame_index(self) -> int:
         return self._frame
 
-    def trajectory(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return aligned root poses and joints for reference-only FK."""
-        if not self._active:
-            raise RuntimeError("No active motion reference")
-        return self._root_pos_w, self._root_quat_w, self._joint_pos
-
-    def current(self) -> ReferenceFrame:
-        if not self._active:
-            raise RuntimeError("No active motion reference")
-        index = self._frame
-        return ReferenceFrame(
-            root_pos_w=self._root_pos_w[index],
-            root_quat_w=self._root_quat_w[index],
-            root_lin_vel_w=self._root_lin_vel_w[index],
-            root_ang_vel_w=self._root_ang_vel_w[index],
-            root_lin_acc_w=self._root_lin_acc_w[index],
-            root_ang_acc_w=self._root_ang_acc_w[index],
-            joint_pos=self._joint_pos[index],
-            joint_vel=self._joint_vel[index],
-            joint_acc=self._joint_acc[index],
-        )
-
     def visualization_pose(
         self,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor] | None:
         if not self._active:
             return None
-        frame = self.current()
-        return frame.root_pos_w, frame.root_quat_w, frame.joint_pos
+        return (
+            self._root_pos_w[self._frame],
+            self._root_quat_w[self._frame],
+            self._joint_pos[self._frame],
+        )
 
     def window(
         self, *, count: int, step: int
