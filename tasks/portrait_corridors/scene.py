@@ -39,7 +39,7 @@ class _Portrait:
 
 _PORTRAITS = (
     _Portrait("linus"),
-    _Portrait("karpathy", half_size=(0.85, 0.85)),
+    _Portrait("jobs"),
     _Portrait("nolan"),
 )
 

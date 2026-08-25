@@ -49,12 +49,12 @@ def test_portrait_corridors_spec_adds_portraits_walls_and_cameras() -> None:
 
     assert {body.name for body in spec.bodies if body.name.endswith("_portrait")} == {
         "portrait_corridors_linus_portrait",
-        "portrait_corridors_karpathy_portrait",
+        "portrait_corridors_jobs_portrait",
         "portrait_corridors_nolan_portrait",
     }
     assert {texture.name for texture in spec.textures} == {
         "portrait_corridors_linus_texture",
-        "portrait_corridors_karpathy_texture",
+        "portrait_corridors_jobs_texture",
         "portrait_corridors_nolan_texture",
     }
     assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 5
