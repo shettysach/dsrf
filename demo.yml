@@ -40,8 +40,7 @@ nodes:
     min_log_level: warn
     env:
       DEVICE: cuda
-      # Direct tracking consumes the planner's qpos reference through MJLab PD.
-      CONTROLLER: direct
+      SONIC_DIR: /tmp/GEAR-SONIC
       TASK: portrait-corridors
       IMAGE_WIDTH: "640"
       IMAGE_HEIGHT: "480"

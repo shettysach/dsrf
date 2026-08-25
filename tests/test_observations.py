@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from controller.sonic.observations import ObservationLayout
+from tracker.sonic.observations import ObservationLayout
 
 
 def _write_layout(path: Path, *, step: int) -> Path:

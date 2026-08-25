@@ -11,7 +11,7 @@ from mjlab.sensor import CameraSensor
 if TYPE_CHECKING:
     from mjlab.sim import Simulation
 
-    from controller import RobotState
+    from tracker import RobotState
 
 
 @dataclass(frozen=True)

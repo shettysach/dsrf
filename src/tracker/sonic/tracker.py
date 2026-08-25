@@ -9,21 +9,21 @@ from mjlab.utils.lab_api.math import (
     quat_mul,
 )
 
-from controller import RobotState
-from controller.reference import MotionReference
-from controller.sonic.observations import ObservationLayout
-from controller.sonic.onnx_model import OnnxModel
 from shared.g1 import (
     DEFAULT_JOINT_POS_MJLAB,
     MJLAB_FROM_SONIC,
     SONIC_FROM_MJLAB,
 )
 from shared.messages import MotionChunk
+from tracker import RobotState
+from tracker.reference import MotionReference
+from tracker.sonic.observations import ObservationLayout
+from tracker.sonic.onnx_model import OnnxModel
 
 HISTORY_FRAMES = 10
 
 
-class SonicPolicy:
+class SonicTracker:
     """SONIC inference with CPU execution or zero-copy CUDA I/O binding."""
 
     def __init__(
@@ -68,17 +68,12 @@ class SonicPolicy:
         self.encoder.input.zero_()
         self.decoder.input.zero_()
 
-    def load_motion(
-        self,
-        chunk: MotionChunk,
-        robot_pos_w: torch.Tensor,
-        robot_quat_w: torch.Tensor,
-    ) -> None:
+    def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
         if len(chunk.qpos) < 2:
             raise ValueError("SONIC requires at least two reference frames")
-        self.reference.load(chunk, robot_pos_w, robot_quat_w)
+        self.reference.load(chunk, state.root_pos_w, state.root_quat_w)
 
-    def infer(self, state: RobotState) -> tuple[torch.Tensor, bool]:
+    def act(self, state: RobotState) -> tuple[torch.Tensor, bool]:
         joint_position = (state.joint_pos - self._default_joint_pos).index_select(
             0, self._sonic_from_mjlab
         )

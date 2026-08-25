@@ -1,4 +1,3 @@
-from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -7,12 +6,9 @@ from tasks import get_task
 from shared.config import (
     AgentConfig,
     ArdyConfig,
-    DirectConfig,
     KinematicPlannerConfig,
     MotionGenConfig,
     SimConfig,
-    SonicConfig,
-    WbcConfig,
 )
 
 
@@ -67,7 +63,6 @@ def test_motion_gen_config_rejects_unknown_backend(monkeypatch) -> None:
 
 def test_sim_config_from_env(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "portrait-corridors")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
@@ -78,7 +73,7 @@ def test_sim_config_from_env(monkeypatch) -> None:
 
     assert SimConfig.from_env() == SimConfig(
         device="cpu",
-        controller=SonicConfig(sonic_dir=Path("/models/sonic")),
+        sonic_dir=Path("/models/sonic"),
         task=get_task("portrait-corridors"),
         image_width=640,
         image_height=480,
@@ -90,7 +85,6 @@ def test_sim_config_from_env(monkeypatch) -> None:
 
 def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
@@ -102,45 +96,8 @@ def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
     assert SimConfig.from_env().viewer == "viser"
 
 
-def test_sim_config_accepts_direct_controller(monkeypatch) -> None:
-    monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "direct")
-    monkeypatch.setenv("TASK", "none")
-    monkeypatch.setenv("IMAGE_WIDTH", "640")
-    monkeypatch.setenv("IMAGE_HEIGHT", "480")
-    monkeypatch.setenv("JPEG_QUALITY", "85")
-    monkeypatch.setenv("VIEWER", "none")
-    monkeypatch.setenv("REFERENCE_GHOST", "false")
-
-    config = SimConfig.from_env().controller
-
-    assert isinstance(config, DirectConfig)
-    assert config == DirectConfig()
-
-
-def test_sim_config_accepts_wbc_controller(monkeypatch) -> None:
-    monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "wbc")
-    monkeypatch.setenv("TASK", "none")
-    monkeypatch.setenv("IMAGE_WIDTH", "640")
-    monkeypatch.setenv("IMAGE_HEIGHT", "480")
-    monkeypatch.setenv("JPEG_QUALITY", "85")
-    monkeypatch.setenv("VIEWER", "none")
-    monkeypatch.setenv("REFERENCE_GHOST", "false")
-
-    assert SimConfig.from_env().controller == WbcConfig()
-
-
-def test_direct_config_uses_dataclass_defaults(monkeypatch) -> None:
-    for field in fields(DirectConfig):
-        monkeypatch.delenv(f"DIRECT_{field.name.upper()}", raising=False)
-
-    assert DirectConfig.from_env() == DirectConfig()
-
-
 def test_sim_config_rejects_unknown_viewer(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")
@@ -155,7 +112,6 @@ def test_sim_config_rejects_unknown_viewer(monkeypatch) -> None:
 
 def test_sim_config_rejects_invalid_reference_ghost(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
-    monkeypatch.setenv("CONTROLLER", "sonic")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
     monkeypatch.setenv("TASK", "none")
     monkeypatch.setenv("IMAGE_WIDTH", "640")

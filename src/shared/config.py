@@ -58,7 +58,7 @@ class ArdyConfig:
 @dataclass(frozen=True)
 class SimConfig:
     device: str
-    controller: SonicConfig | DirectConfig | WbcConfig
+    sonic_dir: Path
     task: TaskSpec | None
     image_width: int
     image_height: int
@@ -70,10 +70,7 @@ class SimConfig:
     def from_env(cls) -> "SimConfig":
         return _dataclass_from_env(
             cls,
-            overrides={
-                "controller": _controller(),
-                "task": _optional_task(),
-            },
+            overrides={"task": _optional_task()},
         )
 
     def __post_init__(self) -> None:
@@ -85,43 +82,6 @@ class SimConfig:
                 raise ValueError(f"{name} must be >= 1, got {value}")
         if not 1 <= self.jpeg_quality <= 100:
             raise ValueError(f"JPEG_QUALITY must be in 1..100, got {self.jpeg_quality}")
-
-
-@dataclass(frozen=True)
-class SonicConfig:
-    sonic_dir: Path
-
-    @classmethod
-    def from_env(cls) -> "SonicConfig":
-        return _dataclass_from_env(cls)
-
-
-@dataclass(frozen=True)
-class DirectConfig:
-    """Configuration marker for pure motion-reference joint tracking."""
-
-    @classmethod
-    def from_env(cls) -> "DirectConfig":
-        return _dataclass_from_env(cls, prefix="DIRECT_")
-
-
-@dataclass(frozen=True)
-class WbcConfig:
-    """Small, motion-independent gains for equality-constrained WBC v1."""
-
-    root_translation_kp: float = 20.0
-    root_translation_kd: float = 5.0
-    root_rotation_kp: float = 20.0
-    root_rotation_kd: float = 5.0
-    joints_kp: float = 20.0
-    joints_kd: float = 5.0
-    acceleration_weight: float = 1.0
-    pd_weight: float = 0.1
-    force_weight: float = 1.0e-4
-
-    @classmethod
-    def from_env(cls) -> "WbcConfig":
-        return _dataclass_from_env(cls, prefix="WBC_")
 
 
 @dataclass(frozen=True)
@@ -166,17 +126,6 @@ def _motion_generator() -> Literal["kinematic_planner", "ardy"]:
     if value not in {"kinematic_planner", "ardy"}:
         raise ValueError("MOTION_GENERATOR must be 'kinematic_planner' or 'ardy'")
     return value
-
-
-def _controller() -> SonicConfig | DirectConfig | WbcConfig:
-    value = os.environ["CONTROLLER"].strip().lower()
-    if value == "sonic":
-        return SonicConfig.from_env()
-    if value == "direct":
-        return DirectConfig.from_env()
-    if value == "wbc":
-        return WbcConfig.from_env()
-    raise ValueError("CONTROLLER must be 'sonic', 'direct', or 'wbc'")
 
 
 def _dataclass_from_env[T](

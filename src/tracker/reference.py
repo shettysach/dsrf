@@ -1,4 +1,4 @@
-"""Controller-independent motion-reference alignment and traversal."""
+"""Motion-reference alignment and traversal for SONIC tracking."""
 
 from __future__ import annotations
 
@@ -58,9 +58,7 @@ class MotionReference:
         qpos = torch.as_tensor(
             chunk.qpos, dtype=torch.float32, device=self.device
         ).contiguous()
-        orientation_delta = quat_mul(
-            robot_quat_w, quat_conjugate(qpos[0, 3:7])
-        )
+        orientation_delta = quat_mul(robot_quat_w, quat_conjugate(qpos[0, 3:7]))
         root_delta = qpos[:, :3] - qpos[0, :3]
         self._root_pos_w = robot_pos_w + quat_apply(
             orientation_delta.expand(len(qpos), -1), root_delta

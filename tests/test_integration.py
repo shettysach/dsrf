@@ -4,13 +4,13 @@ import onnxruntime as ort
 import pytest
 import torch
 
-from controller import ControlOutput, ExternalWrench, RobotState
-from controller.sonic.policy import SonicPolicy
 from motion_gen.kinematic_planner.generator import KinematicPlanner
 from motion_gen.resample import resample_qpos
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
+from tracker import RobotState
+from tracker.sonic import SonicTracker
 
 SONIC_DIR = Path("/tmp/GEAR-SONIC")
 
@@ -22,9 +22,9 @@ CUDA_READY = torch.cuda.is_available() and "CUDAExecutionProvider" in (
 
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")
 def test_real_checkpoints_generate_action_and_motion() -> None:
-    policy = SonicPolicy(SONIC_DIR)
-    encoder_mode = policy.layout.encoder_slices["encoder_mode_4"]
-    policy.encoder.input[0, encoder_mode].fill_(1.0)
+    tracker = SonicTracker(SONIC_DIR)
+    encoder_mode = tracker.layout.encoder_slices["encoder_mode_4"]
+    tracker.encoder.input[0, encoder_mode].fill_(1.0)
     state = RobotState(
         root_pos_w=torch.zeros(3),
         root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
@@ -35,8 +35,8 @@ def test_real_checkpoints_generate_action_and_motion() -> None:
         joint_pos=torch.as_tensor(DEFAULT_JOINT_POS_MJLAB),
         joint_vel=torch.zeros(29),
     )
-    action, completed = policy.infer(state)
-    assert not bool(policy.encoder.input[0, encoder_mode].any())
+    action, completed = tracker.act(state)
+    assert not bool(tracker.encoder.input[0, encoder_mode].any())
     assert action.shape == (1, 29)
     assert bool(torch.isfinite(action).all())
     assert not completed
@@ -54,11 +54,9 @@ def test_real_checkpoints_generate_action_and_motion() -> None:
 def test_mjlab_cpu_control_step() -> None:
     simulation = MjlabEnv(device="cpu")
     try:
-        policy = SonicPolicy(SONIC_DIR)
-        action, _ = policy.infer(simulation.robot_state())
-        simulation.step(
-            ControlOutput(simulation.command_transform.decode(action.squeeze(0)))
-        )
+        tracker = SonicTracker(SONIC_DIR)
+        action, _ = tracker.act(simulation.robot_state())
+        simulation.step(action)
         assert simulation.unwrapped.common_step_counter == 1
         assert simulation.cfg.sim.njmax == 128
     finally:
@@ -83,7 +81,7 @@ def test_mjlab_gpu_capture_is_on_demand_and_synchronized_rgbd() -> None:
 
         simulation._camera_capture._sense = count_sense
         simulation.reset()
-        simulation.step(ControlOutput(simulation.command_transform.default_position))
+        simulation.step(torch.zeros((1, 29)))
         assert sense_calls == 0
 
         jpeg, projection = SimRenderer(simulation, jpeg_quality=80).capture_rgbd()
@@ -97,49 +95,25 @@ def test_mjlab_gpu_capture_is_on_demand_and_synchronized_rgbd() -> None:
         simulation.close()
 
 
-def test_known_external_wrench_changes_root_motion() -> None:
-    simulation = MjlabEnv(device="cpu")
-    target = simulation.command_transform.default_position
-    try:
-        simulation.reset()
-        simulation.step(ControlOutput(target))
-        baseline_velocity = simulation.robot_state().root_lin_vel_w.clone()
-
-        simulation.reset()
-        force = ExternalWrench(
-            "pelvis",
-            torch.tensor([100.0, 0.0, 0.0]),
-            torch.zeros(3),
-        )
-        simulation.step(ControlOutput(target, external_wrenches=(force,)))
-        assisted_velocity = simulation.robot_state().root_lin_vel_w
-
-        assert assisted_velocity[0] > baseline_velocity[0] + 0.01
-    finally:
-        simulation.close()
-
-
 @pytest.mark.skipif(not CUDA_READY, reason="CUDA Torch and ONNX Runtime are required")
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")
 def test_mjlab_and_sonic_share_one_cuda_stream() -> None:
     simulation = MjlabEnv(device="cuda:0")
     try:
         with simulation.compute_context():
-            policy = SonicPolicy(
+            tracker = SonicTracker(
                 SONIC_DIR,
                 device="cuda:0",
                 cuda_stream=simulation.cuda_stream,
             )
-            action, _ = policy.infer(simulation.robot_state())
+            action, _ = tracker.act(simulation.robot_state())
 
         assert simulation.cuda_stream is not None
         stream_ptr = int(simulation.cuda_stream.cuda_stream)
-        assert policy.encoder.cuda_stream_ptr == stream_ptr
-        assert policy.decoder.cuda_stream_ptr == stream_ptr
+        assert tracker.encoder.cuda_stream_ptr == stream_ptr
+        assert tracker.decoder.cuda_stream_ptr == stream_ptr
         assert action.device == torch.device("cuda:0")
-        simulation.step(
-            ControlOutput(simulation.command_transform.decode(action.squeeze(0)))
-        )
+        simulation.step(action)
         assert simulation.unwrapped.common_step_counter == 1
     finally:
         simulation.close()

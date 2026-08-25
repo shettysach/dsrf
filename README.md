@@ -47,38 +47,6 @@ dora run stairs.yml
 - Set `REFERENCE_GHOST: "true"` to show the active motion
   reference in the native viewer.
 
-## Controllers
-
-The simulator accepts physical G1 joint targets in radians from either controller.
-Use `CONTROLLER: sonic` with `SONIC_DIR` for the learned SONIC policy, or
-`CONTROLLER: direct` for motion-reference tracking through MJLab's built-in G1
-actuator PD model.
-
-Direct tracking uses bounded world-frame virtual springs on the pelvis, torso,
-and both ankle-roll bodies. Feet receive position-only forces; pelvis and torso
-receive roll/pitch stabilization. It never writes the floating-base pose
-directly:
-
-```yaml
-CONTROLLER: direct
-DIRECT_ROOT_GRAVITY_SUPPORT: "${DIRECT_ROOT_GRAVITY_SUPPORT:-0.3}"
-DIRECT_ROOT_Z_KP: "${DIRECT_ROOT_Z_KP:-300}"
-DIRECT_ROOT_Z_KD: "${DIRECT_ROOT_Z_KD:-75}"
-DIRECT_ROOT_RP_KP: "${DIRECT_ROOT_RP_KP:-75}"
-DIRECT_ROOT_RP_KD: "${DIRECT_ROOT_RP_KD:-30}"
-DIRECT_FOOT_POS_KP: "${DIRECT_FOOT_POS_KP:-75}"
-DIRECT_FOOT_POS_KD: "${DIRECT_FOOT_POS_KD:-15}"
-DIRECT_TORSO_RP_KP: "${DIRECT_TORSO_RP_KP:-50}"
-DIRECT_TORSO_RP_KD: "${DIRECT_TORSO_RP_KD:-20}"
-DIRECT_MAX_FORCE: "${DIRECT_MAX_FORCE:-1000}"
-DIRECT_MAX_TORQUE: "${DIRECT_MAX_TORQUE:-200}"
-DIRECT_WRENCH_LOG_PATH: "${DIRECT_WRENCH_LOG_PATH:-/tmp/direct-wrench.csv}"
-```
-
-Set `DIRECT_WRENCH_LOG_PATH` for a per-frame CSV trace of root reference,
-state, errors, applied wrench norms, and clipping flags. Leave it empty to
-disable diagnostic logging.
-
 ## ARDY closed loop
 
 The ARDY motion generator encodes each command's `motion` field with a local

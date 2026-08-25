@@ -11,7 +11,6 @@ import torch
 import motion_gen.kinematic_planner.generator as kinematic_planner_generator
 import nodes.motion_gen as motion_gen_node
 import sim.runtime as sim_runtime
-from controller import ControlOutput
 from motion_gen.ardy.adapter import ArdyMotionGenerator
 from motion_gen.kinematic_planner.adapter import KinematicPlannerMotionGenerator
 from shared.arrow import (
@@ -165,8 +164,7 @@ def test_ardy_motion_gen_encodes_commands_in_process(monkeypatch) -> None:
     generator = SimpleNamespace(
         fps=25,
         generate=lambda embedding, target, end_effectors: (
-            generated.append((embedding, target, end_effectors))
-            or _planner_motion()
+            generated.append((embedding, target, end_effectors)) or _planner_motion()
         ),
     )
     encoder = SimpleNamespace(
@@ -242,16 +240,12 @@ class _Simulation:
             root_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
         )
 
-    def dynamics_snapshot(self, state):
-        del state
-        return None
-
     def step(self, action) -> None:
         del action
         self.steps += 1
 
 
-class _Controller:
+class _Tracker:
     def __init__(self) -> None:
         self.calls = 0
         self.loaded: MotionChunk | None = None
@@ -260,10 +254,10 @@ class _Controller:
         del state
         self.loaded = chunk
 
-    def act(self, state, dynamics=None):
-        del state, dynamics
+    def act(self, state):
+        del state
         self.calls += 1
-        return ControlOutput(torch.zeros(29), completed=self.calls == 2)
+        return torch.zeros((1, 29)), self.calls == 2
 
 
 class _Renderer:
@@ -335,7 +329,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     chunk = MotionChunk(0, "walk forward", qpos)
     node = _Node([_motion_event(chunk), {"type": "STOP"}])
     simulation = _Simulation()
-    controller = _Controller()
+    tracker = _Tracker()
     renderer = _Renderer(simulation)
     viewer = _Viewer(simulation)
     monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
@@ -343,7 +337,7 @@ def test_sonic_steps_final_action_before_capture(monkeypatch) -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, controller),
+        cast(Any, tracker),
         cast(Any, renderer),
         cast(Any, viewer),
     )
@@ -373,7 +367,7 @@ def test_sim_publishes_synchronized_rgbd() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Controller()),
+        cast(Any, _Tracker()),
         cast(Any, renderer),
     )
 
@@ -399,7 +393,7 @@ def test_sim_reuses_depth_for_current_observation() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Controller()),
+        cast(Any, _Tracker()),
         cast(Any, renderer),
     )
 
@@ -432,7 +426,7 @@ def test_sim_grounds_end_effector_with_published_depth() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Controller()),
+        cast(Any, _Tracker()),
         cast(Any, renderer),
     )
 
@@ -453,7 +447,7 @@ def test_sonic_rejects_motion_for_stale_observation() -> None:
     runtime = sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
-        cast(Any, _Controller()),
+        cast(Any, _Tracker()),
         cast(Any, _Renderer(simulation)),
     )
     runtime._accept_motion(

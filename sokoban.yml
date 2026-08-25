@@ -40,7 +40,6 @@ nodes:
     min_log_level: warn
     env:
       DEVICE: cuda
-      CONTROLLER: sonic
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: sokoban
       IMAGE_WIDTH: "1280"

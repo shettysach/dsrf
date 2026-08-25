@@ -4,9 +4,9 @@ from typing import Any, cast
 import numpy as np
 import torch
 
-from controller.reference import MotionReference
 from shared.messages import MotionChunk
 from sim.reference_ghost import ReferenceGhost
+from tracker.reference import MotionReference
 
 
 def _motion() -> MotionChunk:

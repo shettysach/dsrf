@@ -23,14 +23,13 @@ def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
     }
     assert nodes["sim"]["env"] == {
         "DEVICE": "cuda",
-        "CONTROLLER": "sonic",
         "SONIC_DIR": "/tmp/GEAR-SONIC",
         "TASK": "portrait-corridors",
         "IMAGE_WIDTH": "640",
         "IMAGE_HEIGHT": "480",
         "JPEG_QUALITY": "85",
         "VIEWER": "native",
-        "REFERENCE_GHOST": "false",
+        "REFERENCE_GHOST": "${REFERENCE_GHOST:-false}",
     }
 
 

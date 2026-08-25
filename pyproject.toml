@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "dsrf"
 version = "0.1.0"
-description = "Dora pipeline for G1 motion generation and SONIC control in MJLab"
+description = "Dora pipeline for G1 motion generation and SONIC tracking in MJLab"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -86,7 +86,7 @@ explicit = true
 [tool.hatch.build.targets.wheel]
 packages = [
     "src/agent",
-    "src/controller",
+    "src/tracker",
     "src/motion_gen",
     "src/nodes",
     "src/shared",

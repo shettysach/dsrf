@@ -12,8 +12,8 @@ from shared.messages import REFERENCE_HZ
 if TYPE_CHECKING:
     from mjlab.viewer import EnvProtocol
 
-    from controller.reference import MotionReference
     from sim.env import MjlabEnv
+    from tracker.reference import MotionReference
 
 from sim.reference_ghost import ReferenceGhost
 

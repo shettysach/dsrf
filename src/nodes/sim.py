@@ -4,15 +4,12 @@ from typing import Optional
 
 from dora import Node
 
-from controller import Controller
-from controller.direct import DirectController
-from controller.sonic import SonicController
-from controller.wbc import WbcController
-from shared.config import DirectConfig, SimConfig, SonicConfig, WbcConfig
+from shared.config import SimConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
 from sim.viewer import NativeSimViewer, SimViewer, ViserSimViewer
+from tracker.sonic import SonicTracker
 
 
 def main() -> None:
@@ -24,21 +21,18 @@ def main() -> None:
         task=cfg.task,
         image_width=cfg.image_width,
         image_height=cfg.image_height,
-        control_mode=(
-            "pd"
-            if isinstance(cfg.controller, (DirectConfig, WbcConfig))
-            else "position"
-        ),
     )
     viewer: Optional[SimViewer] = None
 
     try:
         with simulation.compute_context():
-            controller = _create_controller(cfg, simulation)
-        if cfg.viewer in {"native", "viser"}:
-            reference = (
-                getattr(controller, "reference", None) if cfg.reference_ghost else None
+            tracker = SonicTracker(
+                cfg.sonic_dir,
+                device=cfg.device,
+                cuda_stream=simulation.cuda_stream,
             )
+        if cfg.viewer in {"native", "viser"}:
+            reference = tracker.reference if cfg.reference_ghost else None
             viewer = (
                 NativeSimViewer(simulation, reference)
                 if cfg.viewer == "native"
@@ -49,7 +43,7 @@ def main() -> None:
         SimRuntime(
             node,
             simulation,
-            controller,
+            tracker,
             renderer,
             viewer,
         ).run()
@@ -68,26 +62,11 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "event": "sim_initialized",
             "task": cfg.task.name if cfg.task is not None else "none",
             "device": cfg.device,
-            "controller": type(cfg.controller).__name__,
+            "tracker": "sonic",
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
         },
     )
-
-
-def _create_controller(cfg: SimConfig, simulation: MjlabEnv) -> Controller:
-    match cfg.controller:
-        case SonicConfig():
-            return SonicController(
-                cfg.controller.sonic_dir,
-                simulation.command_transform,
-                device=cfg.device,
-                cuda_stream=simulation.cuda_stream,
-            )
-        case DirectConfig():
-            return DirectController(cfg.controller, device=cfg.device)
-        case WbcConfig():
-            return WbcController(cfg.controller, device=cfg.device)
 
 
 if __name__ == "__main__":

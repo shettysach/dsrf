@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from typing import Literal
 
 import torch
-from mjlab.actuator import BuiltinPdActuatorCfg, BuiltinPositionActuatorCfg
 from mjlab.asset_zoo.robots.unitree_g1.g1_constants import (
     G1_ACTUATOR_4010,
     G1_ACTUATOR_5020,
@@ -17,7 +15,7 @@ from mjlab.asset_zoo.robots.unitree_g1.g1_constants import (
 )
 from mjlab.entity import EntityArticulationInfoCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
-from mjlab.envs.mdp.actions import JointPositionActionCfg, JointVelocityActionCfg
+from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.scene import SceneCfg
 from mjlab.sensor import CameraSensorCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
@@ -27,7 +25,6 @@ from mjlab.viewer import ViewerConfig
 from tasks import ObservationCameraSpec, TaskSpec
 
 OBSERVATION_CAMERA = "observation_camera"
-type ControlMode = Literal["position", "pd"]
 
 
 def make_sim_env_cfg(
@@ -35,11 +32,8 @@ def make_sim_env_cfg(
     image_width: int = 640,
     image_height: int = 480,
     task: TaskSpec | None = None,
-    control_mode: ControlMode = "position",
 ) -> ManagerBasedRlEnvCfg:
     """Build the minimal 50 Hz MJLab environment for the simulated G1."""
-    if control_mode not in {"position", "pd"}:
-        raise ValueError(f"Unsupported control mode {control_mode!r}")
 
     actuator_7520_14 = replace(
         G1_ACTUATOR_7520_14,
@@ -61,8 +55,6 @@ def make_sim_env_cfg(
         G1_ACTUATOR_WAIST,
         G1_ACTUATOR_ANKLE,
     )
-    if control_mode == "pd":
-        actuators = tuple(_builtin_pd_config(actuator) for actuator in actuators)
     robot_cfg = get_g1_robot_cfg()
     robot_cfg.articulation = EntityArticulationInfoCfg(
         actuators=actuators,
@@ -109,14 +101,6 @@ def make_sim_env_cfg(
             use_default_offset=True,
         )
     }
-    if control_mode == "pd":
-        actions["joint_velocity"] = JointVelocityActionCfg(
-            entity_name="robot",
-            actuator_names=(".*",),
-            scale=1.0,
-            use_default_offset=False,
-        )
-
     return ManagerBasedRlEnvCfg(
         decimation=4,
         scene=scene,
@@ -124,27 +108,6 @@ def make_sim_env_cfg(
         sim=SimulationCfg(njmax=128, mujoco=MujocoCfg(timestep=0.005)),
         viewer=ViewerConfig(width=image_width, height=image_height, max_extra_envs=0),
         episode_length_s=0.0,
-    )
-
-
-def _builtin_pd_config(
-    actuator: BuiltinPositionActuatorCfg,
-) -> BuiltinPdActuatorCfg:
-    """Convert a G1 position actuator while retaining its physical parameters."""
-    return BuiltinPdActuatorCfg(
-        target_names_expr=actuator.target_names_expr,
-        stiffness=actuator.stiffness,
-        damping=actuator.damping,
-        effort_limit=actuator.effort_limit,
-        armature=actuator.armature,
-        frictionloss=actuator.frictionloss,
-        viscous_damping=actuator.viscous_damping,
-        transmission_type=actuator.transmission_type,
-        delay_min_lag=actuator.delay_min_lag,
-        delay_max_lag=actuator.delay_max_lag,
-        delay_hold_prob=actuator.delay_hold_prob,
-        delay_update_period=actuator.delay_update_period,
-        delay_per_env_phase=actuator.delay_per_env_phase,
     )
 
 

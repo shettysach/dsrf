@@ -58,7 +58,7 @@ class MotionChunk:
         if not np.isfinite(qpos).all():
             raise ValueError("Motion chunk contains NaN or infinite values")
         # Arrow exposes received numeric buffers as read-only NumPy views.  Own a
-        # writable buffer here because controllers convert qpos to Torch tensors,
+        # writable buffer here because the tracker converts qpos to Torch tensors,
         # whose writable-storage contract cannot be satisfied by those views.
         object.__setattr__(
             self, "qpos", np.array(qpos, dtype=np.float32, order="C", copy=True)

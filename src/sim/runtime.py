@@ -7,7 +7,6 @@ from typing import Any
 import torch
 from dora import Node
 
-from controller import Controller
 from shared.arrow import (
     grounding_request_from_arrow,
     grounding_result_to_arrow,
@@ -27,6 +26,7 @@ from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
 from sim.viewer import SimViewer
+from tracker.sonic import SonicTracker
 
 
 @dataclass(frozen=True)
@@ -41,13 +41,13 @@ class SimRuntime:
         self,
         node: Node,
         simulation: MjlabEnv,
-        controller: Controller,
+        tracker: SonicTracker,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
     ) -> None:
         self.node = node
         self.simulation = simulation
-        self.controller = controller
+        self.tracker = tracker
         self.renderer = renderer
         self.viewer = viewer
         self.observation_id = 0
@@ -153,7 +153,7 @@ class SimRuntime:
         with self.simulation.compute_context():
             state = self.simulation.robot_state()
             try:
-                self.controller.load_motion(chunk, state)
+                self.tracker.load_motion(chunk, state)
             except ValueError as exc:
                 self._report_error(str(exc))
                 return
@@ -207,16 +207,15 @@ class SimRuntime:
 
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
-                    dynamics = self.simulation.dynamics_snapshot(state)
-                    output = self.controller.act(state, dynamics)
-                self.simulation.step(output)
+                    action, completed = self.tracker.act(state)
+                self.simulation.step(action)
                 if self.viewer is not None:
                     self.viewer.sync()
                 frames += 1
 
                 # Completion is detected while producing the last reference
                 # action. Capture only after that action's physics step.
-                if output.completed:
+                if completed:
                     return ExecutionStats(
                         frames=frames,
                         elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
