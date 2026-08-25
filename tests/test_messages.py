@@ -3,8 +3,6 @@ import numpy as np
 from shared.arrow import (
     agent_command_from_arrow,
     agent_command_to_arrow,
-    motion_from_arrow,
-    motion_to_arrow,
     observation_from_arrow,
     observation_to_arrow,
     pipeline_error_from_arrow,
@@ -16,24 +14,9 @@ from shared.messages import (
     EndEffectorTarget,
     GroundingRequest,
     GroundingResult,
-    MotionChunk,
     PipelineError,
     VisualObservation,
 )
-
-
-def test_motion_arrow_round_trip() -> None:
-    chunk = MotionChunk(
-        7,
-        "walk forward 0.4",
-        np.arange(72, dtype=np.float32).reshape(2, 36),
-    )
-    value, metadata = motion_to_arrow(chunk)
-    restored = motion_from_arrow(value, metadata)
-    assert restored.observation_id == 7
-    assert restored.command == "walk forward 0.4"
-    np.testing.assert_array_equal(restored.qpos, chunk.qpos)
-    assert restored.qpos.flags.writeable
 
 
 def test_agent_command_arrow_round_trip() -> None:

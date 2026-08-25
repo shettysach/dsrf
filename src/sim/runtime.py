@@ -7,14 +7,18 @@ from typing import Any
 import torch
 from dora import Node
 
+from motion_gen.generator import MotionGenerator
+from motion_gen.resample import resample_qpos
 from shared.arrow import (
+    agent_command_from_arrow,
     grounding_request_from_arrow,
     grounding_result_to_arrow,
-    motion_from_arrow,
     observation_to_arrow,
     pipeline_error_to_arrow,
 )
 from shared.messages import (
+    REFERENCE_HZ,
+    AgentCommand,
     EndEffectorTarget,
     GroundingResult,
     PipelineError,
@@ -40,12 +44,14 @@ class SimRuntime:
         self,
         node: Node,
         simulation: MjlabEnv,
+        generator: MotionGenerator,
         tracker: SonicTracker,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
     ) -> None:
         self.node = node
         self.simulation = simulation
+        self.generator = generator
         self.tracker = tracker
         self.renderer = renderer
         self.viewer = viewer
@@ -58,7 +64,7 @@ class SimRuntime:
         self.node.log(
             "info",
             f"[OBS 0] initial observation: render_ms={render_ms:.1f} "
-            f"jpeg_kb={jpeg_size / 1024.0:.1f} waiting=motion",
+            f"jpeg_kb={jpeg_size / 1024.0:.1f} waiting=command",
             target="dsrf.sim",
             fields={
                 "event": "initial_observation",
@@ -72,8 +78,8 @@ class SimRuntime:
                 return
             if event["type"] != "INPUT":
                 continue
-            if event["id"] == "motion":
-                self._accept_motion(event)
+            if event["id"] == "command":
+                self._accept_command(event)
             elif event["id"] == "grounding_request":
                 self._accept_grounding_request(event)
 
@@ -126,26 +132,41 @@ class SimRuntime:
         data, result_metadata = grounding_result_to_arrow(result)
         self.node.send_output("grounding_result", data, metadata=result_metadata)
 
-    def _accept_motion(self, event: dict[str, Any]) -> None:
+    def _accept_command(self, event: dict[str, Any]) -> None:
         received_at = time.perf_counter()
         metadata = dict(event.get("metadata") or {})
         try:
-            chunk = motion_from_arrow(event["value"], metadata)
+            command = agent_command_from_arrow(event["value"], metadata)
         except (KeyError, TypeError, ValueError) as exc:
-            self._report_error(str(exc))
+            self._report_error(str(exc), source="motion-gen")
             return
-        if chunk.observation_id != self.observation_id:
+        if command.observation_id != self.observation_id:
             self._report_error(
-                f"Expected motion for observation {self.observation_id}, got "
-                f"{chunk.observation_id}"
+                f"Expected command for observation {self.observation_id}, got "
+                f"{command.observation_id}"
             )
             return
 
         self._projection_cache = None
+        generation_started_at = time.perf_counter()
+        try:
+            with self.simulation.compute_context():
+                source_qpos = self.generator.generate(command)
+                qpos = resample_qpos(source_qpos, source_fps=self.generator.fps)
+                self.tracker.load_motion(qpos, self.simulation.robot_state())
+        except ValueError as exc:
+            self._report_error(str(exc), source="motion-gen")
+            return
+        except Exception as exc:
+            self._log_generation_error(command, generation_started_at, exc)
+            raise
 
-        with self.simulation.compute_context():
-            state = self.simulation.robot_state()
-            self.tracker.load_motion(chunk, state)
+        self._log_motion_generated(
+            command,
+            source_qpos,
+            qpos,
+            plan_ms=(time.perf_counter() - generation_started_at) * 1000.0,
+        )
 
         published_at = self._observation_published_at
         pause_ms = (
@@ -155,14 +176,14 @@ class SimRuntime:
         completed_observation_id = self.observation_id
         self.observation_id += 1
         render_ms, jpeg_size = self._publish_observation(
-            completed_command=chunk.command
+            completed_command=command.text
         )
         target_ms = stats.frames * self.simulation.step_dt * 1000.0
         realtime = target_ms / stats.elapsed_ms if stats.elapsed_ms > 0.0 else 0.0
         self.node.log(
             "info",
             f"[OBS {completed_observation_id}->{self.observation_id}] motion complete: "
-            f"command={chunk.command!r} pause_ms={pause_ms:.1f} "
+            f"command={command.text!r} pause_ms={pause_ms:.1f} "
             f"frames={stats.frames} target_ms={target_ms:.1f} "
             f"exec_ms={stats.elapsed_ms:.1f} realtime={realtime:.3f} "
             f"render_ms={render_ms:.1f}",
@@ -171,7 +192,7 @@ class SimRuntime:
                 "event": "motion_complete",
                 "observation_id": str(completed_observation_id),
                 "next_observation_id": str(self.observation_id),
-                "command": chunk.command,
+                "command": command.text,
                 "pause_ms": f"{pause_ms:.1f}",
                 "frames": str(stats.frames),
                 "target_ms": f"{target_ms:.1f}",
@@ -234,6 +255,58 @@ class SimRuntime:
         self._projection_cache = projection
         self._observation_published_at = time.perf_counter()
         return render_ms, len(jpeg)
+
+    def _log_motion_generated(
+        self,
+        command: AgentCommand,
+        source_qpos: torch.Tensor,
+        qpos: torch.Tensor,
+        *,
+        plan_ms: float,
+    ) -> None:
+        duration_s = len(qpos) / REFERENCE_HZ
+        self.node.log(
+            "info",
+            f"[OBS {command.observation_id}] motion generated: "
+            f"command={command.text!r} frames={len(qpos)} "
+            f"duration_s={duration_s:.2f} plan_ms={plan_ms:.1f}",
+            target="dsrf.motion_gen",
+            fields={
+                "event": "motion_generated",
+                "observation_id": str(command.observation_id),
+                "command": command.text,
+                "plan_ms": f"{plan_ms:.1f}",
+                "source_frames": str(len(source_qpos)),
+                "output_frames": str(len(qpos)),
+                "duration_s": f"{duration_s:.2f}",
+                **(
+                    {"encode_ms": f"{self.generator.last_encode_ms:.1f}"}
+                    if self.generator.last_encode_ms is not None
+                    else {}
+                ),
+            },
+        )
+
+    def _log_generation_error(
+        self,
+        command: AgentCommand,
+        started_at: float,
+        error: Exception,
+    ) -> None:
+        plan_ms = (time.perf_counter() - started_at) * 1000.0
+        detail = f"{type(error).__name__}: {error}"
+        self.node.log(
+            "error",
+            f"[OBS {command.observation_id}] motion-gen error: {detail}",
+            target="dsrf.motion_gen",
+            fields={
+                "event": "motion_generation_error",
+                "observation_id": str(command.observation_id),
+                "command": command.text,
+                "plan_ms": f"{plan_ms:.1f}",
+                "detail": detail,
+            },
+        )
 
     def _report_error(self, detail: str, *, source: str = "sim") -> None:
         self.node.log(

@@ -19,9 +19,19 @@ class KinematicPlanner:
 
     fps = 30
 
-    def __init__(self, model_path: Path, *, device: str = "cpu") -> None:
+    def __init__(
+        self,
+        model_path: Path,
+        *,
+        device: str = "cpu",
+        cuda_stream: torch.cuda.Stream | None = None,
+    ) -> None:
         self.device = torch.device(device)
-        self.model = StaticOnnxModel(model_path, device=self.device)
+        self.model = StaticOnnxModel(
+            model_path,
+            device=self.device,
+            cuda_stream=cuda_stream,
+        )
         initial = torch.as_tensor(
             standing_qpos(), dtype=torch.float32, device=self.device
         )

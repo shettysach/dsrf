@@ -37,7 +37,6 @@ cu128 = [
 
 [project.scripts]
 dsrf-agent = "nodes.agent:main"
-dsrf-motion-gen = "nodes.motion_gen:main"
 dsrf-sim = "nodes.sim:main"
 
 [dependency-groups]

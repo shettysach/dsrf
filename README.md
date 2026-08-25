@@ -73,7 +73,8 @@ or more image waypoints or end-effector targets, the agent sends those pixels to
 simulator while physics remains paused. The simulator renders depth on demand,
 resolves each pixel into a robot-local target, and returns only those coordinates.
 The agent then sends one complete request containing the motion prompt and
-resolved targets to the motion generator.
+resolved targets to the simulator process, which generates, resamples, and
+tracks the trajectory on its GPU before stepping MJLab.
 
 Depth is cached for the current observation, so VLM retries and multiple waypoints reuse the same render.
 The cache is discarded when motion begins and the next RGB observation is

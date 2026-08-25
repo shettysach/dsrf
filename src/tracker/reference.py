@@ -9,11 +9,11 @@ from mjlab.utils.lab_api.math import (
     quat_mul,
 )
 
-from shared.messages import REFERENCE_HZ, MotionChunk
+from shared.messages import REFERENCE_HZ
 
 
 class MotionReference:
-    """A motion chunk aligned to the robot pose at command start."""
+    """A generated trajectory aligned to the robot pose at command start."""
 
     _root_pos_w: torch.Tensor
     _root_quat_w: torch.Tensor
@@ -27,13 +27,11 @@ class MotionReference:
 
     def load(
         self,
-        chunk: MotionChunk,
+        qpos: torch.Tensor,
         robot_pos_w: torch.Tensor,
         robot_quat_w: torch.Tensor,
     ) -> None:
-        qpos = torch.as_tensor(
-            chunk.qpos, dtype=torch.float32, device=self.device
-        ).contiguous()
+        qpos = qpos.to(dtype=torch.float32, device=self.device).contiguous()
         orientation_delta = quat_mul(robot_quat_w, quat_conjugate(qpos[0, 3:7]))
         root_delta = qpos[:, :3] - qpos[0, :3]
         self._root_pos_w = robot_pos_w + quat_apply(

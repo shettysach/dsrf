@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-MOTION_COLUMNS = 36
 REFERENCE_HZ = 50
 ARDY_EMBEDDING_SIZE = 4096
 END_EFFECTOR_NAMES = frozenset({"left_hand", "right_hand", "left_foot", "right_foot"})
@@ -37,32 +36,6 @@ class EndEffectorTarget:
             raise ValueError(f"Unsupported end effector: {self.name}")
         if not all(np.isfinite(value) for value in self.target_xyz):
             raise ValueError("End-effector target must be finite")
-
-
-@dataclass(frozen=True)
-class MotionChunk:
-    observation_id: int
-    command: str
-    qpos: np.ndarray
-
-    def __post_init__(self) -> None:
-        if not self.command.strip():
-            raise ValueError("Motion command is empty")
-        qpos = np.asarray(self.qpos, dtype=np.float32)
-        if qpos.ndim != 2 or qpos.shape[1] != MOTION_COLUMNS:
-            raise ValueError(
-                f"Motion qpos must have shape [T, {MOTION_COLUMNS}], got {qpos.shape}"
-            )
-        if qpos.shape[0] == 0:
-            raise ValueError("Motion chunk must contain at least one frame")
-        if not np.isfinite(qpos).all():
-            raise ValueError("Motion chunk contains NaN or infinite values")
-        # Arrow exposes received numeric buffers as read-only NumPy views.  Own a
-        # writable buffer here because the tracker converts qpos to Torch tensors,
-        # whose writable-storage contract cannot be satisfied by those views.
-        object.__setattr__(
-            self, "qpos", np.array(qpos, dtype=np.float32, order="C", copy=True)
-        )
 
 
 @dataclass(frozen=True)

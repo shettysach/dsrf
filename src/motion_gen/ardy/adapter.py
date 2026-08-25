@@ -1,4 +1,4 @@
-"""Node-facing adapter for ARDY motion generation."""
+"""ARDY implementation of the motion-generation interface."""
 
 from __future__ import annotations
 

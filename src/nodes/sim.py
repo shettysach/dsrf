@@ -4,7 +4,8 @@ from typing import Optional
 
 from dora import Node
 
-from shared.config import SimConfig
+from motion_gen.factory import create_motion_generator
+from shared.config import MotionGenConfig, SimConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
@@ -14,6 +15,7 @@ from tracker.sonic import SonicTracker
 
 def main() -> None:
     cfg = SimConfig.from_env()
+    motion_cfg = MotionGenConfig.from_env()
 
     node = Node()
     simulation = MjlabEnv(
@@ -26,6 +28,10 @@ def main() -> None:
 
     try:
         with simulation.compute_context():
+            generator = create_motion_generator(
+                motion_cfg,
+                cuda_stream=simulation.cuda_stream,
+            )
             tracker = SonicTracker(
                 cfg.sonic_dir,
                 device=cfg.device,
@@ -43,6 +49,7 @@ def main() -> None:
         SimRuntime(
             node,
             simulation,
+            generator,
             tracker,
             renderer,
             viewer,

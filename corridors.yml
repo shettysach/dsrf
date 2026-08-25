@@ -14,25 +14,10 @@ nodes:
     inputs:
       observation: sim/observation
       grounding_result: sim/grounding_result
-      planning_error: motion-gen/error
       sim_error: sim/error
     outputs:
       - command
       - grounding_request
-
-  - id: motion-gen
-    path: uv
-    args: run dsrf-motion-gen
-    min_log_level: warn
-    env:
-      DEVICE: cuda
-      MOTION_GENERATOR: kinematic_planner
-      PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
-    inputs:
-      command: agent/command
-    outputs:
-      - motion
-      - error
 
   - id: sim
     path: uv
@@ -40,6 +25,8 @@ nodes:
     min_log_level: warn
     env:
       DEVICE: cuda
+      MOTION_GENERATOR: kinematic_planner
+      PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: portrait-corridors
       IMAGE_WIDTH: "640"
@@ -48,7 +35,7 @@ nodes:
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
     inputs:
-      motion: motion-gen/motion
+      command: agent/command
       grounding_request: agent/grounding_request
     outputs:
       - observation

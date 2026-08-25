@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import onnxruntime as ort
 import pytest
 import torch
@@ -8,7 +7,6 @@ import torch
 from motion_gen.kinematic_planner.generator import KinematicPlanner
 from motion_gen.resample import resample_qpos
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB
-from shared.messages import MotionChunk
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from tracker.sonic import SonicTracker
@@ -22,10 +20,10 @@ CUDA_READY = torch.cuda.is_available() and "CUDAExecutionProvider" in (
 )
 
 
-def _motion() -> MotionChunk:
-    qpos = np.zeros((2, 36), dtype=np.float32)
+def _motion() -> torch.Tensor:
+    qpos = torch.zeros((2, 36))
     qpos[:, 3] = 1.0
-    return MotionChunk(0, "test motion", qpos)
+    return qpos
 
 
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")

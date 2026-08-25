@@ -4,41 +4,17 @@ import json
 from dataclasses import asdict
 from typing import Any
 
-import numpy as np
 import pyarrow as pa
 
 from shared.messages import (
-    MOTION_COLUMNS,
     AgentCommand,
     EndEffectorSelection,
     EndEffectorTarget,
     GroundingRequest,
     GroundingResult,
-    MotionChunk,
     PipelineError,
     VisualObservation,
 )
-
-
-def motion_to_arrow(chunk: MotionChunk) -> tuple[pa.Array, dict[str, str]]:
-    return pa.array(chunk.qpos.reshape(-1), type=pa.float32()), {
-        "observation_id": str(chunk.observation_id),
-        "command": chunk.command,
-    }
-
-
-def motion_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> MotionChunk:
-    flat = np.asarray(value.to_numpy(zero_copy_only=False), dtype=np.float32)
-    if flat.size == 0 or flat.size % MOTION_COLUMNS:
-        raise ValueError(
-            f"Motion payload has {flat.size} values; expected complete "
-            f"{MOTION_COLUMNS}-value frames"
-        )
-    return MotionChunk(
-        observation_id=_observation_id(metadata),
-        command=str(metadata["command"]),
-        qpos=flat.reshape(-1, MOTION_COLUMNS),
-    )
 
 
 def agent_command_to_arrow(

@@ -4,18 +4,17 @@ from typing import Any, cast
 import numpy as np
 import torch
 
-from shared.messages import MotionChunk
 from sim.reference_ghost import ReferenceGhost
 from tracker.reference import MotionReference
 
 
-def _motion() -> MotionChunk:
-    qpos = np.zeros((2, 36), dtype=np.float32)
+def _motion() -> torch.Tensor:
+    qpos = torch.zeros((2, 36))
     qpos[:, 3] = 1.0
-    qpos[0, :3] = [1.0, 2.0, 0.8]
-    qpos[1, :3] = [2.0, 2.0, 0.8]
-    qpos[1, 7:] = np.arange(29)
-    return MotionChunk(0, "walk forward", qpos)
+    qpos[0, :3] = torch.tensor([1.0, 2.0, 0.8])
+    qpos[1, :3] = torch.tensor([2.0, 2.0, 0.8])
+    qpos[1, 7:] = torch.arange(29)
+    return qpos
 
 
 def test_reference_visualization_pose_is_aligned_and_advances() -> None:
@@ -46,8 +45,8 @@ def test_reference_visualization_pose_is_aligned_and_advances() -> None:
 
 def test_reference_preserves_generated_relative_root_z() -> None:
     motion = _motion()
-    motion.qpos[0, 2] = 0.5
-    motion.qpos[1, 2] = 0.45
+    motion[0, 2] = 0.5
+    motion[1, 2] = 0.45
     reference = MotionReference(torch.device("cpu"))
     reference.load(
         motion,

@@ -2,8 +2,6 @@
 
 [ ] ONNX - try TensorrtExecutionProvider vs CUDAExecutionProvider (current) 
 
-[ ] Communication - Replace np with torch / zero-copy tensors
-
 [ ] Track [MJLab PR #1025](https://github.com/mujocolab/mjlab/pull/1025); replace `OnDemandCameraCapture` with upstream forced/interval rendering when available.
 
 # Context mgmt
@@ -22,4 +20,4 @@
 
 [ ] Kinematic Planner - Distinguish four-frame `specific_target_positions` from route waypoints.
 
-[ ] Review owner-guaranteed required-field checks in `AgentCommand`, `VisualObservation`, `MotionChunk`, and `PipelineError` for the same simplification.
+[ ] Review owner-guaranteed required-field checks in `AgentCommand`, `VisualObservation`, and `PipelineError` for the same simplification.

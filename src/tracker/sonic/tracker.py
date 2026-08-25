@@ -14,7 +14,6 @@ from shared.g1 import (
     MJLAB_FROM_SONIC,
     SONIC_FROM_MJLAB,
 )
-from shared.messages import MotionChunk
 from tracker.reference import MotionReference
 from tracker.sonic.observations import ObservationLayout
 from tracker.sonic.onnx_model import OnnxModel
@@ -62,8 +61,8 @@ class SonicTracker:
         self.reference = MotionReference(self.device)
         self._last_action = torch.zeros(29, dtype=torch.float32, device=self.device)
 
-    def load_motion(self, chunk: MotionChunk, state: RobotState) -> None:
-        self.reference.load(chunk, state.root_pos_w, state.root_quat_w)
+    def load_motion(self, qpos: torch.Tensor, state: RobotState) -> None:
+        self.reference.load(qpos, state.root_pos_w, state.root_quat_w)
 
     def act(self, state: RobotState) -> tuple[torch.Tensor, bool]:
         joint_position = (state.joint_pos - self._default_joint_pos).index_select(
