@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol
 
 import mujoco.viewer
 import torch
@@ -12,7 +12,6 @@ from shared.messages import REFERENCE_HZ
 if TYPE_CHECKING:
     from mjlab.viewer import EnvProtocol
 
-    from sim.env import MjlabEnv
     from tracker.reference import MotionReference
 
 from sim.reference_ghost import ReferenceGhost
@@ -29,17 +28,17 @@ class NativeSimViewer(NativeMujocoViewer):
 
     def __init__(
         self,
-        simulation: MjlabEnv,
+        env: EnvProtocol,
         reference: MotionReference | None = None,
     ) -> None:
         super().__init__(
-            cast("EnvProtocol", simulation),
+            env,
             _ViewerOnlyPolicy(),
             frame_rate=float(REFERENCE_HZ),
             enable_perturbations=False,
         )
         self._reference_ghost = (
-            ReferenceGhost(simulation.unwrapped, reference)
+            ReferenceGhost(env, reference)
             if reference is not None
             else None
         )
@@ -69,16 +68,16 @@ class ViserSimViewer(ViserPlayViewer):
 
     def __init__(
         self,
-        simulation: MjlabEnv,
+        env: EnvProtocol,
         reference: MotionReference | None = None,
     ) -> None:
         super().__init__(
-            cast("EnvProtocol", simulation),
+            env,
             _ViewerOnlyPolicy(),
             frame_rate=float(REFERENCE_HZ),
         )
         self._reference_ghost = (
-            ReferenceGhost(simulation.unwrapped, reference)
+            ReferenceGhost(env, reference)
             if reference is not None
             else None
         )

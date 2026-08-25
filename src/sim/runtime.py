@@ -279,11 +279,6 @@ class SimRuntime:
                 "source_frames": str(len(source_qpos)),
                 "output_frames": str(len(qpos)),
                 "duration_s": f"{duration_s:.2f}",
-                **(
-                    {"encode_ms": f"{self.generator.last_encode_ms:.1f}"}
-                    if self.generator.last_encode_ms is not None
-                    else {}
-                ),
             },
         )
 

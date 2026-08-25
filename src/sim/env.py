@@ -36,8 +36,6 @@ class MjlabEnv:
             device=str(torch_device),
             render_mode=None,
         )
-        self.unwrapped = self._env
-
         self._robot = self._env.scene["robot"]
         camera = self._env.scene[OBSERVATION_CAMERA]
         assert isinstance(camera, CameraSensor)
@@ -55,16 +53,9 @@ class MjlabEnv:
             self._env.reset()
 
     @property
-    def cfg(self):
-        return self._env.cfg
-
-    @property
-    def device(self) -> torch.device | str:
-        return self._env.device
-
-    @property
-    def num_envs(self) -> int:
-        return self._env.num_envs
+    def mjlab_env(self) -> ManagerBasedRlEnv:
+        """The native environment for MJLab-owned integrations such as viewers."""
+        return self._env
 
     def compute_context(self) -> AbstractContextManager[None]:
         return stream_context(self.cuda_stream)

@@ -13,6 +13,5 @@ class MotionGenerator(Protocol):
     """Generate source-rate G1 trajectories from an agent command."""
 
     fps: float
-    last_encode_ms: float | None
 
     def generate(self, command: AgentCommand) -> torch.Tensor: ...

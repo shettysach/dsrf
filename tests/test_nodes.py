@@ -105,7 +105,6 @@ class _Simulation:
 
 class _Generator:
     fps = 50
-    last_encode_ms: float | None = None
 
     def __init__(self, qpos: torch.Tensor | None = None) -> None:
         self.qpos = _planner_motion() if qpos is None else qpos

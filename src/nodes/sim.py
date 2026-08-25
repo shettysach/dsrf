@@ -40,9 +40,9 @@ def main() -> None:
         if cfg.viewer in {"native", "viser"}:
             reference = tracker.reference if cfg.reference_ghost else None
             viewer = (
-                NativeSimViewer(simulation, reference)
+                NativeSimViewer(simulation.mjlab_env, reference)
                 if cfg.viewer == "native"
-                else ViserSimViewer(simulation, reference)
+                else ViserSimViewer(simulation.mjlab_env, reference)
             )
         renderer = SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
         _log_init(node, cfg)

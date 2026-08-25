@@ -64,7 +64,7 @@ def test_mjlab_cpu_control_step() -> None:
         tracker.load_motion(_motion(), state)
         action, _ = tracker.act(state)
         simulation.step(action)
-        assert simulation.unwrapped.common_step_counter == 1
+        assert simulation.mjlab_env.common_step_counter == 1
     finally:
         simulation.close()
 
@@ -121,6 +121,6 @@ def test_mjlab_and_sonic_share_one_cuda_stream() -> None:
         assert tracker.decoder.cuda_stream_ptr == stream_ptr
         assert action.device == torch.device("cuda:0")
         simulation.step(action)
-        assert simulation.unwrapped.common_step_counter == 1
+        assert simulation.mjlab_env.common_step_counter == 1
     finally:
         simulation.close()

@@ -14,7 +14,6 @@ class KinematicPlannerMotionGenerator:
     def __init__(self, generator: KinematicPlanner) -> None:
         self._generator = generator
         self.fps: float = float(generator.fps)
-        self.last_encode_ms: float | None = None
 
     def generate(self, command: AgentCommand) -> torch.Tensor:
         if command.end_effectors:

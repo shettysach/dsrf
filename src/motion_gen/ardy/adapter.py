@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 
 import torch
@@ -21,16 +20,13 @@ class ArdyMotionGenerator:
         self._generator = generator
         self._text_encoder = text_encoder
         self.fps: float = float(generator.fps)
-        self.last_encode_ms: float | None = None
 
     def generate(self, command: AgentCommand) -> torch.Tensor:
         if command.direction is not None:
             raise ValueError(
                 "Directional commands are only supported by kinematic_planner"
             )
-        encode_started_at = time.perf_counter()
         embedding = self._text_encoder.encode(command.motion)
-        self.last_encode_ms = (time.perf_counter() - encode_started_at) * 1000.0
         return self._generator.generate(
             embedding,
             command.target_xys,

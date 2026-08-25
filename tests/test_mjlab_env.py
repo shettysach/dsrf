@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -15,12 +14,9 @@ def test_observation_camera_is_attached_to_torso() -> None:
     assert camera.fovy == 45.0
 
 
-def test_viewer_environment_properties_forward_to_mjlab() -> None:
+def test_mjlab_env_exposes_native_environment_for_mjlab_integrations() -> None:
     mjlab_env = cast(Any, MjlabEnv.__new__(MjlabEnv))
-    cfg = object()
-    device = object()
-    mjlab_env._env = SimpleNamespace(cfg=cfg, device=device, num_envs=1)
+    native_env = object()
+    mjlab_env._env = native_env
 
-    assert mjlab_env.cfg is cfg
-    assert mjlab_env.device is device
-    assert mjlab_env.num_envs == 1
+    assert mjlab_env.mjlab_env is native_env
