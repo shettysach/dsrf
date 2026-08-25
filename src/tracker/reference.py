@@ -9,22 +9,19 @@ from mjlab.utils.lab_api.math import (
     quat_mul,
 )
 
-from shared.g1 import standing_qpos
 from shared.messages import REFERENCE_HZ, MotionChunk
 
 
 class MotionReference:
     """A motion chunk aligned to the robot pose at command start."""
 
+    _root_pos_w: torch.Tensor
+    _root_quat_w: torch.Tensor
+    _joint_pos: torch.Tensor
+    _joint_vel: torch.Tensor
+
     def __init__(self, device: torch.device | str) -> None:
         self.device = torch.device(device)
-        initial = torch.as_tensor(
-            standing_qpos()[None], dtype=torch.float32, device=self.device
-        )
-        self._root_pos_w = initial[:, :3]
-        self._root_quat_w = initial[:, 3:7]
-        self._joint_pos = initial[:, 7:]
-        self._joint_vel = torch.zeros((1, 29), device=self.device)
         self._frame = 0
         self._active = False
 

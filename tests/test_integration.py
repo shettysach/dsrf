@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import onnxruntime as ort
 import pytest
 import torch
@@ -7,6 +8,7 @@ import torch
 from motion_gen.kinematic_planner.generator import KinematicPlanner
 from motion_gen.resample import resample_qpos
 from shared.g1 import DEFAULT_JOINT_POS_MJLAB
+from shared.messages import MotionChunk
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from tracker.sonic import SonicTracker
@@ -18,6 +20,12 @@ pytestmark = pytest.mark.integration
 CUDA_READY = torch.cuda.is_available() and "CUDAExecutionProvider" in (
     ort.get_available_providers()
 )
+
+
+def _motion() -> MotionChunk:
+    qpos = np.zeros((2, 36), dtype=np.float32)
+    qpos[:, 3] = 1.0
+    return MotionChunk(0, "test motion", qpos)
 
 
 @pytest.mark.skipif(not SONIC_DIR.is_dir(), reason="SONIC bundle is unavailable")
@@ -33,6 +41,7 @@ def test_real_checkpoints_generate_action_and_motion() -> None:
         joint_pos=torch.as_tensor(DEFAULT_JOINT_POS_MJLAB),
         joint_vel=torch.zeros(29),
     )
+    tracker.load_motion(_motion(), state)
     action, completed = tracker.act(state)
     assert not bool(tracker.encoder.input[0, encoder_mode].any())
     assert action.shape == (1, 29)
@@ -53,7 +62,9 @@ def test_mjlab_cpu_control_step() -> None:
     simulation = MjlabEnv(device="cpu")
     try:
         tracker = SonicTracker(SONIC_DIR)
-        action, _ = tracker.act(simulation.robot_state())
+        state = simulation.robot_state()
+        tracker.load_motion(_motion(), state)
+        action, _ = tracker.act(state)
         simulation.step(action)
         assert simulation.unwrapped.common_step_counter == 1
     finally:
@@ -102,7 +113,9 @@ def test_mjlab_and_sonic_share_one_cuda_stream() -> None:
                 device="cuda:0",
                 cuda_stream=simulation.cuda_stream,
             )
-            action, _ = tracker.act(simulation.robot_state())
+            state = simulation.robot_state()
+            tracker.load_motion(_motion(), state)
+            action, _ = tracker.act(state)
 
         assert simulation.cuda_stream is not None
         stream_ptr = int(simulation.cuda_stream.cuda_stream)
