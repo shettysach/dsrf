@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dora-rs/dora/v1.0.0-rc.4/dora-schema.json
+
+nodes:
+  - id: agent
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-agent
+    min_log_level: warn
+    env:
+      VLM_URL: http://127.0.0.1:8080
+      VLM_TIMEOUT: "120"
+      VLM_SYSTEM_PROMPT: tasks/box_push/TASK.md
+      VLM_USER_PROMPT: prompt/USER.md
+      MOTION_GENERATOR: ardy
+    inputs:
+      observation: sim/observation
+      grounding_result: sim/grounding_result
+      sim_error: sim/error
+    outputs:
+      - command
+      - grounding_request
+
+  - id: sim
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-sim
+    min_log_level: warn
+    env:
+      DEVICE: cuda
+      MOTION_GENERATOR: ardy
+      CHECKPOINTS_DIR: /tmp/ardy/checkpoints
+      TEXT_ENCODER_MODEL: /tmp/model
+      TEXT_ENCODER_DEVICE: cuda
+      SONIC_DIR: /tmp/GEAR-SONIC
+      TASK: box_push
+      IMAGE_WIDTH: "1280"
+      IMAGE_HEIGHT: "720"
+      JPEG_QUALITY: "85"
+      VIEWER: native
+      REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
+    inputs:
+      command: agent/command
+      grounding_request: agent/grounding_request
+    outputs:
+      - observation
+      - grounding_result
+      - error
