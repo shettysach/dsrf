@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mjlab.entity import EntityCfg
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 type SceneSpecFn = Callable[["MjSpec"], None]
 type SceneFactory = Callable[[], SceneSpecFn]
+type EntityFactory = Callable[[], dict[str, "EntityCfg"]]
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,7 @@ class TaskSpec:
     name: str
     objective: str
     make_scene: SceneFactory
+    make_entities: EntityFactory = lambda: {}
     observation_camera: ObservationCameraSpec = ObservationCameraSpec()
 
     def __post_init__(self) -> None:

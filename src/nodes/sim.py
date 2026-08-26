@@ -50,7 +50,7 @@ def main() -> None:
             node,
             simulation,
             generator,
-            tracker,
+            tracker
             renderer,
             viewer,
         ).run()

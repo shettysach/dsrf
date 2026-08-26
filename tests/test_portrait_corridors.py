@@ -18,7 +18,7 @@ def test_catalog_contains_portrait_corridors() -> None:
 
 
 def test_catalog_rejects_unknown_task() -> None:
-    with pytest.raises(ValueError, match="Available: portrait-corridors"):
+    with pytest.raises(ValueError, match="Available: box_push, portrait-corridors"):
         get_task("unknown")
 
 

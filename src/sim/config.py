@@ -72,10 +72,14 @@ def make_sim_env_cfg(
         task.observation_camera if task is not None else ObservationCameraSpec()
     )
     camera_pos, camera_quat = _attached_camera_pose(camera_spec)
+    entities = {"robot": robot_cfg}
+    if task is not None:
+        entities.update(task.make_entities())
+
     scene = SceneCfg(
         num_envs=1,
         terrain=TerrainEntityCfg(terrain_type="plane"),
-        entities={"robot": robot_cfg},
+        entities=entities,
         sensors=(
             CameraSensorCfg(
                 name=OBSERVATION_CAMERA,
