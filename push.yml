@@ -4,7 +4,7 @@ nodes:
   - id: agent
     path: uv
     args: run --extra cu128 --extra ardy dsrf-agent
-    min_log_level: warn
+    min_log_level: info
     env:
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
