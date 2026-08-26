@@ -11,10 +11,12 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-BOX_HALF_SIZE = 0.25
+BOX_HALF_SIZE = 0.35
 BOX_MASS = 1.0
-BOX_START = (1.25, 0.0)
-GOAL_CENTER = (3.0, 0.0)
+BOX_START = (1.75, 0.0)
+GOAL_CENTER = (4.25, 0.0)
+
+_BOX_RGBA = (0.45, 0.24, 0.1, 1.0)
 
 
 def make_box_push_spec_fn() -> SceneSpecFn:
@@ -45,6 +47,7 @@ def _make_box_spec() -> "MjSpec":
         size=(BOX_HALF_SIZE,) * 3,
         mass=BOX_MASS,
         friction=(0.75, 0.01, 0.001),
+        rgba=_BOX_RGBA,
         contype=1,
         conaffinity=1,
     )
@@ -56,7 +59,7 @@ def _add_goal(spec: "MjSpec") -> None:
         name="box_goal",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
         pos=(*GOAL_CENTER, 0.01),
-        size=(0.4, 0.4, 0.01),
+        size=(0.55, 0.55, 0.01),
         rgba=(0.1, 0.8, 0.2, 0.5),
         contype=0,
         conaffinity=0,

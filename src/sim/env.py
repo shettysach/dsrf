@@ -106,22 +106,15 @@ class MjlabEnv:
         if unknown:
             raise ValueError(f"Unknown virtual-force objects: {sorted(unknown)}")
         data = self._env.sim.data
-        contact_count = int(data.nacon.numpy()[0])
-        if contact_count == 0:
-            return set()
-
-        geom_pairs = data.contact.geom.numpy()[:contact_count]
-        world_ids = data.contact.worldid.numpy()[:contact_count]
-        contacts: set[tuple[str, str]] = set()
-        for geom_a, geom_b in geom_pairs[world_ids == 0]:
-            for hand, hand_geom_id in self._hand_geom_ids.items():
-                other_geom_id = _other_contact_geom(geom_a, geom_b, hand_geom_id)
-                if other_geom_id is None:
-                    continue
-                for object_name in requested:
-                    if other_geom_id in self._virtual_force_object_geom_ids[object_name]:
-                        contacts.add((hand, object_name))
-        return contacts
+        return _hand_object_contacts_from_buffers(
+            geom_pairs=data.contact.geom,
+            world_ids=data.contact.worldid,
+            contact_count=data.nacon[0],
+            hand_geom_ids=self._hand_geom_ids,
+            object_geom_ids={
+                name: self._virtual_force_object_geom_ids[name] for name in requested
+            },
+        )
 
     def step(
         self,
@@ -188,12 +181,38 @@ def _object_geom_ids(
     return object_geoms
 
 
-def _other_contact_geom(geom_a: int, geom_b: int, hand_geom_id: int) -> int | None:
-    if geom_a == hand_geom_id:
-        return int(geom_b)
-    if geom_b == hand_geom_id:
-        return int(geom_a)
-    return None
+def _hand_object_contacts_from_buffers(
+    *,
+    geom_pairs: torch.Tensor,
+    world_ids: torch.Tensor,
+    contact_count: torch.Tensor,
+    hand_geom_ids: dict[str, int],
+    object_geom_ids: dict[str, frozenset[int]],
+) -> set[tuple[str, str]]:
+    """Find eligible contacts without copying MJWarp contact buffers to the CPU."""
+
+    slot_indices = torch.arange(geom_pairs.shape[0], device=geom_pairs.device)
+    active_contacts = (slot_indices < contact_count) & (world_ids == 0)
+    geom_a, geom_b = geom_pairs.unbind(dim=-1)
+    contacts: set[tuple[str, str]] = set()
+    for hand, hand_geom_id in hand_geom_ids.items():
+        hand_is_a = geom_a == hand_geom_id
+        hand_is_b = geom_b == hand_geom_id
+        for object_name, object_ids in object_geom_ids.items():
+            object_id_tensor = torch.tensor(
+                tuple(object_ids),
+                device=geom_pairs.device,
+                dtype=geom_pairs.dtype,
+            )
+            matches = active_contacts & (
+                (hand_is_a & torch.isin(geom_b, object_id_tensor))
+                | (hand_is_b & torch.isin(geom_a, object_id_tensor))
+            )
+            # The public API returns symbolic names, so only this final scalar
+            # crosses into Python; all contact-buffer filtering remains on-device.
+            if matches.any().item():
+                contacts.add((hand, object_name))
+    return contacts
 
 
 # CUDA
