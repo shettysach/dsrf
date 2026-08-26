@@ -25,6 +25,7 @@ TASK = TaskSpec(
     objective="Push the box onto the green goal.",
     make_scene=_make_scene,
     make_entities=_make_entities,
+    virtual_force_objects=("box",),
     observation_camera=ObservationCameraSpec(
         distance=4.0,
         elevation=-35.0,

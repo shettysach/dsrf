@@ -35,6 +35,9 @@ class TaskSpec:
     objective: str
     make_scene: SceneFactory
     make_entities: EntityFactory = lambda: {}
+    virtual_force_objects: tuple[str, ...] = ()
+    virtual_force_magnitude: float = 15.0
+    virtual_force_max: float = 30.0
     observation_camera: ObservationCameraSpec = ObservationCameraSpec()
 
     def __post_init__(self) -> None:
@@ -42,3 +45,11 @@ class TaskSpec:
             raise ValueError("Task name must be non-empty and trimmed")
         if not self.objective.strip():
             raise ValueError("Task objective must be non-empty")
+        if any(not name or name != name.strip() for name in self.virtual_force_objects):
+            raise ValueError("Virtual-force object names must be non-empty and trimmed")
+        if len(set(self.virtual_force_objects)) != len(self.virtual_force_objects):
+            raise ValueError("Virtual-force object names must be unique")
+        if self.virtual_force_magnitude < 0.0:
+            raise ValueError("Virtual-force magnitude must be non-negative")
+        if self.virtual_force_max < 0.0:
+            raise ValueError("Virtual-force maximum must be non-negative")

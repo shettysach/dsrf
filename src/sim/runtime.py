@@ -29,6 +29,7 @@ from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
 from sim.viewer import SimViewer
+from sim.virtual_force import VirtualForce, VirtualForceResult
 from tracker.sonic import SonicTracker
 
 
@@ -58,6 +59,18 @@ class SimRuntime:
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
+        task = getattr(simulation, "task", None)
+        self.virtual_force = (
+            VirtualForce(
+                task.virtual_force_objects,
+                dt=simulation.step_dt,
+                device=simulation.device,
+                magnitude=task.virtual_force_magnitude,
+                maximum=task.virtual_force_max,
+            )
+            if task is not None and task.virtual_force_objects
+            else None
+        )
 
     def run(self) -> None:
         render_ms, jpeg_size = self._publish_observation(completed_command=None)
@@ -153,7 +166,10 @@ class SimRuntime:
             with self.simulation.compute_context():
                 source_qpos = self.generator.generate(command)
                 qpos = resample_qpos(source_qpos, source_fps=self.generator.fps)
-                self.tracker.load_motion(qpos, self.simulation.robot_state())
+                state = self.simulation.robot_state()
+                self.tracker.load_motion(qpos, state)
+                if self.virtual_force is not None:
+                    self.virtual_force.load_motion(qpos, state)
         except ValueError as exc:
             self._report_error(str(exc), source="motion-gen")
             return
@@ -217,8 +233,28 @@ class SimRuntime:
 
                 with self.simulation.compute_context():
                     state = self.simulation.robot_state()
+                    contacts = (
+                        self.simulation.hand_object_contacts(
+                            self.virtual_force.object_names
+                        )
+                        if self.virtual_force is not None
+                        else set()
+                    )
+                    force_result = (
+                        self.virtual_force.compute(
+                            self.tracker.reference.frame_index,
+                            contacts,
+                        )
+                        if self.virtual_force is not None
+                        else None
+                    )
                     action, completed = self.tracker.act(state)
-                self.simulation.step(action)
+                if force_result is not None:
+                    self._log_hand_contacts(force_result)
+                if force_result is None:
+                    self.simulation.step(action)
+                else:
+                    self.simulation.step(action, external_forces=force_result.forces)
                 if self.viewer is not None:
                     self.viewer.sync()
                 frames += 1
@@ -238,6 +274,20 @@ class SimRuntime:
                     # Do not execute burst catch-up steps after an overrun.
                     overrun_steps += 1
                     next_step = now
+
+    def _log_hand_contacts(self, result: VirtualForceResult) -> None:
+        for hand, object_name in result.started_contacts:
+            self.node.log(
+                "info",
+                f"{hand} contacted {object_name}",
+                target="dsrf.sim.virtual_force",
+            )
+        for hand, object_name in result.ended_contacts:
+            self.node.log(
+                "info",
+                f"{hand} left {object_name}",
+                target="dsrf.sim.virtual_force",
+            )
 
     def _publish_observation(
         self, *, completed_command: str | None

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import AbstractContextManager, nullcontext
 from typing import TYPE_CHECKING
 
 import torch
+from mjlab.entity import Entity
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
 from tasks import TaskSpec
@@ -27,6 +29,8 @@ class MjlabEnv:
         task: TaskSpec | None = None,
     ) -> None:
         torch_device = torch.device(device)
+        self._device = torch_device
+        self._task = task
         self._env = ManagerBasedRlEnv(
             cfg=make_sim_env_cfg(
                 image_width=image_width,
@@ -37,6 +41,14 @@ class MjlabEnv:
             render_mode=None,
         )
         self._robot = self._env.scene["robot"]
+        self._hand_geom_ids = _hand_geom_ids(self._robot)
+        self._virtual_force_object_geom_ids = _object_geom_ids(
+            self._env.scene,
+            task.virtual_force_objects if task is not None else (),
+        )
+        self._virtual_force_entities = {
+            name: self._env.scene[name] for name in self._virtual_force_object_geom_ids
+        }
         camera = self._env.scene[OBSERVATION_CAMERA]
         assert isinstance(camera, CameraSensor)
         self._camera_capture = OnDemandCameraCapture(
@@ -57,6 +69,14 @@ class MjlabEnv:
         """The native environment for MJLab-owned integrations such as viewers."""
         return self._env
 
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    @property
+    def task(self) -> TaskSpec | None:
+        return self._task
+
     def compute_context(self) -> AbstractContextManager[None]:
         return stream_context(self.cuda_stream)
 
@@ -75,8 +95,42 @@ class MjlabEnv:
     def step_dt(self) -> float:
         return float(self._env.step_dt)
 
-    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
+    def hand_object_contacts(
+        self,
+        object_names: tuple[str, ...],
+    ) -> set[tuple[str, str]]:
+        """Return only left/right-hand contacts with named task entities."""
+
+        requested = set(object_names)
+        unknown = requested - self._virtual_force_object_geom_ids.keys()
+        if unknown:
+            raise ValueError(f"Unknown virtual-force objects: {sorted(unknown)}")
+        data = self._env.sim.data
+        contact_count = int(data.nacon.numpy()[0])
+        if contact_count == 0:
+            return set()
+
+        geom_pairs = data.contact.geom.numpy()[:contact_count]
+        world_ids = data.contact.worldid.numpy()[:contact_count]
+        contacts: set[tuple[str, str]] = set()
+        for geom_a, geom_b in geom_pairs[world_ids == 0]:
+            for hand, hand_geom_id in self._hand_geom_ids.items():
+                other_geom_id = _other_contact_geom(geom_a, geom_b, hand_geom_id)
+                if other_geom_id is None:
+                    continue
+                for object_name in requested:
+                    if other_geom_id in self._virtual_force_object_geom_ids[object_name]:
+                        contacts.add((hand, object_name))
+        return contacts
+
+    def step(
+        self,
+        action: torch.Tensor,
+        *,
+        external_forces: Mapping[str, torch.Tensor] | None = None,
+    ) -> VecEnvStepReturn:
         with self.compute_context():
+            self._write_external_forces(external_forces or {})
             return self._env.step(action)
 
     def capture_rgbd(self) -> tuple[torch.Tensor, ProjectionContext]:
@@ -86,6 +140,60 @@ class MjlabEnv:
     def close(self) -> None:
         self._camera_capture.close()
         self._env.close()
+
+    def _write_external_forces(self, forces: Mapping[str, torch.Tensor]) -> None:
+        unknown = set(forces) - self._virtual_force_entities.keys()
+        if unknown:
+            raise ValueError(f"Unknown virtual-force objects: {sorted(unknown)}")
+        for name, entity in self._virtual_force_entities.items():
+            if entity.num_bodies != 1:
+                raise ValueError(
+                    f"Virtual-force entity {name!r} must have exactly one body"
+                )
+            force = forces.get(name)
+            if force is None:
+                force = torch.zeros(3, dtype=torch.float32, device=self._device)
+            if force.shape != (3,):
+                raise ValueError(
+                    f"Virtual force for {name!r} must have shape (3,), got "
+                    f"{tuple(force.shape)}"
+                )
+            force = force.to(device=self._device, dtype=torch.float32)
+            force = force.reshape(1, 1, 3)
+            entity.write_external_wrench_to_sim(force, torch.zeros_like(force))
+
+
+def _hand_geom_ids(robot: Entity) -> dict[str, int]:
+    geom_ids = robot.indexing.geom_ids.detach().cpu().tolist()
+    geom_ids_by_name = dict(zip(robot.geom_names, geom_ids, strict=True))
+    return {
+        hand: geom_ids_by_name[geom_name]
+        for hand, geom_name in {
+            "left_hand": "left_hand_collision",
+            "right_hand": "right_hand_collision",
+        }.items()
+    }
+
+
+def _object_geom_ids(
+    scene,
+    object_names: tuple[str, ...],
+) -> dict[str, frozenset[int]]:
+    object_geoms: dict[str, frozenset[int]] = {}
+    for name in object_names:
+        entity = scene[name]
+        if not isinstance(entity, Entity):
+            raise ValueError(f"Virtual-force object {name!r} must be an MJLab Entity")
+        object_geoms[name] = frozenset(entity.indexing.geom_ids.detach().cpu().tolist())
+    return object_geoms
+
+
+def _other_contact_geom(geom_a: int, geom_b: int, hand_geom_id: int) -> int | None:
+    if geom_a == hand_geom_id:
+        return int(geom_b)
+    if geom_b == hand_geom_id:
+        return int(geom_a)
+    return None
 
 
 # CUDA
