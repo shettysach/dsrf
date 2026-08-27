@@ -26,9 +26,9 @@ TASK = TaskSpec(
     make_scene=_make_scene,
     make_entities=_make_entities,
     virtual_force_objects=("box",),
-    # The box near face is x=1.40 m. Start the G1 0.70 m behind it so this
+    # The box near face is x=1.40 m. Start the G1 0.60 m behind it so this
     # first test isolates hand targeting/contact rather than navigation.
-    robot_initial_pos=(0.70, 0.0, 0.76),
+    robot_initial_pos=(0.80, 0.0, 0.76),
     observation_camera=ObservationCameraSpec(
         distance=5.0,
         elevation=-78.0,
