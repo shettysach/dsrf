@@ -5,6 +5,8 @@ set -Eeuo pipefail
 # Override VIDEO_DIR=/somewhere or pass the directory as the first argument.
 VIDEO_DIR="${1:-${VIDEO_DIR:-$HOME/Videos/push-runs}}"
 RUN_COUNT="${RUN_COUNT:-10}"
+MAX_COMMANDS="${MAX_COMMANDS:-15}"
+RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-600}"
 
 mkdir -p "$VIDEO_DIR"
 
@@ -27,7 +29,9 @@ for ((run=1; run<=RUN_COUNT; run++)); do
     output_path="$VIDEO_DIR/push-$(printf '%02d' "$run").mp4"
     echo "Starting push run $run/$RUN_COUNT -> $output_path"
 
-    DEMO_VIDEO_PATH="$output_path" STOP_ON_STAND=true dora run push.yml &
+    DEMO_VIDEO_PATH="$output_path" STOP_ON_STAND=true \
+        DEMO_MAX_COMMANDS="$MAX_COMMANDS" \
+        DEMO_TIMEOUT_SECONDS="$RUN_TIMEOUT_SECONDS" dora run push.yml &
     active_pid=$!
     status=0
     wait "$active_pid" || status=$?

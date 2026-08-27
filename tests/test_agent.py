@@ -247,6 +247,7 @@ def test_agent_retries_three_invalid_responses_then_stands() -> None:
     assert [command.text for command in commands] == [
         '{"motion":"stand"}',
     ]
+    assert commands[0].terminal is False
     assert client.feedback[0] is None
     assert all(feedback is not None for feedback in client.feedback[1:])
     vlm_messages = [message for _, message, _ in node.logs if "VLM command" in message]
@@ -339,6 +340,7 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     )
     assert command.motion == "stand"
     assert command.target_xys == ()
+    assert command.terminal is True
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
 
 

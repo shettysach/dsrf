@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import json
+import os
+import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
 
 import torch
+import yaml
 from dora import Node
 
 from motion_gen.generator import MotionGenerator
@@ -53,6 +56,8 @@ class SimRuntime:
         viewer: SimViewer | None = None,
         recorder: DemoVideoRecorder | None = None,
         stop_on_stand: bool = False,
+        max_completed_commands: int | None = None,
+        timeout_seconds: float | None = None,
     ) -> None:
         self.node = node
         self.simulation = simulation
@@ -62,6 +67,9 @@ class SimRuntime:
         self.viewer = viewer
         self.recorder = recorder
         self.stop_on_stand = stop_on_stand
+        self.max_completed_commands = max_completed_commands
+        self.timeout_seconds = timeout_seconds
+        self.completed_commands = 0
         self.demo_vlm_state = DemoVlmState()
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
@@ -81,30 +89,35 @@ class SimRuntime:
         )
 
     def run(self) -> None:
-        render_ms, jpeg_size = self._publish_observation(completed_command=None)
-        self.node.log(
-            "info",
-            f"[OBS 0] initial observation: render_ms={render_ms:.1f} "
-            f"jpeg_kb={jpeg_size / 1024.0:.1f} waiting=command",
-            target="dsrf.sim",
-            fields={
-                "event": "initial_observation",
-                "observation_id": "0",
-                "render_ms": f"{render_ms:.1f}",
-                "jpeg_kb": f"{jpeg_size / 1024.0:.1f}",
-            },
-        )
-        for event in self.node:
-            if event["type"] == "STOP":
-                return
-            if event["type"] != "INPUT":
-                continue
-            if event["id"] == "command":
-                self._accept_command(event)
-                if self._stop_requested:
+        timer = self._start_timeout_timer()
+        try:
+            render_ms, jpeg_size = self._publish_observation(completed_command=None)
+            self.node.log(
+                "info",
+                f"[OBS 0] initial observation: render_ms={render_ms:.1f} "
+                f"jpeg_kb={jpeg_size / 1024.0:.1f} waiting=command",
+                target="dsrf.sim",
+                fields={
+                    "event": "initial_observation",
+                    "observation_id": "0",
+                    "render_ms": f"{render_ms:.1f}",
+                    "jpeg_kb": f"{jpeg_size / 1024.0:.1f}",
+                },
+            )
+            for event in self.node:
+                if event["type"] == "STOP":
                     return
-            elif event["id"] == "grounding_request":
-                self._accept_grounding_request(event)
+                if event["type"] != "INPUT":
+                    continue
+                if event["id"] == "command":
+                    self._accept_command(event)
+                    if self._stop_requested:
+                        return
+                elif event["id"] == "grounding_request":
+                    self._accept_grounding_request(event)
+        finally:
+            if timer is not None:
+                timer.cancel()
 
     def _accept_grounding_request(self, event: dict[str, Any]) -> None:
         metadata = dict(event.get("metadata") or {})
@@ -206,10 +219,38 @@ class SimRuntime:
         )
         stats = self._execute()
         completed_observation_id = self.observation_id
+        self.completed_commands += 1
+        if self.stop_on_stand and command.terminal:
+            # Do not publish a fresh observation after the terminal command: that
+            # would make the agent issue one more VLM request into a closing node.
+            self._stop_requested = True
+            self.node.log(
+                "info",
+                f"[OBS {completed_observation_id}] terminal stand completed",
+                target="dsrf.sim",
+                fields={
+                    "event": "terminal_stand_completed",
+                    "observation_id": str(completed_observation_id),
+                },
+            )
+            return
+        if (
+            self.max_completed_commands is not None
+            and self.completed_commands >= self.max_completed_commands
+        ):
+            self._stop_requested = True
+            self.node.log(
+                "info",
+                f"Completed-motion limit reached: {self.completed_commands}",
+                target="dsrf.sim",
+                fields={
+                    "event": "demo_max_commands_reached",
+                    "completed_commands": str(self.completed_commands),
+                },
+            )
+            return
         self.observation_id += 1
         render_ms, jpeg_size = self._publish_observation(completed_command=command.text)
-        if self.stop_on_stand and _is_stand_command(command.text):
-            self._stop_requested = True
         target_ms = stats.frames * self.simulation.step_dt * 1000.0
         realtime = target_ms / stats.elapsed_ms if stats.elapsed_ms > 0.0 else 0.0
         self.node.log(
@@ -388,10 +429,45 @@ class SimRuntime:
         error = PipelineError(source, self.observation_id, detail)
         self.node.send_output("error", pipeline_error_to_arrow(error))
 
+    def _start_timeout_timer(self) -> threading.Timer | None:
+        if self.timeout_seconds is None:
+            return None
+        timer = threading.Timer(self.timeout_seconds, self._request_dataflow_stop)
+        timer.daemon = True
+        timer.start()
+        return timer
 
-def _is_stand_command(command: str) -> bool:
+    def _request_dataflow_stop(self) -> None:
+        command = ["dora", "stop"]
+        dataflow_id = _current_dataflow_id()
+        if dataflow_id is not None:
+            command.append(dataflow_id)
+        command.extend(("--grace-duration", "10s"))
+        try:
+            subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            self.node.log(
+                "error",
+                f"Failed to stop timed-out dataflow: {exc}",
+                target="dsrf.sim",
+            )
+
+
+def _current_dataflow_id() -> str | None:
+    raw_config = os.environ.get("DORA_NODE_CONFIG")
+    if raw_config is None:
+        return None
     try:
-        payload = json.loads(command)
-    except (json.JSONDecodeError, TypeError):
-        return False
-    return isinstance(payload, dict) and payload.get("motion") == "stand"
+        config = yaml.safe_load(raw_config)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(config, dict):
+        return None
+    value = config.get("dataflow_id")
+    return str(value) if value else None

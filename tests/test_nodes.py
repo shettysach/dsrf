@@ -183,7 +183,7 @@ def _grounding_request_event(
     }
 
 
-def _runtime(node, simulation, generator, tracker, renderer, viewer=None):
+def _runtime(node, simulation, generator, tracker, renderer, viewer=None, **kwargs):
     return sim_runtime.SimRuntime(
         cast(Any, node),
         cast(Any, simulation),
@@ -191,6 +191,7 @@ def _runtime(node, simulation, generator, tracker, renderer, viewer=None):
         cast(Any, tracker),
         cast(Any, renderer),
         cast(Any, viewer) if viewer is not None else None,
+        **kwargs,
     )
 
 
@@ -220,6 +221,26 @@ def test_sim_generates_tracks_and_steps_final_action(monkeypatch) -> None:
     )
     assert first.completed_command is None
     assert second.completed_command == "walk forward"
+
+
+def test_sim_stops_after_completed_motion_limit(monkeypatch) -> None:
+    node = _Node([_command_event(0, "walk forward"), {"type": "STOP"}])
+    simulation = _Simulation()
+    monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
+
+    _runtime(
+        node,
+        simulation,
+        _Generator(),
+        _Tracker(),
+        _Renderer(simulation),
+        max_completed_commands=1,
+    ).run()
+
+    assert [output_id for output_id, _, _ in node.outputs] == ["observation"]
+    assert any(
+        "Completed-motion limit reached: 1" in message for _, message, _ in node.logs
+    )
 
 
 def test_sim_reports_generator_value_errors() -> None:
@@ -288,12 +309,12 @@ def test_sim_grounds_end_effector_with_published_depth() -> None:
         ]
     )
     simulation = _Simulation()
-    output = _runtime(
-        node, simulation, _Generator(), _Tracker(), _Renderer(simulation)
-    )
+    output = _runtime(node, simulation, _Generator(), _Tracker(), _Renderer(simulation))
     output.run()
 
-    result_output = next(output for output in node.outputs if output[0] == "grounding_result")
+    result_output = next(
+        output for output in node.outputs if output[0] == "grounding_result"
+    )
     result = grounding_result_from_arrow(
         result_output[1], cast(Any, result_output[2]["metadata"])
     )

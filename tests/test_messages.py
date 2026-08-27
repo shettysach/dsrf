@@ -27,6 +27,7 @@ def test_agent_command_arrow_round_trip() -> None:
         (),
         end_effectors=(EndEffectorTarget("right_hand", (0.4, -0.2, 0.8)),),
         reasoning="The red cube is within reach.",
+        terminal=True,
     )
     value, metadata = agent_command_to_arrow(command)
     assert agent_command_from_arrow(value, metadata) == command

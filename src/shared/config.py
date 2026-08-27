@@ -67,6 +67,8 @@ class SimConfig:
     reference_ghost: bool
     demo_video_path: Path | None = None
     stop_on_stand: bool = False
+    demo_max_commands: int | None = None
+    demo_timeout_seconds: float | None = None
 
     @classmethod
     def from_env(cls) -> "SimConfig":
@@ -76,6 +78,10 @@ class SimConfig:
                 "task": _optional_task(),
                 "demo_video_path": _optional_path("DEMO_VIDEO_PATH"),
                 "stop_on_stand": _optional_boolean("STOP_ON_STAND", default=False),
+                "demo_max_commands": _optional_positive_int("DEMO_MAX_COMMANDS"),
+                "demo_timeout_seconds": _optional_positive_float(
+                    "DEMO_TIMEOUT_SECONDS"
+                ),
             },
         )
 
@@ -139,6 +145,26 @@ def _optional_boolean(name: str, *, default: bool) -> bool:
     if value not in {"false", "true"}:
         raise ValueError(f"{name} must be 'false' or 'true'")
     return value == "true"
+
+
+def _optional_positive_int(name: str) -> int | None:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return None
+    parsed = int(value)
+    if parsed <= 0:
+        raise ValueError(f"{name} must be positive")
+    return parsed
+
+
+def _optional_positive_float(name: str) -> float | None:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return None
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed <= 0.0:
+        raise ValueError(f"{name} must be positive")
+    return parsed
 
 
 def _motion_generator() -> Literal["kinematic_planner", "ardy"]:

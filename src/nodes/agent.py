@@ -319,6 +319,7 @@ class AgentLoop:
             direction,
             end_effectors,
             completion.reasoning if completion is not None else None,
+            terminal=completion is not None and motion == "stand",
         )
         data, metadata = agent_command_to_arrow(command)
         self.node.send_output("command", data, metadata=metadata)

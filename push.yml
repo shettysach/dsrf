@@ -38,6 +38,8 @@ nodes:
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
       DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-}"
       STOP_ON_STAND: "${STOP_ON_STAND:-false}"
+      DEMO_MAX_COMMANDS: "${DEMO_MAX_COMMANDS:-}"
+      DEMO_TIMEOUT_SECONDS: "${DEMO_TIMEOUT_SECONDS:-}"
     inputs:
       command: agent/command
       grounding_request: agent/grounding_request
