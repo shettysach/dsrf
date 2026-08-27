@@ -27,7 +27,7 @@ TASK = TaskSpec(
     make_entities=_make_entities,
     virtual_force_objects=("box",),
     observation_camera=ObservationCameraSpec(
-        distance=6.0,
+        distance=5.0,
         elevation=-78.0,
         fovy=60.0,
     ),
