@@ -56,6 +56,8 @@ def make_sim_env_cfg(
         G1_ACTUATOR_ANKLE,
     )
     robot_cfg = get_g1_robot_cfg()
+    if task is not None and task.robot_initial_pos is not None:
+        robot_cfg.init_state = replace(robot_cfg.init_state, pos=task.robot_initial_pos)
     robot_cfg.articulation = EntityArticulationInfoCfg(
         actuators=actuators,
         soft_joint_pos_limit_factor=0.9,
