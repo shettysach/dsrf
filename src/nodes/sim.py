@@ -9,6 +9,7 @@ from shared.config import MotionGenConfig, SimConfig
 from sim.env import MjlabEnv
 from sim.renderer import SimRenderer
 from sim.runtime import SimRuntime
+from sim.video import DemoVideoRecorder
 from sim.viewer import NativeSimViewer, SimViewer, ViserSimViewer
 from tracker.sonic import SonicTracker
 
@@ -25,6 +26,7 @@ def main() -> None:
         image_height=cfg.image_height,
     )
     viewer: Optional[SimViewer] = None
+    recorder: DemoVideoRecorder | None = None
 
     try:
         with simulation.compute_context():
@@ -45,6 +47,11 @@ def main() -> None:
                 else ViserSimViewer(simulation.mjlab_env, reference)
             )
         renderer = SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
+        recorder = (
+            DemoVideoRecorder(cfg.demo_video_path)
+            if cfg.demo_video_path is not None
+            else None
+        )
         _log_init(node, cfg)
         SimRuntime(
             node,
@@ -53,8 +60,11 @@ def main() -> None:
             tracker,
             renderer,
             viewer,
+            recorder,
         ).run()
     finally:
+        if recorder is not None:
+            recorder.close()
         if viewer is not None:
             viewer.close()
         simulation.close()
@@ -72,6 +82,7 @@ def _log_init(node: Node, cfg: SimConfig) -> None:
             "tracker": "sonic",
             "viewer": cfg.viewer,
             "reference_ghost": str(cfg.reference_ghost).lower(),
+            "demo_video_path": str(cfg.demo_video_path) if cfg.demo_video_path else "",
         },
     )
 

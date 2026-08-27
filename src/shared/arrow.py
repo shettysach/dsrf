@@ -30,6 +30,8 @@ def agent_command_to_arrow(
         metadata["direction"] = command.direction
     if command.end_effectors:
         metadata["end_effectors"] = _end_effectors_json(command.end_effectors)
+    if command.reasoning is not None:
+        metadata["reasoning"] = command.reasoning
     return pa.array([command.text], type=pa.string()), metadata
 
 
@@ -41,6 +43,7 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         target_xys=_target_xys(metadata),
         direction=_direction(metadata),
         end_effectors=_end_effectors(metadata),
+        reasoning=(str(metadata["reasoning"]) if "reasoning" in metadata else None),
     )
 
 

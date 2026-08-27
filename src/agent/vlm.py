@@ -20,6 +20,7 @@ class CommandCompletion:
     command: str
     assistant_message: dict[str, Any]
     tool_call_id: str | None
+    reasoning: str | None = None
 
 
 class OAIChatClient:
@@ -132,7 +133,14 @@ def _tool_completion(message: dict[str, Any], tool_name: str) -> CommandCompleti
     assistant_message = {"role": "assistant", "tool_calls": tool_calls}
     if isinstance(message.get("content"), str):
         assistant_message["content"] = message["content"]
-    return CommandCompletion(function["arguments"], assistant_message, tool_call_id)
+    reasoning = message.get(
+        "reasoning_content", message.get("reasoning", message.get("content"))
+    )
+    if reasoning is not None and not isinstance(reasoning, str):
+        reasoning = str(reasoning)
+    return CommandCompletion(
+        function["arguments"], assistant_message, tool_call_id, reasoning
+    )
 
 
 def _tool_name(tool: dict[str, Any]) -> str:

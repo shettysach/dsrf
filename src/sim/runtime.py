@@ -28,6 +28,7 @@ from sim.camera import ProjectionContext
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.renderer import SimRenderer
+from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
 from sim.virtual_force import VirtualForce, VirtualForceResult
 from tracker.sonic import SonicTracker
@@ -49,6 +50,7 @@ class SimRuntime:
         tracker: SonicTracker,
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
+        recorder: DemoVideoRecorder | None = None,
     ) -> None:
         self.node = node
         self.simulation = simulation
@@ -56,6 +58,8 @@ class SimRuntime:
         self.tracker = tracker
         self.renderer = renderer
         self.viewer = viewer
+        self.recorder = recorder
+        self.demo_vlm_state = DemoVlmState()
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
@@ -160,6 +164,12 @@ class SimRuntime:
             )
             return
 
+        self.demo_vlm_state = DemoVlmState(
+            observation_id=command.observation_id,
+            reasoning=command.reasoning or "",
+            command=command.text,
+        )
+
         self._projection_cache = None
         generation_started_at = time.perf_counter()
         try:
@@ -257,6 +267,10 @@ class SimRuntime:
                     self.simulation.step(action, external_forces=force_result.forces)
                 if self.viewer is not None:
                     self.viewer.sync()
+                if self.recorder is not None:
+                    self.recorder.write_frame(
+                        self.renderer.capture_demo_rgb(), self.demo_vlm_state
+                    )
                 frames += 1
 
                 # Completion is detected while producing the last reference

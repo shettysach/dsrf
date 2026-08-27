@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import torch
 from torchvision.io import encode_jpeg
 
@@ -15,6 +16,11 @@ class SimRenderer:
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
         image, projection = self.simulation.capture_rgbd()
         return self._encode(image), projection
+
+    def capture_demo_rgb(self) -> np.ndarray:
+        """Capture an RGB frame from the VLM observation camera for a demo video."""
+        image, _ = self.simulation.capture_rgbd()
+        return image.detach().cpu().numpy()
 
     def _encode(self, image: torch.Tensor) -> bytes:
         encoded = encode_jpeg(image.permute(2, 0, 1), quality=self.jpeg_quality)

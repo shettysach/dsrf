@@ -580,7 +580,10 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "dora-rs" },
+    { name = "imageio" },
+    { name = "imageio-ffmpeg" },
     { name = "numpy" },
+    { name = "pillow" },
     { name = "pyarrow" },
     { name = "pyyaml" },
 ]
@@ -622,11 +625,14 @@ requires-dist = [
     { name = "ardy", marker = "extra == 'ardy'", git = "https://github.com/shettysach/ardy?branch=main" },
     { name = "bitsandbytes", marker = "extra == 'ardy'", specifier = ">=0.50.0" },
     { name = "dora-rs", specifier = "==1.0.0rc4" },
+    { name = "imageio", specifier = ">=2.37,<3" },
+    { name = "imageio-ffmpeg", specifier = ">=0.6,<0.7" },
     { name = "mjlab", marker = "extra == 'cpu'", git = "https://github.com/mujocolab/mjlab?tag=v1.6.0" },
     { name = "mjlab", marker = "extra == 'cu128'", git = "https://github.com/mujocolab/mjlab?tag=v1.6.0" },
     { name = "numpy", specifier = ">=2.4.0,<2.5" },
     { name = "onnxruntime", marker = "extra == 'cpu'", specifier = ">=1.23.0,<1.27.0" },
     { name = "onnxruntime-gpu", marker = "extra == 'cu128'", specifier = ">=1.23.0,<1.27.0" },
+    { name = "pillow", specifier = ">=11,<13" },
     { name = "pyarrow", specifier = ">=20" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "torch", marker = "sys_platform == 'darwin' and extra == 'cpu'", specifier = ">=2.7.0" },

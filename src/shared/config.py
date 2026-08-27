@@ -65,12 +65,16 @@ class SimConfig:
     jpeg_quality: int
     viewer: ViewerMode
     reference_ghost: bool
+    demo_video_path: Path | None = None
 
     @classmethod
     def from_env(cls) -> "SimConfig":
         return _dataclass_from_env(
             cls,
-            overrides={"task": _optional_task()},
+            overrides={
+                "task": _optional_task(),
+                "demo_video_path": _optional_path("DEMO_VIDEO_PATH"),
+            },
         )
 
     def __post_init__(self) -> None:
@@ -119,6 +123,11 @@ def _optional_name(name: str) -> str | None:
 def _optional_task() -> TaskSpec | None:
     name = _optional_name("TASK")
     return get_task(name) if name is not None else None
+
+
+def _optional_path(name: str) -> Path | None:
+    value = os.environ.get(name, "").strip()
+    return Path(value) if value else None
 
 
 def _motion_generator() -> Literal["kinematic_planner", "ardy"]:

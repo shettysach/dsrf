@@ -46,6 +46,8 @@ dora run stairs.yml
   runs.
 - Set `REFERENCE_GHOST: "true"` to show the active motion
   reference in the native viewer.
+- Set `DEMO_VIDEO_PATH: /tmp/demo.mp4` to record the observation-camera view.
+  The MP4 overlays the VLM's reasoning and a formatted ARDY command.
 
 ## ARDY closed loop
 

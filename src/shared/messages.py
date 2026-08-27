@@ -46,6 +46,7 @@ class AgentCommand:
     target_xys: tuple[tuple[float, float], ...]
     direction: str | None = None
     end_effectors: tuple[EndEffectorTarget, ...] = ()
+    reasoning: str | None = None
 
     def __post_init__(self) -> None:
         normalized = self.text.strip()
