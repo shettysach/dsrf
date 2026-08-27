@@ -66,6 +66,7 @@ class SimConfig:
     viewer: ViewerMode
     reference_ghost: bool
     demo_video_path: Path | None = None
+    stop_on_stand: bool = False
 
     @classmethod
     def from_env(cls) -> "SimConfig":
@@ -74,6 +75,7 @@ class SimConfig:
             overrides={
                 "task": _optional_task(),
                 "demo_video_path": _optional_path("DEMO_VIDEO_PATH"),
+                "stop_on_stand": _optional_boolean("STOP_ON_STAND", default=False),
             },
         )
 
@@ -128,6 +130,15 @@ def _optional_task() -> TaskSpec | None:
 def _optional_path(name: str) -> Path | None:
     value = os.environ.get(name, "").strip()
     return Path(value) if value else None
+
+
+def _optional_boolean(name: str, *, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    if value not in {"false", "true"}:
+        raise ValueError(f"{name} must be 'false' or 'true'")
+    return value == "true"
 
 
 def _motion_generator() -> Literal["kinematic_planner", "ardy"]:

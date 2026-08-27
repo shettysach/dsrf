@@ -175,3 +175,12 @@ def test_end_effector_pixel_resolves_to_local_3d_target() -> None:
 
     assert result.pixel == (50, 50)
     assert result.target_xyz == pytest.approx((0.5, 0.0, 0.8), abs=0.01)
+
+
+def test_end_effector_grounding_defers_reachability_to_motion_planning() -> None:
+    projection = _floor_projection()
+    projection.depth[:] = 4.0
+
+    result = resolve_end_effector("right_hand", (500, 500), projection)
+
+    assert math.dist(result.target_xyz, (0.0, 0.0, 0.0)) > 1.25

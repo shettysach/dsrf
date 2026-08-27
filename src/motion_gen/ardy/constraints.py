@@ -11,6 +11,12 @@ _JOINT_NAMES = {
     "left_foot": "left_toe_base",
     "right_foot": "right_toe_base",
 }
+_MAX_END_EFFECTOR_REACH_M = {
+    "left_hand": 1.25,
+    "right_hand": 1.25,
+    "left_foot": 1.5,
+    "right_foot": 1.5,
+}
 
 
 def build_constraints(
@@ -85,6 +91,7 @@ def build_constraints(
         root_index = motion_rep.skeleton.root_idx
         constraint_root = current_root.clone()
         constraint_root[[0, 2]] = root_2d[-1]
+        _validate_end_effector_reach(end_effectors, target_positions, constraint_root)
         joint_indices = [
             motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
             for target in end_effectors
@@ -120,3 +127,20 @@ def _rotate_2d(positions: torch.Tensor, heading: torch.Tensor) -> torch.Tensor:
         .rotate_2d_positions(positions.unsqueeze(0))
         .squeeze(0)
     )
+
+
+def _validate_end_effector_reach(
+    end_effectors: tuple[EndEffectorTarget, ...],
+    target_positions: torch.Tensor,
+    final_root: torch.Tensor,
+) -> None:
+    """Validate reach from ARDY's final root constraint, not its current pose."""
+    distances = torch.linalg.vector_norm(target_positions - final_root, dim=1)
+    for target, distance in zip(end_effectors, distances, strict=True):
+        limit = _MAX_END_EFFECTOR_REACH_M[target.name]
+        distance_value = float(distance)
+        if distance_value > limit:
+            raise ValueError(
+                f"{target.name} target is out of reach at the final waypoint: "
+                f"distance={distance_value:.3f}m, maximum={limit:.3f}m"
+            )

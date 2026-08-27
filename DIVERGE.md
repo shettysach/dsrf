@@ -1,0 +1,6 @@
+# Demovid divergence from `master`
+
+- `DEMO_VIDEO_PATH` records the VLM observation-camera stream with VLM reasoning, a formatted ARDY command, and first-frame-only waypoint/end-effector markers.
+- The box-push observation camera is closer (5 m rather than 6 m).
+- End-effector targets are validated against ARDY's final waypoint/root constraint, allowing one command to approach a target and then reach it.
+- Recorded push runs stop cleanly after the terminal `stand` command; `run_push_videos.sh` saves ten numbered videos and waits for each MP4 to finalize.

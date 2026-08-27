@@ -61,6 +61,7 @@ def main() -> None:
             renderer,
             viewer,
             recorder,
+            stop_on_stand=cfg.stop_on_stand,
         ).run()
     finally:
         if recorder is not None:

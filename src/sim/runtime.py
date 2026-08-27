@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -51,6 +52,7 @@ class SimRuntime:
         renderer: SimRenderer,
         viewer: SimViewer | None = None,
         recorder: DemoVideoRecorder | None = None,
+        stop_on_stand: bool = False,
     ) -> None:
         self.node = node
         self.simulation = simulation
@@ -59,10 +61,12 @@ class SimRuntime:
         self.renderer = renderer
         self.viewer = viewer
         self.recorder = recorder
+        self.stop_on_stand = stop_on_stand
         self.demo_vlm_state = DemoVlmState()
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
+        self._stop_requested = False
         task = getattr(simulation, "task", None)
         self.virtual_force = (
             VirtualForce(
@@ -97,6 +101,8 @@ class SimRuntime:
                 continue
             if event["id"] == "command":
                 self._accept_command(event)
+                if self._stop_requested:
+                    return
             elif event["id"] == "grounding_request":
                 self._accept_grounding_request(event)
 
@@ -201,9 +207,9 @@ class SimRuntime:
         stats = self._execute()
         completed_observation_id = self.observation_id
         self.observation_id += 1
-        render_ms, jpeg_size = self._publish_observation(
-            completed_command=command.text
-        )
+        render_ms, jpeg_size = self._publish_observation(completed_command=command.text)
+        if self.stop_on_stand and _is_stand_command(command.text):
+            self._stop_requested = True
         target_ms = stats.frames * self.simulation.step_dt * 1000.0
         realtime = target_ms / stats.elapsed_ms if stats.elapsed_ms > 0.0 else 0.0
         self.node.log(
@@ -381,3 +387,11 @@ class SimRuntime:
         )
         error = PipelineError(source, self.observation_id, detail)
         self.node.send_output("error", pipeline_error_to_arrow(error))
+
+
+def _is_stand_command(command: str) -> bool:
+    try:
+        payload = json.loads(command)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(payload, dict) and payload.get("motion") == "stand"

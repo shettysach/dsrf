@@ -174,6 +174,39 @@ def test_waypoint_and_end_effector_share_the_final_constraint_frame() -> None:
     )
 
 
+def test_waypoint_can_make_an_initially_distant_hand_target_reachable() -> None:
+    motion_rep, _ = _conditions()
+    root_history = torch.tensor([[0.0, 0.8, 0.0], [0.0, 0.8, 0.0]])
+
+    build_constraints(
+        motion_rep,
+        root_history,
+        torch.tensor(0.0),
+        ((2.0, 0.0),),
+        (EndEffectorTarget("right_hand", (2.0, 0.0, 0.0)),),
+        generated_frames=125,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+
+def test_end_effector_must_be_reachable_from_the_final_waypoint() -> None:
+    motion_rep, _ = _conditions()
+    root_history = torch.tensor([[0.0, 0.8, 0.0], [0.0, 0.8, 0.0]])
+
+    with pytest.raises(ValueError, match="final waypoint"):
+        build_constraints(
+            motion_rep,
+            root_history,
+            torch.tensor(0.0),
+            (),
+            (EndEffectorTarget("right_hand", (2.0, 0.0, 0.0)),),
+            generated_frames=125,
+            history_frames=4,
+            device=torch.device("cpu"),
+        )
+
+
 def test_foot_becomes_final_toe_position() -> None:
     motion_rep, received = _conditions()
     root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])

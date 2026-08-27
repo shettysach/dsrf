@@ -10,8 +10,6 @@ from sim.camera import ProjectionContext
 
 MAX_TARGET_DISTANCE_M = 1.5
 MIN_TARGET_DISTANCE_M = 0.05
-MAX_HAND_TARGET_DISTANCE_M = 1.25
-MAX_FOOT_TARGET_DISTANCE_M = 1.5
 GROUND_Z_M = 0.0
 GROUND_TOLERANCE_M = 0.25
 
@@ -69,19 +67,11 @@ def resolve_end_effector(
     projection: ProjectionContext,
     *,
     patch_size: int = 5,
-    max_distance: float | None = None,
 ) -> ResolvedEndEffector:
     pixel, depth, world_point = _unproject(target_2d, projection, patch_size)
     target_xyz = _world_to_robot(world_point - projection.root_pos_w, projection)
-    distance = float(torch.linalg.vector_norm(target_xyz))
-    if not math.isfinite(distance):
+    if not bool(torch.isfinite(target_xyz).all()):
         raise ValueError("Local end-effector target is not finite")
-    limit = max_distance or _reach_limit(name)
-    if distance > limit:
-        raise ValueError(
-            f"{name} target is out of reach: distance={distance:.3f}m, "
-            f"maximum={limit:.3f}m"
-        )
     return ResolvedEndEffector(
         name=name,
         normalized=target_2d,
@@ -92,14 +82,6 @@ def resolve_end_effector(
             float(target_xyz[1]),
             float(target_xyz[2]),
         ),
-    )
-
-
-def _reach_limit(name: str) -> float:
-    return (
-        MAX_FOOT_TARGET_DISTANCE_M
-        if name.endswith("_foot")
-        else MAX_HAND_TARGET_DISTANCE_M
     )
 
 
