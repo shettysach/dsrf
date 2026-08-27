@@ -11,6 +11,7 @@ nodes:
       VLM_SYSTEM_PROMPT: tasks/box_push/TASK.md
       VLM_USER_PROMPT: prompt/USER.md
       MOTION_GENERATOR: ardy
+      DEMO_MAX_COMMANDS: "${DEMO_MAX_COMMANDS:-}"
     inputs:
       observation: sim/observation
       grounding_result: sim/grounding_result

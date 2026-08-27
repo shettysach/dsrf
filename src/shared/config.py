@@ -103,6 +103,7 @@ class AgentConfig:
     system_prompt: Path = dataclass_field(metadata={"env": "VLM_SYSTEM_PROMPT"})
     user_prompt: Path = dataclass_field(metadata={"env": "VLM_USER_PROMPT"})
     command_mode: Literal["waypoint", "direction"]
+    max_vlm_turns: int | None = None
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -112,7 +113,13 @@ class AgentConfig:
             == "kinematic_planner"
             else "waypoint"
         )
-        return _dataclass_from_env(cls, overrides={"command_mode": command_mode})
+        return _dataclass_from_env(
+            cls,
+            overrides={
+                "command_mode": command_mode,
+                "max_vlm_turns": _optional_positive_int("DEMO_MAX_COMMANDS"),
+            },
+        )
 
     def __post_init__(self) -> None:
         url = self.vlm_url.strip().rstrip("/")

@@ -51,6 +51,7 @@ class AgentLoop:
         client: OAIChatClient,
         *,
         command_mode: str = "waypoint",
+        max_vlm_turns: int | None = None,
     ) -> None:
         self.node = node
         self.client = client
@@ -60,6 +61,8 @@ class AgentLoop:
         self.pending_grounding: _PendingGrounding | None = None
         self.invalid_responses = 0
         self.command_mode = command_mode
+        self.max_vlm_turns = max_vlm_turns
+        self.vlm_turns = 0
 
     def run(self) -> None:
         for event in self.node:
@@ -174,13 +177,34 @@ class AgentLoop:
                     "invalid_responses": str(self.invalid_responses),
                 },
             )
-            self._send(self._fallback_command, motion="stand", target_xys=())
+            self._send(
+                self._fallback_command,
+                motion="stand",
+                target_xys=(),
+                terminal=self._at_vlm_turn_limit,
+            )
+            return
+        if self._at_vlm_turn_limit:
+            self.node.log(
+                "warn",
+                f"VLM turn limit reached after error on observation {observation_id}; "
+                "sending terminal fallback stand",
+                target="dsrf.agent",
+                fields={"event": "vlm_turn_limit_reached"},
+            )
+            self._send(
+                self._fallback_command,
+                motion="stand",
+                target_xys=(),
+                terminal=True,
+            )
             return
         feedback = f"Your previous response {previous!r} was invalid: {detail}"
         self._query_and_send(retry_feedback=feedback)
 
     def _query_and_send(self, *, retry_feedback: str | None = None) -> None:
         assert self.observation is not None
+        self.vlm_turns += 1
         observation_id = self.observation.observation_id
         attempt = self.invalid_responses
         fields = {
@@ -309,8 +333,13 @@ class AgentLoop:
         direction: str | None = None,
         end_effectors: tuple[EndEffectorTarget, ...] = (),
         completion: CommandCompletion | None = None,
+        terminal: bool | None = None,
     ) -> None:
         assert self.observation is not None
+        if terminal is None:
+            terminal = completion is not None and (
+                motion == "stand" or self._at_vlm_turn_limit
+            )
         command = AgentCommand(
             self.observation.observation_id,
             command_text,
@@ -319,7 +348,7 @@ class AgentLoop:
             direction,
             end_effectors,
             completion.reasoning if completion is not None else None,
-            terminal=completion is not None and motion == "stand",
+            terminal=terminal,
         )
         data, metadata = agent_command_to_arrow(command)
         self.node.send_output("command", data, metadata=metadata)
@@ -338,6 +367,10 @@ class AgentLoop:
             else FALLBACK_COMMAND
         )
 
+    @property
+    def _at_vlm_turn_limit(self) -> bool:
+        return self.max_vlm_turns is not None and self.vlm_turns >= self.max_vlm_turns
+
 
 def main() -> None:
     cfg = AgentConfig.from_env()
@@ -353,6 +386,7 @@ def main() -> None:
         node,
         client,
         command_mode=cfg.command_mode,
+        max_vlm_turns=cfg.max_vlm_turns,
     ).run()
 
 
