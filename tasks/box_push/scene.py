@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-BOX_HALF_SIZE = 0.35
+BOX_HALF_SIZE = (0.25, 0.30, 0.45)
 BOX_MASS = 1.0
 BOX_START = (1.75, 0.0)
 GOAL_CENTER = (4.25, 0.0)
@@ -33,7 +33,7 @@ def make_box_push_entity_cfg() -> EntityCfg:
 
     return EntityCfg(
         spec_fn=_make_box_spec,
-        init_state=EntityCfg.InitialStateCfg(pos=(*BOX_START, BOX_HALF_SIZE)),
+        init_state=EntityCfg.InitialStateCfg(pos=(*BOX_START, BOX_HALF_SIZE[2])),
     )
 
 
@@ -44,7 +44,7 @@ def _make_box_spec() -> "MjSpec":
     body.add_geom(
         name="box_collision",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
-        size=(BOX_HALF_SIZE,) * 3,
+        size=BOX_HALF_SIZE,
         mass=BOX_MASS,
         friction=(0.75, 0.01, 0.001),
         rgba=_BOX_RGBA,

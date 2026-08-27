@@ -189,7 +189,6 @@ class SimRuntime:
             command=command.text,
         )
 
-        self._projection_cache = None
         generation_started_at = time.perf_counter()
         try:
             with self.simulation.compute_context():
@@ -206,6 +205,10 @@ class SimRuntime:
             self._log_generation_error(command, generation_started_at, exc)
             raise
 
+        # A failed generation leaves this observation current, so keep its
+        # synchronized depth available for a corrected command. Once generation
+        # succeeds, the next physics step can change the scene and invalidates it.
+        self._projection_cache = None
         self._log_motion_generated(
             command,
             source_qpos,
@@ -361,10 +364,10 @@ class SimRuntime:
             completed_command=completed_command,
             jpeg=jpeg,
         )
-        data, metadata = observation_to_arrow(observation)
-        self.node.send_output("observation", data, metadata=metadata)
         self._projection_cache = projection
         self._observation_published_at = time.perf_counter()
+        data, metadata = observation_to_arrow(observation)
+        self.node.send_output("observation", data, metadata=metadata)
         return render_ms, len(jpeg)
 
     def _log_motion_generated(

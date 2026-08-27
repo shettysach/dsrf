@@ -250,18 +250,20 @@ def test_sim_reports_generator_value_errors() -> None:
 
     node = _Node([_command_event(0, "wave"), {"type": "STOP"}])
     simulation = _Simulation()
-    _runtime(
+    runtime = _runtime(
         node,
         simulation,
         _FailingGenerator(),
         _Tracker(),
         _Renderer(simulation),
-    ).run()
+    )
+    runtime.run()
 
     error = pipeline_error_from_arrow(node.outputs[-1][1])
     assert error.source == "motion-gen"
     assert error.observation_id == 0
     assert error.detail == "unsupported motion"
+    assert runtime._projection_cache is not None
 
 
 def test_sim_publishes_synchronized_rgbd() -> None:
