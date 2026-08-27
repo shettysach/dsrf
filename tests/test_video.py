@@ -1,6 +1,6 @@
 import numpy as np
 
-from sim.video import DemoVlmState, _format_ardy, compose_demo_frame
+from sim.video import DemoVideoRecorder, DemoVlmState, _format_ardy, compose_demo_frame
 
 
 def test_video_frame_overlays_a_vlm_decision() -> None:
@@ -48,3 +48,26 @@ def test_video_can_hide_targets_after_the_decision_frame() -> None:
     )
 
     assert tuple(rendered[320, 419]) != (35, 120, 255)
+
+
+def test_video_shows_targets_for_half_a_second_per_observation(monkeypatch, tmp_path) -> None:
+    frames: list[np.ndarray] = []
+
+    class Writer:
+        def append_data(self, frame: np.ndarray) -> None:
+            frames.append(frame)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr("sim.video.iio.get_writer", lambda *args, **kwargs: Writer())
+    recorder = DemoVideoRecorder(tmp_path / "demo.mp4", fps=10)
+    state = DemoVlmState(command='{"motion":"walk","waypoints_2d":[[700,800]]}')
+    source = np.zeros((400, 600, 3), dtype=np.uint8)
+
+    for _ in range(6):
+        recorder.write_frame(source, state)
+
+    assert tuple(frames[0][320, 419]) == (35, 120, 255)
+    assert tuple(frames[4][320, 419]) == (35, 120, 255)
+    assert tuple(frames[5][320, 419]) != (35, 120, 255)

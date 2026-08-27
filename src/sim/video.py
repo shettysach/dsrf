@@ -15,6 +15,11 @@ from shared.messages import REFERENCE_HZ
 type Font = ImageFont.ImageFont | ImageFont.FreeTypeFont
 
 
+# Keep targets visible long enough to read without implying they remain valid
+# after the camera has moved appreciably.
+TARGET_DISPLAY_SECONDS = 0.5
+
+
 @dataclass(frozen=True)
 class DemoVlmState:
     observation_id: int = -1
@@ -30,14 +35,19 @@ class DemoVideoRecorder:
         )
         self._closed = False
         self._marked_observation_id: int | None = None
+        self._target_frames_remaining = 0
+        self._target_display_frames = max(1, round(fps * TARGET_DISPLAY_SECONDS))
 
     def write_frame(self, rgb: np.ndarray, state: DemoVlmState) -> None:
-        show_targets = state.observation_id != self._marked_observation_id
+        if state.observation_id != self._marked_observation_id:
+            self._marked_observation_id = state.observation_id
+            self._target_frames_remaining = self._target_display_frames
+        show_targets = self._target_frames_remaining > 0
         self._writer.append_data(
             compose_demo_frame(rgb, state, show_targets=show_targets)
         )
         if show_targets:
-            self._marked_observation_id = state.observation_id
+            self._target_frames_remaining -= 1
 
     def close(self) -> None:
         if not self._closed:
