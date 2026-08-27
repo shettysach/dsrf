@@ -29,9 +29,15 @@ class DemoVideoRecorder:
             str(path), fps=fps, codec="libx264", macro_block_size=1
         )
         self._closed = False
+        self._marked_observation_id: int | None = None
 
     def write_frame(self, rgb: np.ndarray, state: DemoVlmState) -> None:
-        self._writer.append_data(compose_demo_frame(rgb, state))
+        show_targets = state.observation_id != self._marked_observation_id
+        self._writer.append_data(
+            compose_demo_frame(rgb, state, show_targets=show_targets)
+        )
+        if show_targets:
+            self._marked_observation_id = state.observation_id
 
     def close(self) -> None:
         if not self._closed:
@@ -39,7 +45,9 @@ class DemoVideoRecorder:
             self._closed = True
 
 
-def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
+def compose_demo_frame(
+    rgb: np.ndarray, state: DemoVlmState, *, show_targets: bool = True
+) -> np.ndarray:
     image = Image.fromarray(np.asarray(rgb, dtype=np.uint8), mode="RGB").convert("RGBA")
     overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
@@ -74,7 +82,8 @@ def compose_demo_frame(rgb: np.ndarray, state: DemoVlmState) -> np.ndarray:
     for text, text_font in lines:
         draw.text((x + padding, cursor_y), text, fill="white", font=text_font)
         cursor_y += line_height
-    _draw_vlm_targets(draw, state.command, image.size, font)
+    if show_targets:
+        _draw_vlm_targets(draw, state.command, image.size, font)
     return np.asarray(Image.alpha_composite(image, overlay).convert("RGB"))
 
 

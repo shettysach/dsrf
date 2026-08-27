@@ -37,3 +37,14 @@ def test_video_marks_waypoints_and_labeled_end_effectors() -> None:
 
     assert tuple(rendered[320, 419]) == (35, 120, 255)
     assert tuple(rendered[279, 479]) == (235, 30, 30)
+
+
+def test_video_can_hide_targets_after_the_decision_frame() -> None:
+    source = np.zeros((400, 600, 3), dtype=np.uint8)
+    rendered = compose_demo_frame(
+        source,
+        DemoVlmState(command='{"motion":"walk","waypoints_2d":[[700,800]]}'),
+        show_targets=False,
+    )
+
+    assert tuple(rendered[320, 419]) != (35, 120, 255)
