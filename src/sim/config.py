@@ -73,7 +73,7 @@ def make_sim_env_cfg(
     camera_spec = (
         task.observation_camera if task is not None else ObservationCameraSpec()
     )
-    camera_pos, camera_quat = _attached_camera_pose(camera_spec)
+    camera_pos, camera_quat = _observation_camera_pose(camera_spec)
     entities = {"robot": robot_cfg}
     if task is not None:
         entities.update(task.make_entities())
@@ -117,9 +117,24 @@ def make_sim_env_cfg(
     )
 
 
-def _attached_camera_pose(
+def _observation_camera_pose(
     spec: ObservationCameraSpec,
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+    """Return a torso-relative observation-camera pose.
+
+    Egocentric cameras are placed at the G1 head center and look along the
+    robot's local +X axis.  The G1 model has no separate head body, so the
+    camera remains attached to the torso while using the head's local offset.
+    """
+    if spec.egocentric:
+        position = torch.tensor((0.0, 0.0, 0.43), dtype=torch.float64)
+        right = position.new_tensor((0.0, -1.0, 0.0))
+        up = position.new_tensor((0.0, 0.0, 1.0))
+        back = position.new_tensor((-1.0, 0.0, 0.0))
+        rotation = torch.stack((right, up, back), dim=1)
+        quaternion = quat_from_matrix(rotation)
+        return tuple(position.tolist()), tuple(quaternion.tolist())
+
     elevation = math.radians(spec.elevation)
     azimuth = math.radians(spec.azimuth)
     position = torch.tensor(

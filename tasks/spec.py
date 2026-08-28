@@ -19,6 +19,7 @@ class ObservationCameraSpec:
     elevation: float = -15.0
     azimuth: float = 0.0
     fovy: float = 45.0
+    egocentric: bool = False
 
     def __post_init__(self) -> None:
         if self.distance <= 0.0:

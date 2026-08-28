@@ -30,8 +30,8 @@ TASK = TaskSpec(
     # first test isolates hand targeting/contact rather than navigation.
     robot_initial_pos=(0.95, 0.0, 0.76),
     observation_camera=ObservationCameraSpec(
-        distance=4.0,
-        elevation=-45.0,
-        fovy=60.0,
+        # Head-height, forward-facing view used for the VLM observation stream.
+        egocentric=True,
+        fovy=90.0,
     ),
 )

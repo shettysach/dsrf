@@ -11,7 +11,8 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-BOX_HALF_SIZE = (0.25, 0.30, 0.45)
+# A slightly broader, taller face gives both hands more usable contact area.
+BOX_HALF_SIZE = (0.25, 0.35, 0.55)
 BOX_MASS = 1.0
 BOX_START = (1.75, 0.0)
 GOAL_CENTER = (5.0, 0.0)

@@ -6,6 +6,7 @@ import torch
 from sim.config import make_sim_env_cfg
 from sim.env import MjlabEnv, _hand_object_contacts_from_buffers
 from tasks.box_push import TASK as BOX_PUSH_TASK
+from tasks.box_push.scene import BOX_HALF_SIZE, make_box_push_entity_cfg
 
 
 def test_observation_camera_is_attached_to_torso() -> None:
@@ -21,6 +22,22 @@ def test_box_push_starts_g1_directly_behind_the_box() -> None:
 
     robot = cfg.scene.entities["robot"]
     assert robot.init_state.pos == pytest.approx((0.95, 0.0, 0.76))
+
+
+def test_box_push_box_is_wider_and_taller() -> None:
+    box = make_box_push_entity_cfg()
+
+    assert BOX_HALF_SIZE == pytest.approx((0.25, 0.35, 0.55))
+    assert box.init_state.pos == pytest.approx((1.75, 0.0, 0.55))
+
+
+def test_box_push_uses_an_egocentric_observation_camera() -> None:
+    camera = make_sim_env_cfg(task=BOX_PUSH_TASK).scene.sensors[0]
+
+    assert BOX_PUSH_TASK.observation_camera.egocentric is True
+    assert camera.parent_body == "robot/torso_link"
+    assert camera.pos == pytest.approx((0.0, 0.0, 0.43))
+    assert camera.fovy == 90.0
 
 
 def test_mjlab_env_exposes_native_environment_for_mjlab_integrations() -> None:
