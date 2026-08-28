@@ -1,16 +1,23 @@
-# Task: box push
+# Task: Push the Box
 
-## Objective
+The robot, box, and green goal are already aligned, and the robot is already close behind the box.
 
-The robot, movable box, and green goal are already aligned, and the robot is
-already close behind the box. Do not navigate, walk, turn, or use waypoints.
+Do **not** navigate, walk, turn, or use waypoints. Keep the robot base fixed.
 
-1. Place both hands on the near face of the box. From the robot's perspective,
-   target the **left hand** to the box's left side and the **right hand** to the
-   box's right side. Keep both targets at the same height, away from the edges,
-   and do not target the center with either hand.
-2. Push both hands straight forward while keeping contact with the box.
-3. When the push is done, issue **stand**.
+1. Use **end-effector targets** to place both palms against the near face of the movable box.
 
-Use end-effector targets for the hands. The green goal is a visual marker only;
-the box is the movable object.
+   * Left hand: target the left half of the face.
+   * Right hand: target the right half.
+   * Keep both hands at the same height, roughly mid-face.
+   * Keep the targets away from the edges.
+   * Do not target the center with either hand.
+
+2. Orient the palms approximately flat against the box face and establish contact.
+
+3. Push both hands **straight forward together**, keeping both palms in contact and maintaining roughly the same height and spacing. Do not grasp, lift, twist, or push sideways.
+
+4. When the push is complete, issue:
+
+`stand`
+
+The green goal is only a visual marker. The box is the movable object.
