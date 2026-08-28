@@ -139,6 +139,14 @@ class _Renderer:
         self.rgbd_steps.append(self.simulation.steps)
         return f"jpeg-{self.simulation.steps}".encode(), _projection()
 
+    def capture_observation(self) -> tuple[bytes, ProjectionContext, np.ndarray]:
+        jpeg, projection = self.capture_rgbd()
+        rgb = np.full((2, 2, 3), self.simulation.steps, dtype=np.uint8)
+        return jpeg, projection, rgb
+
+    def capture_demo_rgb(self) -> np.ndarray:
+        return np.full((2, 2, 3), self.simulation.steps, dtype=np.uint8)
+
 
 def _projection() -> ProjectionContext:
     return ProjectionContext(
@@ -221,6 +229,35 @@ def test_sim_generates_tracks_and_steps_final_action(monkeypatch) -> None:
     )
     assert first.completed_command is None
     assert second.completed_command == "walk forward"
+
+
+def test_sim_records_the_vlm_source_frame_before_motion(monkeypatch) -> None:
+    class _Recorder:
+        def __init__(self) -> None:
+            self.frames: list[tuple[np.ndarray, object]] = []
+
+        def write_frame(self, rgb, state) -> None:
+            self.frames.append((rgb.copy(), state))
+
+    node = _Node([_command_event(0, "walk forward"), {"type": "STOP"}])
+    simulation = _Simulation()
+    recorder = _Recorder()
+    monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
+
+    _runtime(
+        node,
+        simulation,
+        _Generator(),
+        _Tracker(),
+        _Renderer(simulation),
+        recorder=recorder,
+    ).run()
+
+    source_rgb, source_state = recorder.frames[0]
+    assert np.all(source_rgb == 0)
+    assert source_state.observation_id == 0
+    assert source_state.command == "walk forward"
+    assert np.all(recorder.frames[1][0] == 1)
 
 
 def test_sim_stops_after_completed_motion_limit(monkeypatch) -> None:

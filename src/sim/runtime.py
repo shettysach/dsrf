@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import torch
 import yaml
 from dora import Node
@@ -71,6 +72,7 @@ class SimRuntime:
         self.timeout_seconds = timeout_seconds
         self.completed_commands = 0
         self.demo_vlm_state = DemoVlmState()
+        self._demo_observation_rgb: np.ndarray | None = None
         self.observation_id = 0
         self._projection_cache: ProjectionContext | None = None
         self._observation_published_at: float | None = None
@@ -188,6 +190,10 @@ class SimRuntime:
             reasoning=command.reasoning or "",
             command=command.text,
         )
+        # The VLM selected its targets on this exact observation. Record it now
+        # that the response is available, before generating or stepping motion.
+        if self.recorder is not None and self._demo_observation_rgb is not None:
+            self.recorder.write_frame(self._demo_observation_rgb, self.demo_vlm_state)
 
         generation_started_at = time.perf_counter()
         try:
@@ -357,7 +363,13 @@ class SimRuntime:
         self, *, completed_command: str | None
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
-        jpeg, projection = self.renderer.capture_rgbd()
+        if self.recorder is None:
+            jpeg, projection = self.renderer.capture_rgbd()
+            self._demo_observation_rgb = None
+        else:
+            jpeg, projection, self._demo_observation_rgb = (
+                self.renderer.capture_observation()
+            )
         render_ms = (time.perf_counter() - render_started_at) * 1000.0
         observation = VisualObservation(
             observation_id=self.observation_id,

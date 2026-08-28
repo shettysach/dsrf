@@ -14,8 +14,15 @@ class SimRenderer:
         self.jpeg_quality = jpeg_quality
 
     def capture_rgbd(self) -> tuple[bytes, ProjectionContext]:
+        jpeg, projection, _ = self.capture_observation()
+        return jpeg, projection
+
+    def capture_observation(self) -> tuple[bytes, ProjectionContext, np.ndarray]:
+        """Capture the image sent to the VLM, retaining its RGB pixels for demos."""
         image, projection = self.simulation.capture_rgbd()
-        return self._encode(image), projection
+        # Keep an immutable snapshot while inference and motion generation run.
+        rgb = image.detach().cpu().numpy().copy()
+        return self._encode(image), projection, rgb
 
     def capture_demo_rgb(self) -> np.ndarray:
         """Capture an RGB frame from the VLM observation camera for a demo video."""
