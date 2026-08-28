@@ -30,7 +30,7 @@ TASK = TaskSpec(
     # first test isolates hand targeting/contact rather than navigation.
     robot_initial_pos=(0.95, 0.0, 0.76),
     observation_camera=ObservationCameraSpec(
-        distance=5.0,
+        distance=4.0,
         elevation=-45.0,
         fovy=60.0,
     ),
