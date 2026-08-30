@@ -110,6 +110,7 @@ class AgentConfig:
     max_vlm_turns: int | None = None
     agent: Literal["vlm", "script"] = "vlm"
     script_task: str | None = None
+    script_prompt: str | None = None
     script_start_immediately: bool = False
 
     @classmethod
@@ -128,6 +129,7 @@ class AgentConfig:
             "max_vlm_turns": _optional_positive_int("DEMO_MAX_COMMANDS"),
             "agent": agent,
             "script_task": _optional_env("SCRIPT_TASK"),
+            "script_prompt": _optional_env("SCRIPT_PROMPT"),
             "script_start_immediately": _optional_boolean(
                 "SCRIPT_START_IMMEDIATELY", default=False
             ),
@@ -148,6 +150,8 @@ class AgentConfig:
             raise ValueError("AGENT must be 'vlm' or 'script'")
         if self.agent == "script" and self.script_task is None:
             raise ValueError("SCRIPT_TASK must be set when AGENT is 'script'")
+        if self.agent == "script" and self.script_prompt is None:
+            raise ValueError("SCRIPT_PROMPT must be set when AGENT is 'script'")
         if self.agent == "vlm":
             url = self.vlm_url.strip().rstrip("/")
             if not url:

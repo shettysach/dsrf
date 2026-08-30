@@ -7,6 +7,7 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: box_push
+      SCRIPT_PROMPT: place both palms flat on a vertical surface
       SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
     inputs:

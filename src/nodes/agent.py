@@ -377,12 +377,13 @@ def main() -> None:
     node = Node()
     if cfg.agent == "script":
         assert cfg.script_task is not None
+        assert cfg.script_prompt is not None
         from nodes.script_agent import ScriptAgentLoop
         from script import create_task_script
 
         ScriptAgentLoop(
             node,
-            create_task_script(cfg.script_task),
+            create_task_script(cfg.script_task, cfg.script_prompt),
             start_immediately=cfg.script_start_immediately,
         ).run()
         return

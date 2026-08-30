@@ -9,6 +9,7 @@ from shared.messages import AgentCommand, EndEffectorTarget
 class PushScript:
     """One deterministic two-palm push command for the aligned box task."""
 
+    prompt: str
     box_position: tuple[float, float, float] = (1.55, 0.0, 0.55)
     box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
     robot_position: tuple[float, float, float] = (0.95, 0.0, 0.76)
@@ -31,7 +32,7 @@ class PushScript:
         near_face_x = box_x - box_depth / 2.0 + self.contact_depth
         return AgentCommand(
             observation_id=observation_id,
-            text="touch the box with both palms",
+            text=self.prompt,
             motion="face both palms outward, then reach forward to touch",
             target_xys=(),
             end_effectors=(

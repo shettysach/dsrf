@@ -142,16 +142,19 @@ def test_agent_config_from_env(monkeypatch) -> None:
 def test_agent_config_selects_script(monkeypatch) -> None:
     monkeypatch.setenv("AGENT", "script")
     monkeypatch.setenv("SCRIPT_TASK", "box_push")
+    monkeypatch.setenv("SCRIPT_PROMPT", "touch the box")
 
     cfg = AgentConfig.from_env()
 
     assert cfg.agent == "script"
     assert cfg.script_task == "box_push"
+    assert cfg.script_prompt == "touch the box"
 
 
 def test_agent_config_allows_scripts_to_start_without_observations(monkeypatch) -> None:
     monkeypatch.setenv("AGENT", "script")
     monkeypatch.setenv("SCRIPT_TASK", "box_push")
+    monkeypatch.setenv("SCRIPT_PROMPT", "touch the box")
     monkeypatch.setenv("SCRIPT_START_IMMEDIATELY", "true")
 
     assert AgentConfig.from_env().script_start_immediately is True
@@ -162,6 +165,15 @@ def test_script_agent_config_requires_task(monkeypatch) -> None:
     monkeypatch.delenv("SCRIPT_TASK", raising=False)
 
     with pytest.raises(ValueError, match="SCRIPT_TASK"):
+        AgentConfig.from_env()
+
+
+def test_script_agent_config_requires_prompt(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT", "script")
+    monkeypatch.setenv("SCRIPT_TASK", "box_push")
+    monkeypatch.delenv("SCRIPT_PROMPT", raising=False)
+
+    with pytest.raises(ValueError, match="SCRIPT_PROMPT"):
         AgentConfig.from_env()
 
 
