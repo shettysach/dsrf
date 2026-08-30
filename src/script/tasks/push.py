@@ -18,8 +18,8 @@ class PushScript:
     # stop its hands slightly short of a surface target; collision then resolves
     # this to palm contact without requesting a continuing push.
     contact_depth: float = 0.05
-    # Move the pelvis 30 cm toward the box before the final hand constraint.
-    push_waypoint: tuple[float, float] = (0.30, 0.0)
+    # Move the pelvis 40 cm toward the box before the final hand constraint.
+    push_waypoint: tuple[float, float] = (0.40, 0.0)
 
     def next_command(self, observation_id: int) -> AgentCommand | None:
         # This initial experiment has exactly one phase.  Future phases belong
