@@ -40,10 +40,7 @@ def test_push_script_emits_one_symmetric_two_palm_command() -> None:
     command = script.next_command(0)
 
     assert command is not None
-    assert command.motion == (
-        "reach straight forward with both hands, rotate both palms to face forward, "
-        "and place them flat against the box without pushing"
-    )
+    assert command.motion == "face both palms outward, then reach forward to touch"
     assert command.target_xys == ()
     assert [target.name for target in command.end_effectors] == [
         "left_hand",

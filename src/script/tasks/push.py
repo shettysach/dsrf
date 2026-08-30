@@ -32,10 +32,7 @@ class PushScript:
         return AgentCommand(
             observation_id=observation_id,
             text="touch the box with both palms",
-            motion=(
-                "reach straight forward with both hands, rotate both palms to face "
-                "forward, and place them flat against the box without pushing"
-            ),
+            motion="face both palms outward, then reach forward to touch",
             target_xys=(),
             end_effectors=(
                 EndEffectorTarget(
