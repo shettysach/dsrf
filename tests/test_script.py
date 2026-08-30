@@ -47,8 +47,8 @@ def test_push_script_emits_one_symmetric_two_palm_command() -> None:
         "right_hand",
     ]
     left, right = command.end_effectors
-    np.testing.assert_allclose(left.target_xyz, (0.50, 0.16, -0.21))
-    np.testing.assert_allclose(right.target_xyz, (0.50, -0.16, -0.21))
+    np.testing.assert_allclose(left.target_xyz, (0.60, 0.16, -0.21))
+    np.testing.assert_allclose(right.target_xyz, (0.60, -0.16, -0.21))
     assert script.next_command(1) is None
 
 

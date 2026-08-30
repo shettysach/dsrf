@@ -21,7 +21,7 @@ def test_box_push_starts_g1_directly_behind_the_box() -> None:
     cfg = make_sim_env_cfg(task=BOX_PUSH_TASK)
 
     robot = cfg.scene.entities["robot"]
-    assert robot.init_state.pos == pytest.approx((0.85, 0.0, 0.76))
+    assert robot.init_state.pos == pytest.approx((0.75, 0.0, 0.76))
 
 
 def test_box_push_box_is_wider_and_taller() -> None:

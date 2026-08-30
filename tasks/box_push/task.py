@@ -26,9 +26,9 @@ TASK = TaskSpec(
     make_scene=_make_scene,
     make_entities=_make_entities,
     virtual_force_objects=("box",),
-    # The box near face is x=1.30 m. Start the G1 0.45 m behind it so this
+    # The box near face is x=1.30 m. Start the G1 0.55 m behind it so this
     # first test isolates hand targeting/contact rather than navigation.
-    robot_initial_pos=(0.85, 0.0, 0.76),
+    robot_initial_pos=(0.75, 0.0, 0.76),
     observation_camera=ObservationCameraSpec(
         # Head-height, forward-facing view used for the VLM observation stream.
         egocentric=True,
