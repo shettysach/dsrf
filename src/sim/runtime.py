@@ -59,6 +59,7 @@ class SimRuntime:
         stop_on_stand: bool = False,
         max_completed_commands: int | None = None,
         timeout_seconds: float | None = None,
+        publish_observations: bool = True,
     ) -> None:
         self.node = node
         self.simulation = simulation
@@ -70,6 +71,7 @@ class SimRuntime:
         self.stop_on_stand = stop_on_stand
         self.max_completed_commands = max_completed_commands
         self.timeout_seconds = timeout_seconds
+        self.publish_observations = publish_observations
         self.completed_commands = 0
         self.demo_vlm_state = DemoVlmState()
         self._demo_observation_rgb: np.ndarray | None = None
@@ -93,19 +95,22 @@ class SimRuntime:
     def run(self) -> None:
         timer = self._start_timeout_timer()
         try:
-            render_ms, jpeg_size = self._publish_observation(completed_command=None)
-            self.node.log(
-                "info",
-                f"[OBS 0] initial observation: render_ms={render_ms:.1f} "
-                f"jpeg_kb={jpeg_size / 1024.0:.1f} waiting=command",
-                target="dsrf.sim",
-                fields={
-                    "event": "initial_observation",
-                    "observation_id": "0",
-                    "render_ms": f"{render_ms:.1f}",
-                    "jpeg_kb": f"{jpeg_size / 1024.0:.1f}",
-                },
-            )
+            if self.publish_observations:
+                render_ms, jpeg_size = self._publish_observation(
+                    completed_command=None
+                )
+                self.node.log(
+                    "info",
+                    f"[OBS 0] initial observation: render_ms={render_ms:.1f} "
+                    f"jpeg_kb={jpeg_size / 1024.0:.1f} waiting=command",
+                    target="dsrf.sim",
+                    fields={
+                        "event": "initial_observation",
+                        "observation_id": "0",
+                        "render_ms": f"{render_ms:.1f}",
+                        "jpeg_kb": f"{jpeg_size / 1024.0:.1f}",
+                    },
+                )
             for event in self.node:
                 if event["type"] == "STOP":
                     return
@@ -259,6 +264,8 @@ class SimRuntime:
             )
             return
         self.observation_id += 1
+        if not self.publish_observations:
+            return
         render_ms, jpeg_size = self._publish_observation(completed_command=command.text)
         target_ms = stats.frames * self.simulation.step_dt * 1000.0
         realtime = target_ms / stats.elapsed_ms if stats.elapsed_ms > 0.0 else 0.0

@@ -64,6 +64,7 @@ def main() -> None:
             stop_on_stand=cfg.stop_on_stand,
             max_completed_commands=cfg.demo_max_commands,
             timeout_seconds=cfg.demo_timeout_seconds,
+            publish_observations=cfg.publish_observations,
         ).run()
     finally:
         if recorder is not None:

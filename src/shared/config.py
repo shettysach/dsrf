@@ -65,6 +65,7 @@ class SimConfig:
     jpeg_quality: int
     viewer: ViewerMode
     reference_ghost: bool
+    publish_observations: bool = True
     demo_video_path: Path | None = None
     stop_on_stand: bool = False
     demo_max_commands: int | None = None
@@ -76,6 +77,9 @@ class SimConfig:
             cls,
             overrides={
                 "task": _optional_task(),
+                "publish_observations": _optional_boolean(
+                    "PUBLISH_OBSERVATIONS", default=True
+                ),
                 "demo_video_path": _optional_path("DEMO_VIDEO_PATH"),
                 "stop_on_stand": _optional_boolean("STOP_ON_STAND", default=False),
                 "demo_max_commands": _optional_positive_int("DEMO_MAX_COMMANDS"),
@@ -106,6 +110,7 @@ class AgentConfig:
     max_vlm_turns: int | None = None
     agent: Literal["vlm", "script"] = "vlm"
     script_task: str | None = None
+    script_start_immediately: bool = False
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -123,6 +128,9 @@ class AgentConfig:
             "max_vlm_turns": _optional_positive_int("DEMO_MAX_COMMANDS"),
             "agent": agent,
             "script_task": _optional_env("SCRIPT_TASK"),
+            "script_start_immediately": _optional_boolean(
+                "SCRIPT_START_IMMEDIATELY", default=False
+            ),
         }
         if agent == "script":
             # Script mode never instantiates the VLM client, so it should be

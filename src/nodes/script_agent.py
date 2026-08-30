@@ -16,13 +16,18 @@ if TYPE_CHECKING:
 class ScriptAgentLoop:
     """Feed task-script commands into the normal AgentCommand pipeline."""
 
-    def __init__(self, node: Node, script: TaskScript) -> None:
+    def __init__(
+        self, node: Node, script: TaskScript, *, start_immediately: bool = False
+    ) -> None:
         self.node = node
         self.script = script
         self.observation: VisualObservation | None = None
         self.pending_command: str | None = None
+        self.start_immediately = start_immediately
 
     def run(self) -> None:
+        if self.start_immediately:
+            self._send_next_command(0)
         for event in self.node:
             if event["type"] == "STOP":
                 return
@@ -59,13 +64,16 @@ class ScriptAgentLoop:
 
         self.observation = observation
         self.pending_command = None
-        command = self.script.next_command(observation.observation_id)
+        self._send_next_command(observation.observation_id)
+
+    def _send_next_command(self, observation_id: int) -> None:
+        command = self.script.next_command(observation_id)
         if command is None:
             return
-        if command.observation_id != observation.observation_id:
+        if command.observation_id != observation_id:
             raise RuntimeError(
                 f"Script emitted command for observation {command.observation_id}, "
-                f"expected {observation.observation_id}"
+                f"expected {observation_id}"
             )
         data, metadata = agent_command_to_arrow(command)
         self.node.send_output("command", data, metadata=metadata)

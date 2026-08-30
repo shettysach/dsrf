@@ -149,6 +149,14 @@ def test_agent_config_selects_script(monkeypatch) -> None:
     assert cfg.script_task == "box_push"
 
 
+def test_agent_config_allows_scripts_to_start_without_observations(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT", "script")
+    monkeypatch.setenv("SCRIPT_TASK", "box_push")
+    monkeypatch.setenv("SCRIPT_START_IMMEDIATELY", "true")
+
+    assert AgentConfig.from_env().script_start_immediately is True
+
+
 def test_script_agent_config_requires_task(monkeypatch) -> None:
     monkeypatch.setenv("AGENT", "script")
     monkeypatch.delenv("SCRIPT_TASK", raising=False)

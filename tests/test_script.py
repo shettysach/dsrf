@@ -73,3 +73,11 @@ def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert emitted == command
+
+
+def test_script_agent_can_send_without_an_observation() -> None:
+    node = _Node([{"type": "STOP"}])
+
+    ScriptAgentLoop(cast(Any, node), PushScript(), start_immediately=True).run()
+
+    assert [output_id for output_id, _, _ in node.outputs] == ["command"]

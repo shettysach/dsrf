@@ -380,7 +380,11 @@ def main() -> None:
         from nodes.script_agent import ScriptAgentLoop
         from script import create_task_script
 
-        ScriptAgentLoop(node, create_task_script(cfg.script_task)).run()
+        ScriptAgentLoop(
+            node,
+            create_task_script(cfg.script_task),
+            start_immediately=cfg.script_start_immediately,
+        ).run()
         return
     client = OAIChatClient(
         base_url=cfg.vlm_url,
