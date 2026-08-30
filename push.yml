@@ -12,6 +12,8 @@ nodes:
       VLM_USER_PROMPT: prompt/USER.md
       MOTION_GENERATOR: ardy
       DEMO_MAX_COMMANDS: "${DEMO_MAX_COMMANDS:-}"
+      AGENT: "${AGENT:-vlm}"
+      SCRIPT_TASK: "${SCRIPT_TASK:-box_push}"
     inputs:
       observation: sim/observation
       grounding_result: sim/grounding_result

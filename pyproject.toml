@@ -93,6 +93,7 @@ packages = [
     "src/nodes",
     "src/shared",
     "src/sim",
+    "src/script",
     "tasks",
 ]
 

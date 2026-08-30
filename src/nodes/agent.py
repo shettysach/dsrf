@@ -375,6 +375,13 @@ class AgentLoop:
 def main() -> None:
     cfg = AgentConfig.from_env()
     node = Node()
+    if cfg.agent == "script":
+        assert cfg.script_task is not None
+        from nodes.script_agent import ScriptAgentLoop
+        from script import create_task_script
+
+        ScriptAgentLoop(node, create_task_script(cfg.script_task)).run()
+        return
     client = OAIChatClient(
         base_url=cfg.vlm_url,
         timeout=cfg.vlm_timeout,

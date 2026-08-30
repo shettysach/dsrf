@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from shared.messages import AgentCommand, EndEffectorTarget
+
+
+@dataclass(frozen=True)
+class PushScript:
+    """One deterministic two-palm push command for the aligned box task."""
+
+    box_position: tuple[float, float, float] = (1.75, 0.0, 0.55)
+    box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
+    hand_spacing: float = 0.32
+    contact_depth: float = 0.02
+
+    def next_command(self, observation_id: int) -> AgentCommand | None:
+        # This initial experiment has exactly one phase.  Future phases belong
+        # here, rather than in the generic TaskScript interface.
+        if observation_id != 0:
+            return None
+
+        box_x, box_y, box_z = self.box_position
+        box_depth, _, _ = self.box_size
+        half_spacing = self.hand_spacing / 2.0
+        near_face_x = box_x - box_depth / 2.0 + self.contact_depth
+        return AgentCommand(
+            observation_id=observation_id,
+            text="push the box with both palms",
+            motion="reach forward with both hands and push the box",
+            target_xys=(),
+            end_effectors=(
+                EndEffectorTarget(
+                    "left_hand", (near_face_x, box_y + half_spacing, box_z)
+                ),
+                EndEffectorTarget(
+                    "right_hand", (near_face_x, box_y - half_spacing, box_z)
+                ),
+            ),
+        )

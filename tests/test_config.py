@@ -139,6 +139,24 @@ def test_agent_config_from_env(monkeypatch) -> None:
     )
 
 
+def test_agent_config_selects_script(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT", "script")
+    monkeypatch.setenv("SCRIPT_TASK", "box_push")
+
+    cfg = AgentConfig.from_env()
+
+    assert cfg.agent == "script"
+    assert cfg.script_task == "box_push"
+
+
+def test_script_agent_config_requires_task(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT", "script")
+    monkeypatch.delenv("SCRIPT_TASK", raising=False)
+
+    with pytest.raises(ValueError, match="SCRIPT_TASK"):
+        AgentConfig.from_env()
+
+
 def test_missing_runtime_value_fails(monkeypatch) -> None:
     monkeypatch.delenv("PLANNER_ONNX", raising=False)
     monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")

@@ -104,35 +104,59 @@ class AgentConfig:
     user_prompt: Path = dataclass_field(metadata={"env": "VLM_USER_PROMPT"})
     command_mode: Literal["waypoint", "direction"]
     max_vlm_turns: int | None = None
+    agent: Literal["vlm", "script"] = "vlm"
+    script_task: str | None = None
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
+        agent = os.environ.get("AGENT", "vlm").strip().lower()
+        if agent not in {"vlm", "script"}:
+            raise ValueError("AGENT must be 'vlm' or 'script'")
         command_mode: Literal["waypoint", "direction"] = (
             "direction"
             if os.environ.get("MOTION_GENERATOR", "").strip().lower()
             == "kinematic_planner"
             else "waypoint"
         )
-        return _dataclass_from_env(
-            cls,
-            overrides={
-                "command_mode": command_mode,
-                "max_vlm_turns": _optional_positive_int("DEMO_MAX_COMMANDS"),
-            },
-        )
+        overrides: dict[str, object] = {
+            "command_mode": command_mode,
+            "max_vlm_turns": _optional_positive_int("DEMO_MAX_COMMANDS"),
+            "agent": agent,
+            "script_task": _optional_env("SCRIPT_TASK"),
+        }
+        if agent == "script":
+            # Script mode never instantiates the VLM client, so it should be
+            # runnable without endpoint or prompt configuration.
+            overrides.update(
+                vlm_url="",
+                vlm_timeout=1.0,
+                system_prompt=Path(),
+                user_prompt=Path(),
+            )
+        return _dataclass_from_env(cls, overrides=overrides)
 
     def __post_init__(self) -> None:
-        url = self.vlm_url.strip().rstrip("/")
-        if not url:
-            raise ValueError("VLM_URL must not be empty")
-        if not math.isfinite(self.vlm_timeout) or self.vlm_timeout <= 0.0:
-            raise ValueError("VLM_TIMEOUT must be positive")
-        object.__setattr__(self, "vlm_url", url)
+        if self.agent not in {"vlm", "script"}:
+            raise ValueError("AGENT must be 'vlm' or 'script'")
+        if self.agent == "script" and self.script_task is None:
+            raise ValueError("SCRIPT_TASK must be set when AGENT is 'script'")
+        if self.agent == "vlm":
+            url = self.vlm_url.strip().rstrip("/")
+            if not url:
+                raise ValueError("VLM_URL must not be empty")
+            if not math.isfinite(self.vlm_timeout) or self.vlm_timeout <= 0.0:
+                raise ValueError("VLM_TIMEOUT must be positive")
+            object.__setattr__(self, "vlm_url", url)
 
 
 def _optional_name(name: str) -> str | None:
     value = os.environ[name].strip()
     return None if value.lower() == "none" or not value else value
+
+
+def _optional_env(name: str) -> str | None:
+    value = os.environ.get(name, "").strip()
+    return value or None
 
 
 def _optional_task() -> TaskSpec | None:
