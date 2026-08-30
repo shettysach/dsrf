@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import numpy as np
@@ -9,17 +8,11 @@ from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
 from ardy.motion_rep.tools import length_to_mask
 
-from motion_gen.ardy.constraints import (
-    _JOINT_NAMES,
-    build_constraints,
-    end_effector_target_positions,
-)
+from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class Ardy:
@@ -112,18 +105,6 @@ class Ardy:
                 generated_motion,
                 is_normalized=True,
             )
-            if end_effectors:
-                decoded_pos = self.model.motion_rep.inverse(
-                    generated_motion,
-                    is_normalized=True,
-                    posed_joints_from="positions",
-                )
-                self._log_end_effector_diagnostic(
-                    generated_motion,
-                    decoded,
-                    decoded_pos,
-                    end_effectors,
-                )
             root_positions = decoded["root_positions"]
             root_headings = decoded["global_root_heading"]
             if root_positions.shape[1] < 2:
@@ -146,78 +127,3 @@ class Ardy:
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
-
-    def _log_end_effector_diagnostic(
-        self,
-        generated_motion: torch.Tensor,
-        decoded_rot: dict[str, torch.Tensor],
-        decoded_pos: dict[str, torch.Tensor],
-        end_effectors: tuple[EndEffectorTarget, ...],
-    ) -> None:
-        """Temporary diagnostic comparing ARDY position and rotation features."""
-        current_root = self.root_history[-1].to(device=self.device)
-        heading = self.root_heading.to(device=self.device)
-        target_positions = end_effector_target_positions(
-            current_root,
-            heading,
-            end_effectors,
-            device=self.device,
-        )
-        final_frame = generated_motion.shape[1] - 1
-        position_joints = decoded_pos["posed_joints"][0]
-        rotation_joints = decoded_rot["posed_joints"][0]
-        joint_indices = [
-            self.model.motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
-            for target in end_effectors
-        ]
-
-        for target, joint_index, target_position in zip(
-            end_effectors, joint_indices, target_positions, strict=True
-        ):
-            position_feature = position_joints[final_frame, joint_index]
-            rotation_fk = rotation_joints[final_frame, joint_index]
-            target_to_position = torch.linalg.vector_norm(
-                target_position - position_feature
-            )
-            target_to_fk = torch.linalg.vector_norm(target_position - rotation_fk)
-            position_to_fk = torch.linalg.vector_norm(position_feature - rotation_fk)
-            _LOGGER.warning(
-                "ARDY EE diagnostic: %s\n"
-                "  target:        %s\n"
-                "  position_rep:  %s\n"
-                "  rotation_fk:   %s\n"
-                "  target->pos:   %.3f m\n"
-                "  target->fk:    %.3f m\n"
-                "  pos->fk:       %.3f m",
-                target.name,
-                _format_ardy_vector(target_position),
-                _format_ardy_vector(position_feature),
-                _format_ardy_vector(rotation_fk),
-                float(target_to_position),
-                float(target_to_fk),
-                float(position_to_fk),
-            )
-
-            window_start = max(0, final_frame - 24)
-            window_rotation = rotation_joints[window_start : final_frame + 1, joint_index]
-            window_errors = torch.linalg.vector_norm(
-                target_position.unsqueeze(0) - window_rotation, dim=1
-            )
-            _LOGGER.warning(
-                "ARDY EE diagnostic window: %s final_25_frames=%d "
-                "target->fk_by_frame=%s target->fk_min=%.3f m "
-                "target->fk_final=%.3f m",
-                target.name,
-                window_errors.shape[0],
-                _format_ardy_errors(window_errors),
-                float(window_errors.min()),
-                float(window_errors[-1]),
-            )
-
-
-def _format_ardy_vector(value: torch.Tensor) -> str:
-    return "[" + ", ".join(f"{float(component):.4f}" for component in value) + "]"
-
-
-def _format_ardy_errors(value: torch.Tensor) -> str:
-    return "[" + ", ".join(f"{float(error):.4f}" for error in value) + "]"

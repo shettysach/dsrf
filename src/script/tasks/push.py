@@ -9,7 +9,7 @@ from shared.messages import AgentCommand, EndEffectorTarget
 class PushScript:
     """One deterministic two-palm push command for the aligned box task."""
 
-    prompt: str
+    motion_prompt: str
     box_position: tuple[float, float, float] = (1.55, 0.0, 0.55)
     box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
     robot_position: tuple[float, float, float] = (0.75, 0.0, 0.76)
@@ -18,9 +18,6 @@ class PushScript:
     # stop its hands slightly short of a surface target; collision then resolves
     # this to palm contact without requesting a continuing push.
     contact_depth: float = 0.05
-    # Move the pelvis 40 cm toward the box before the final hand constraint.
-    push_waypoint: tuple[float, float] = (0.40, 0.0)
-
     def next_command(self, observation_id: int) -> AgentCommand | None:
         # This initial experiment has exactly one phase.  Future phases belong
         # here, rather than in the generic TaskScript interface.
@@ -34,9 +31,9 @@ class PushScript:
         near_face_x = box_x - box_depth / 2.0 + self.contact_depth
         return AgentCommand(
             observation_id=observation_id,
-            text=self.prompt,
-            motion="face both palms outward, then reach forward to touch",
-            target_xys=(self.push_waypoint,),
+            text=self.motion_prompt,
+            motion=self.motion_prompt,
+            target_xys=(),
             end_effectors=(
                 EndEffectorTarget(
                     "left_hand",

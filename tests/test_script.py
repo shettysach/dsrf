@@ -35,13 +35,13 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
 
 
 def test_push_script_emits_one_symmetric_two_palm_command() -> None:
-    script = PushScript(prompt="touch the box with both palms")
+    script = PushScript(motion_prompt="face both palms outward, then reach forward to touch")
 
     command = script.next_command(0)
 
     assert command is not None
     assert command.motion == "face both palms outward, then reach forward to touch"
-    np.testing.assert_allclose(command.target_xys, ((0.40, 0.0),))
+    assert command.target_xys == ()
     assert [target.name for target in command.end_effectors] == [
         "left_hand",
         "right_hand",
@@ -53,7 +53,9 @@ def test_push_script_emits_one_symmetric_two_palm_command() -> None:
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
-    command = PushScript(prompt="touch the box with both palms").next_command(0)
+    command = PushScript(
+        motion_prompt="face both palms outward, then reach forward to touch"
+    ).next_command(0)
     assert command is not None
     node = _Node(
         [
@@ -64,7 +66,12 @@ def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
     )
 
     ScriptAgentLoop(
-        cast(Any, node), PushScript(prompt="touch the box with both palms")
+        cast(
+            Any,
+            node,
+        ), PushScript(
+            motion_prompt="face both palms outward, then reach forward to touch"
+        )
     ).run()
 
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
@@ -78,7 +85,12 @@ def test_script_agent_can_send_without_an_observation() -> None:
     node = _Node([{"type": "STOP"}])
 
     ScriptAgentLoop(
-        cast(Any, node), PushScript(prompt="touch the box with both palms"), start_immediately=True
+        cast(
+            Any,
+            node,
+        ), PushScript(
+            motion_prompt="face both palms outward, then reach forward to touch"
+        ), start_immediately=True
     ).run()
 
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]

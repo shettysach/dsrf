@@ -74,10 +74,17 @@ def build_constraints(
         data["root_2d"] = [root_2d]
     if end_effectors:
         frame = generated_frames + history_frames - 1
-        target_positions = end_effector_target_positions(
-            current_root,
-            heading,
-            end_effectors,
+        local_2d = torch.tensor(
+            [[target.target_xyz[1], target.target_xyz[0]] for target in end_effectors],
+            dtype=current_root.dtype,
+            device=device,
+        )
+        delta_2d = _rotate_2d(local_2d, heading)
+        target_positions = current_root.repeat(len(end_effectors), 1)
+        target_positions[:, [0, 2]] += delta_2d
+        target_positions[:, 1] += torch.tensor(
+            [target.target_xyz[2] for target in end_effectors],
+            dtype=current_root.dtype,
             device=device,
         )
         root_index = motion_rep.skeleton.root_idx
@@ -111,30 +118,6 @@ def build_constraints(
         device,
     )
     return motion_mask.unsqueeze(0), observed_motion.unsqueeze(0)
-
-
-def end_effector_target_positions(
-    current_root: torch.Tensor,
-    heading: torch.Tensor,
-    end_effectors: tuple[EndEffectorTarget, ...],
-    *,
-    device: torch.device,
-) -> torch.Tensor:
-    """Convert local (forward, left, up) EE targets into ARDY world positions."""
-    local_2d = torch.tensor(
-        [[target.target_xyz[1], target.target_xyz[0]] for target in end_effectors],
-        dtype=current_root.dtype,
-        device=device,
-    )
-    delta_2d = _rotate_2d(local_2d, heading)
-    target_positions = current_root.to(device=device).repeat(len(end_effectors), 1)
-    target_positions[:, [0, 2]] += delta_2d
-    target_positions[:, 1] += torch.tensor(
-        [target.target_xyz[2] for target in end_effectors],
-        dtype=current_root.dtype,
-        device=device,
-    )
-    return target_positions
 
 
 def _rotate_2d(positions: torch.Tensor, heading: torch.Tensor) -> torch.Tensor:
