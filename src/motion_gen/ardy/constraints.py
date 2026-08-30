@@ -72,7 +72,6 @@ def build_constraints(
         root_2d = current_root_2d.unsqueeze(0)
         index["root_2d"] = [frame_indices]
         data["root_2d"] = [root_2d]
-
     if end_effectors:
         frame = generated_frames + history_frames - 1
         local_2d = torch.tensor(

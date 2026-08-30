@@ -32,7 +32,7 @@ nodes:
       JPEG_QUALITY: "85"
       PUBLISH_OBSERVATIONS: "false"
       VIEWER: native
-      REFERENCE_GHOST: "false"
+      REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
       DEMO_MAX_COMMANDS: "1"
     inputs:
       command: agent/command
