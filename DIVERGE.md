@@ -5,3 +5,4 @@
 - End-effector targets are validated against ARDY's final waypoint/root constraint, allowing one command to approach a target and then reach it.
 - Recorded push runs stop cleanly only after an explicit VLM terminal `stand` (not an error-recovery fallback); `run_push_videos.sh` saves ten numbered videos and waits for each MP4 to finalize.
 - Batch recordings stop after 15 VLM turns by default (including invalid/error retries), or after a 10-minute per-run timeout; both limits are configurable in `run_push_videos.sh`.
+- **Corrected ARDY + LLM2Vec**
