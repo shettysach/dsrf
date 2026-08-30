@@ -64,9 +64,10 @@ in `ardy.yml`, then run:
 dora run ardy.yml
 ```
 
-The text model must expose `last_hidden_state` with hidden size 4096. The
-encoder applies attention-mask-aware mean pooling and transfers the resulting
-float32 tensor directly to ARDY's device.
+`TEXT_ENCODER_MODEL` must identify one of ARDY's supported AeroEx merged
+LLM2Vec checkpoints. ARDY performs its own bidirectional LLM2Vec
+tokenization, instruction masking, and pooling, then DSRF transfers only the
+resulting `[4096]` float32 embedding to ARDY's device.
 
 ## Constraint grounding
 
