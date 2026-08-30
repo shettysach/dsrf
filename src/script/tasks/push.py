@@ -13,9 +13,10 @@ class PushScript:
     box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
     robot_position: tuple[float, float, float] = (0.95, 0.0, 0.76)
     hand_spacing: float = 0.32
-    # Target the face itself for this contact-only phase.  Do not penetrate the
-    # box or ask ARDY to continue through it as a push would.
-    contact_depth: float = 0.0
+    # Bias the positional constraint just through the face.  ARDY can otherwise
+    # stop its hands slightly short of a surface target; collision then resolves
+    # this to palm contact without requesting a continuing push.
+    contact_depth: float = 0.05
 
     def next_command(self, observation_id: int) -> AgentCommand | None:
         # This initial experiment has exactly one phase.  Future phases belong
@@ -32,8 +33,8 @@ class PushScript:
             observation_id=observation_id,
             text="touch the box with both palms",
             motion=(
-                "reach forward with both hands and place both palms flat "
-                "against the box without pushing"
+                "reach straight forward with both hands, rotate both palms to face "
+                "forward, and place them flat against the box without pushing"
             ),
             target_xys=(),
             end_effectors=(
