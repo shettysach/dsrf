@@ -12,7 +12,7 @@ class PushScript:
     prompt: str
     box_position: tuple[float, float, float] = (1.55, 0.0, 0.55)
     box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
-    robot_position: tuple[float, float, float] = (0.95, 0.0, 0.76)
+    robot_position: tuple[float, float, float] = (0.85, 0.0, 0.76)
     hand_spacing: float = 0.32
     # Bias the positional constraint just through the face.  ARDY can otherwise
     # stop its hands slightly short of a surface target; collision then resolves

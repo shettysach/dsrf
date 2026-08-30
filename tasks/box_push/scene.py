@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 # A slightly broader, taller face gives both hands more usable contact area.
 BOX_HALF_SIZE = (0.25, 0.35, 0.55)
 BOX_MASS = 1.0
-# Keep the near face 0.35 m in front of the fixed robot root at x=0.95 m.
+# Keep the near face 0.45 m in front of the fixed robot root at x=0.85 m.
 # This leaves room to establish palm contact without requiring navigation.
 BOX_START = (1.55, 0.0)
 GOAL_CENTER = (5.0, 0.0)
