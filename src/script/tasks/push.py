@@ -9,8 +9,9 @@ from shared.messages import AgentCommand, EndEffectorTarget
 class PushScript:
     """One deterministic two-palm push command for the aligned box task."""
 
-    box_position: tuple[float, float, float] = (1.75, 0.0, 0.55)
+    box_position: tuple[float, float, float] = (1.55, 0.0, 0.55)
     box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
+    robot_position: tuple[float, float, float] = (0.95, 0.0, 0.76)
     hand_spacing: float = 0.32
     contact_depth: float = 0.02
 
@@ -21,6 +22,7 @@ class PushScript:
             return None
 
         box_x, box_y, box_z = self.box_position
+        robot_x, robot_y, robot_z = self.robot_position
         box_depth, _, _ = self.box_size
         half_spacing = self.hand_spacing / 2.0
         near_face_x = box_x - box_depth / 2.0 + self.contact_depth
@@ -31,10 +33,20 @@ class PushScript:
             target_xys=(),
             end_effectors=(
                 EndEffectorTarget(
-                    "left_hand", (near_face_x, box_y + half_spacing, box_z)
+                    "left_hand",
+                    (
+                        near_face_x - robot_x,
+                        box_y + half_spacing - robot_y,
+                        box_z - robot_z,
+                    ),
                 ),
                 EndEffectorTarget(
-                    "right_hand", (near_face_x, box_y - half_spacing, box_z)
+                    "right_hand",
+                    (
+                        near_face_x - robot_x,
+                        box_y - half_spacing - robot_y,
+                        box_z - robot_z,
+                    ),
                 ),
             ),
         )
