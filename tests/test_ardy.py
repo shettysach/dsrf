@@ -88,7 +88,9 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     generated_motion = model.motion_rep.inverse.call_args.args[0]
     assert generated_motion.shape == (1, 52, 3)
     assert model.call_args.kwargs["init_history_sequence"] is None
-    assert model.call_args.kwargs["first_heading_angle"] is None
+    torch.testing.assert_close(
+        model.call_args.kwargs["first_heading_angle"], torch.zeros(1)
+    )
     assert model.call_args.kwargs["motion_mask"] is not None
     assert model.call_args.kwargs["observed_motion"] is not None
     assert model.call_args.kwargs["text_feat"].shape == (1, 1, 4096)
@@ -126,6 +128,9 @@ def test_unconstrained_ardy_uses_one_fresh_model_window() -> None:
     assert model.call_args.args[0] == 52
     assert model.call_args.kwargs["init_history_sequence"] is None
     assert model.call_args.kwargs["cfg_weight"] == 2.0
+    torch.testing.assert_close(
+        model.call_args.kwargs["first_heading_angle"], torch.zeros(1)
+    )
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:

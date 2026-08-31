@@ -78,7 +78,7 @@ class Ardy:
                 generated_frames,
                 num_denoising_steps=int(self.model.diffusion.num_base_steps),
                 pad_mask=length_to_mask(lengths),
-                first_heading_angle=None,
+                first_heading_angle=torch.zeros(1, device=self.device),
                 motion_mask=motion_mask,
                 observed_motion=observed_motion,
                 text_feat=text_feat,
