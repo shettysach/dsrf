@@ -15,13 +15,17 @@ class PushScript:
     goal_position: tuple[float, float] = (5.0, 0.0)
     robot_position: tuple[float, float, float] = (0.75, 0.0, 0.76)
     hand_spacing: float = 0.32
+    # Upper part of the 1.10 m-tall box face. This remains on the physical
+    # face (top is z=1.10) while matching ARDY's natural arms-forward height
+    # much better than the old center-height target (z=0.55).
+    palm_contact_height: float = 1.05
     # Bias the positional constraint just through the face.  ARDY can otherwise
     # stop its hands slightly short of a surface target; collision then resolves
     # this to palm contact without requesting a continuing push.
     contact_depth: float = 0.05
 
     def next_command(self, observation_id: int) -> AgentCommand | None:
-        box_x, _, box_z = self.box_position
+        box_x, _, _ = self.box_position
         robot_x, robot_y, robot_z = self.robot_position
         goal_x, goal_y = self.goal_position
         box_depth, _, _ = self.box_size
@@ -40,7 +44,7 @@ class PushScript:
                     end_effectors=self._palm_targets(
                         initial_near_face_x,
                         0.0,
-                        box_z,
+                        self.palm_contact_height,
                         robot_x,
                         robot_y,
                         robot_z,
@@ -56,7 +60,7 @@ class PushScript:
                     end_effectors=self._palm_targets(
                         final_near_face_x,
                         goal_y,
-                        box_z,
+                        self.palm_contact_height,
                         robot_x,
                         robot_y,
                         robot_z,

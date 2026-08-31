@@ -48,16 +48,16 @@ def test_push_script_reaches_then_walks_the_box_to_the_goal() -> None:
         "right_hand",
     ]
     left, right = command.end_effectors
-    np.testing.assert_allclose(left.target_xyz, (0.60, 0.16, -0.21))
-    np.testing.assert_allclose(right.target_xyz, (0.60, -0.16, -0.21))
+    np.testing.assert_allclose(left.target_xyz, (0.60, 0.16, 0.29))
+    np.testing.assert_allclose(right.target_xyz, (0.60, -0.16, 0.29))
 
     push = script.next_command(1)
 
     assert push is not None
     assert push.motion == "walk forward while pushing the box with both palms"
     np.testing.assert_allclose(push.target_xys, ((3.45, 0.0),))
-    np.testing.assert_allclose(push.end_effectors[0].target_xyz, (4.05, 0.16, -0.21))
-    np.testing.assert_allclose(push.end_effectors[1].target_xyz, (4.05, -0.16, -0.21))
+    np.testing.assert_allclose(push.end_effectors[0].target_xyz, (4.05, 0.16, 0.29))
+    np.testing.assert_allclose(push.end_effectors[1].target_xyz, (4.05, -0.16, 0.29))
     assert script.next_command(2) is None
 
 
