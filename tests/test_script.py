@@ -41,7 +41,7 @@ def test_push_script_reaches_then_walks_the_box_to_the_goal() -> None:
     command = script.next_command(0)
 
     assert command is not None
-    assert command.motion == "face both palms outward, then reach forward to touch"
+    assert command.motion == "extend both arms straight forward and hold them there"
     assert command.target_xys == ()
     assert [target.name for target in command.end_effectors] == [
         "left_hand",

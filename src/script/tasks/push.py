@@ -35,7 +35,7 @@ class PushScript:
                 return AgentCommand(
                     observation_id=observation_id,
                     text=self.prompt,
-                    motion="face both palms outward, then reach forward to touch",
+                    motion="extend both arms straight forward and hold them there",
                     target_xys=(),
                     end_effectors=self._palm_targets(
                         initial_near_face_x,
