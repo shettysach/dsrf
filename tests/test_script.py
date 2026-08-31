@@ -40,15 +40,15 @@ def test_push_script_emits_one_symmetric_two_palm_command() -> None:
     command = script.next_command(0)
 
     assert command is not None
-    assert command.motion == "face both palms outward, then reach forward to touch"
-    assert command.target_xys == ()
+    assert command.motion == "walk forward while pushing the box with both palms"
+    np.testing.assert_allclose(command.target_xys, ((3.45, 0.0),))
     assert [target.name for target in command.end_effectors] == [
         "left_hand",
         "right_hand",
     ]
     left, right = command.end_effectors
-    np.testing.assert_allclose(left.target_xyz, (0.60, 0.16, -0.21))
-    np.testing.assert_allclose(right.target_xyz, (0.60, -0.16, -0.21))
+    np.testing.assert_allclose(left.target_xyz, (4.05, 0.16, -0.21))
+    np.testing.assert_allclose(right.target_xyz, (4.05, -0.16, -0.21))
     assert script.next_command(1) is None
 
 
