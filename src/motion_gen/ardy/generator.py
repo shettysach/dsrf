@@ -227,8 +227,11 @@ class Ardy:
             dtype=current_root.dtype,
             device=self.device,
         )
+        heading = self.root_heading.reshape(()).to(
+            dtype=current_root.dtype, device=self.device
+        )
         final_targets = current_root.repeat(len(end_effectors), 1)
-        final_targets[:, [0, 2]] += _rotate_2d(local_2d, self.root_heading)
+        final_targets[:, [0, 2]] += _rotate_2d(local_2d, heading)
         final_targets[:, 1] += torch.tensor(
             [target.target_xyz[2] for target in end_effectors],
             dtype=current_root.dtype,
