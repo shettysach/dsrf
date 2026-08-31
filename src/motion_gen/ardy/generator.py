@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
@@ -10,8 +9,6 @@ from ardy.motion_rep.tools import length_to_mask
 
 from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
-from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
-from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
 
@@ -19,8 +16,6 @@ class Ardy:
     """Text-conditioned ARDY motion generator for Unitree G1."""
 
     fps = 25
-    duration_s = 5
-    history_frames = 4
 
     def __init__(
         self,
@@ -39,7 +34,6 @@ class Ardy:
             raise ValueError(f"Expected ARDY G1 at {self.fps} FPS, got {model_fps}")
 
         self.converter = MujocoQposConverter(self.model.skeleton)
-        self.initial_history: torch.Tensor | None = None
         self.root_history: torch.Tensor | None = None
         self.root_heading: torch.Tensor | None = None
 
@@ -53,55 +47,52 @@ class Ardy:
             embedding,
             device=self.device,
         )
-        generated_frames = self.fps * self.duration_s
-        num_frames = generated_frames + self.history_frames
-        lengths = torch.tensor([num_frames], device=self.device)
         has_spatial_constraints = bool(target_xys or end_effectors)
+        generated_frames = int(self.model.gen_horizon_len)
+        lengths = torch.tensor([generated_frames], device=self.device)
         motion_mask = observed_motion = None
         if has_spatial_constraints:
-            self._initialize_spatial_history()
-            assert self.root_history is not None
-            assert self.root_heading is not None
-            assert self.initial_history is not None
+            root_history = (
+                self.root_history
+                if self.root_history is not None
+                else torch.zeros((2, 3), device=self.device)
+            )
+            root_heading = (
+                self.root_heading
+                if self.root_heading is not None
+                else torch.tensor(0.0, device=self.device)
+            )
             motion_mask, observed_motion = build_constraints(
                 self.model.motion_rep,
-                self.root_history,
-                self.root_heading,
+                root_history,
+                root_heading,
                 target_xys,
                 end_effectors,
                 generated_frames=generated_frames,
-                history_frames=self.history_frames,
+                history_frames=0,
                 device=self.device,
             )
 
         with torch.inference_mode():
-            if has_spatial_constraints:
-                motion = self.model(
-                    num_frames,
-                    num_denoising_steps=int(self.model.diffusion.num_base_steps),
-                    pad_mask=length_to_mask(lengths),
-                    first_heading_angle=None,
-                    motion_mask=motion_mask,
-                    observed_motion=observed_motion,
-                    text_feat=text_feat,
-                    text_pad_mask=text_pad_mask,
-                    cfg_weight=(2.0, 2.0),
-                    progress_bar=lambda iterable: iterable,
-                    init_history_sequence=self.initial_history,
-                )
-                generated_motion = motion[:, self.history_frames :]
-            else:
-                generated_motion = self._generate_hf_style(
-                    generated_frames,
-                    text_feat,
-                    text_pad_mask,
-                )
+            motion = self.model(
+                generated_frames,
+                num_denoising_steps=int(self.model.diffusion.num_base_steps),
+                pad_mask=length_to_mask(lengths),
+                first_heading_angle=None,
+                motion_mask=motion_mask,
+                observed_motion=observed_motion,
+                text_feat=text_feat,
+                text_pad_mask=text_pad_mask,
+                cfg_weight=(2.0, 2.0) if has_spatial_constraints else 2.0,
+                progress_bar=lambda iterable: iterable,
+                init_history_sequence=None,
+            )
+            generated_motion = motion
             if generated_motion.shape[1] != generated_frames:
                 raise ValueError(
                     f"ARDY generated {generated_motion.shape[1]} frames; "
                     f"expected {generated_frames}"
                 )
-            next_history = generated_motion[:, -self.history_frames :].detach().clone()
             decoded = self.model.motion_rep.inverse(
                 generated_motion,
                 is_normalized=True,
@@ -124,64 +115,6 @@ class Ardy:
             )
 
         qpos = batched_qpos[0].contiguous()
-        self.initial_history = next_history
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
-
-    def _initialize_spatial_history(self) -> None:
-        """Build the standing seed only for legacy full-sequence constraints."""
-        if self.initial_history is not None:
-            return
-        standing_history = np.repeat(
-            standing_qpos()[None], self.history_frames, axis=0
-        )
-        self.initial_history = build_initial_history(
-            standing_history,
-            self.converter,
-            self.model.motion_rep,
-            device=self.device,
-        )
-        _, root_positions = qpos_to_ardy_inputs(
-            standing_history,
-            self.converter,
-            device=self.device,
-        )
-        self.root_history = root_positions[0, -2:].detach().clone()
-        self.root_heading = torch.tensor(0.0, device=self.device)
-
-    def _generate_hf_style(
-        self,
-        generated_frames: int,
-        text_feat: torch.Tensor,
-        text_pad_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        """Match the Space's rolling four-frame autoregressive generation."""
-        generated: torch.Tensor | None = None
-        horizon = int(self.model.gen_horizon_len)
-        while generated is None or generated.shape[1] < generated_frames:
-            history = (
-                None
-                if generated is None
-                else generated[:, -self.history_frames :]
-            )
-            history_frames = 0 if history is None else history.shape[1]
-            window = self.model.autoregressive_step(
-                num_frames=history_frames + horizon,
-                num_denoising_steps=int(self.model.diffusion.num_base_steps),
-                motion_mask=None,
-                observed_motion=None,
-                text_feat=text_feat,
-                text_pad_mask=text_pad_mask,
-                cfg_weight=2.0,
-                init_history_sequence=history,
-                init_global_translation=None,
-                init_first_heading_angle=None,
-            )
-            fresh_frames = window[:, history_frames:]
-            generated = (
-                fresh_frames
-                if generated is None
-                else torch.cat((generated, fresh_frames), dim=1)
-            )
-        return generated[:, :generated_frames]
