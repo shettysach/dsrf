@@ -26,6 +26,7 @@ def create_motion_generator(
                     device=cfg.device,
                     constraint_cfg_weight=cfg.backend.constraint_cfg_weight,
                     seed=cfg.backend.seed,
+                    end_effector_diagnostics=cfg.backend.end_effector_diagnostics,
                 ),
                 TextEncoder(
                     cfg.backend.text_encoder_model,

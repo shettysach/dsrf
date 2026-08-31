@@ -53,6 +53,9 @@ class ArdyConfig:
         default=2.0, metadata={"env": "ARDY_CONSTRAINT_CFG_WEIGHT"}
     )
     seed: int | None = dataclass_field(default=None, metadata={"env": "ARDY_SEED"})
+    end_effector_diagnostics: bool = dataclass_field(
+        default=False, metadata={"env": "ARDY_END_EFFECTOR_DIAGNOSTICS"}
+    )
 
     @classmethod
     def from_env(cls) -> "ArdyConfig":
