@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
@@ -9,6 +10,8 @@ from ardy.motion_rep.tools import length_to_mask
 
 from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
+from motion_gen.ardy.history import qpos_to_ardy_inputs
+from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
 
@@ -55,7 +58,7 @@ class Ardy:
             root_history = (
                 self.root_history
                 if self.root_history is not None
-                else torch.zeros((2, 3), device=self.device)
+                else self._standing_constraint_root_history()
             )
             root_heading = (
                 self.root_heading
@@ -118,3 +121,13 @@ class Ardy:
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
+
+    def _standing_constraint_root_history(self) -> torch.Tensor:
+        """Return the standing pose only as a spatial coordinate reference."""
+        standing_qpos_history = np.repeat(standing_qpos()[None], 2, axis=0)
+        _, root_positions = qpos_to_ardy_inputs(
+            standing_qpos_history,
+            self.converter,
+            device=self.device,
+        )
+        return root_positions[0, -2:].detach().clone()
