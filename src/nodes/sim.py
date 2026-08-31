@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import torch
 from dora import Node
 
 from motion_gen.factory import create_motion_generator
@@ -67,6 +68,11 @@ def main() -> None:
             publish_observations=cfg.publish_observations,
         ).run()
     finally:
+        if simulation.device.type == "cuda":
+            # ARDY, SONIC, and Warp share CUDA work. Finish all queued kernels
+            # before native viewer/MJLab resources tear down.
+            with simulation.compute_context():
+                torch.cuda.synchronize(simulation.device)
         if recorder is not None:
             recorder.close()
         if viewer is not None:
