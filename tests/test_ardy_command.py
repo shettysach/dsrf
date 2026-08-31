@@ -25,6 +25,7 @@ def _conditions():
 
     skeleton = SimpleNamespace(
         root_idx=0,
+        nbjoints=5,
         bone_order_names=[
             "pelvis_skel",
             "left_hand_roll_skel",
@@ -33,9 +34,16 @@ def _conditions():
             "right_toe_base",
         ],
     )
-    return SimpleNamespace(
-        create_conditions=create_conditions, skeleton=skeleton
-    ), received
+    return (
+        SimpleNamespace(
+            create_conditions=create_conditions,
+            normalize=lambda value: value,
+            motion_rep_dim=15,
+            slice_dict={"local_joints_positions": slice(3, 15)},
+            skeleton=skeleton,
+        ),
+        received,
+    )
 
 
 def test_local_waypoint_becomes_ardy_root_endpoint() -> None:
@@ -77,7 +85,7 @@ def test_local_forward_rotates_by_ardy_root_heading(
     motion_rep, received = _conditions()
     root_history = torch.tensor([[1.0, 0.0, 2.0], [1.0, 0.0, 2.0]])
 
-    build_constraints(
+    motion_mask, observed_motion = build_constraints(
         motion_rep,
         root_history,
         torch.tensor(heading),
@@ -118,11 +126,11 @@ def test_multiple_waypoints_are_evenly_spaced_through_the_generation() -> None:
     )
 
 
-def test_end_effector_becomes_final_global_joint_position() -> None:
+def test_end_effector_only_masks_the_final_local_hand_position() -> None:
     motion_rep, received = _conditions()
     root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])
 
-    build_constraints(
+    motion_mask, observed_motion = build_constraints(
         motion_rep,
         root_history,
         torch.tensor(0.0),
@@ -133,15 +141,12 @@ def test_end_effector_becomes_final_global_joint_position() -> None:
         device=torch.device("cpu"),
     )
 
-    assert received["index"]["root_2d"][0].tolist() == [128]
-    assert received["index"]["root_y_pos"][0].tolist() == [128]
-    assert received["index"]["global_joints_positions"][0].tolist() == [
-        [128, 0],
-        [128, 2],
-    ]
+    assert received == {}
+    assert int(motion_mask.sum()) == 3
+    assert not motion_mask[0, 128, :3].any()
     torch.testing.assert_close(
-        received["data"]["global_joints_positions"][0],
-        torch.tensor([[1.0, 0.8, 2.0], [1.2, 1.1, 2.4]]),
+        observed_motion[0, 128, 6:9],
+        torch.tensor([0.2, 1.1, 0.4]),
     )
 
 
@@ -207,11 +212,11 @@ def test_end_effector_must_be_reachable_from_the_final_waypoint() -> None:
         )
 
 
-def test_foot_becomes_final_toe_position() -> None:
+def test_foot_only_masks_the_final_local_toe_position() -> None:
     motion_rep, received = _conditions()
     root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])
 
-    build_constraints(
+    motion_mask, observed_motion = build_constraints(
         motion_rep,
         root_history,
         torch.tensor(0.0),
@@ -222,13 +227,11 @@ def test_foot_becomes_final_toe_position() -> None:
         device=torch.device("cpu"),
     )
 
-    assert received["index"]["global_joints_positions"][0].tolist() == [
-        [128, 0],
-        [128, 3],
-    ]
+    assert received == {}
+    assert int(motion_mask.sum()) == 3
     torch.testing.assert_close(
-        received["data"]["global_joints_positions"][0],
-        torch.tensor([[1.0, 0.8, 2.0], [1.2, 0.0, 2.4]]),
+        observed_motion[0, 128, 9:12],
+        torch.tensor([0.2, 0.0, 0.4]),
     )
 
 
@@ -248,5 +251,5 @@ def test_end_effector_compiles_with_ardy_motion_representation() -> None:
     )
 
     assert motion_mask.shape == observed_motion.shape == (1, 129, 414)
-    assert int(motion_mask.sum()) == 6
+    assert int(motion_mask.sum()) == 3
     assert torch.isfinite(observed_motion).all()
