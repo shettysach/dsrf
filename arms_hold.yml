@@ -1,4 +1,4 @@
-# Text-only right-leg high-kick baseline.
+# Text-only bilateral shoulder-height arm-hold baseline.
 nodes:
   - id: agent
     path: uv
@@ -7,7 +7,7 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: prompt
-      SCRIPT_PROMPT: perform a high kick forward with the right leg
+      SCRIPT_PROMPT: stand still with both arms extended straight forward at shoulder height, palms down, and hold the pose
       SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
     inputs:

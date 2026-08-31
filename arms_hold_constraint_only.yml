@@ -1,4 +1,4 @@
-# Right-leg high kick with a final right-toe position constraint.
+# Bilateral arm hold guided only by the two final hand-position constraints.
 nodes:
   - id: agent
     path: uv
@@ -6,8 +6,8 @@ nodes:
     min_log_level: info
     env:
       AGENT: script
-      SCRIPT_TASK: right_kick
-      SCRIPT_PROMPT: perform a high kick forward with the right leg
+      SCRIPT_TASK: arms_hold
+      SCRIPT_PROMPT: stand still with both arms extended straight forward at shoulder height, palms down, and hold the pose
       SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
     inputs:
@@ -26,7 +26,7 @@ nodes:
       TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
       TEXT_ENCODER_DEVICE: cuda
       ARDY_SEED: "${ARDY_SEED:-1234}"
-      ARDY_TEXT_CFG_WEIGHT: "${ARDY_TEXT_CFG_WEIGHT:-2.0}"
+      ARDY_TEXT_CFG_WEIGHT: "0.0"
       ARDY_CONSTRAINT_CFG_WEIGHT: "${ARDY_CONSTRAINT_CFG_WEIGHT:-2.0}"
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: none

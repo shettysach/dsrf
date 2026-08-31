@@ -3,9 +3,9 @@ from typing import Any, cast
 import numpy as np
 
 from nodes.script_agent import ScriptAgentLoop
+from script.tasks.arms_hold import ArmsHoldScript
 from script.tasks.prompt import PromptScript
 from script.tasks.push import PushScript
-from script.tasks.right_kick import RightKickScript
 from shared.arrow import agent_command_from_arrow, observation_to_arrow
 from shared.messages import EndEffectorTarget, VisualObservation
 
@@ -100,8 +100,10 @@ def test_script_agent_can_send_without_an_observation() -> None:
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
 
 
-def test_right_kick_script_constrains_only_the_right_foot() -> None:
-    script = RightKickScript(prompt="perform a high kick forward with the right leg")
+def test_arms_hold_script_constrains_both_hands() -> None:
+    script = ArmsHoldScript(
+        prompt="stand still with both arms extended straight forward at shoulder height, palms down, and hold the pose"
+    )
 
     command = script.next_command(0)
 
@@ -109,7 +111,8 @@ def test_right_kick_script_constrains_only_the_right_foot() -> None:
     assert command.motion == script.prompt
     assert command.target_xys == ()
     assert command.end_effectors == (
-        EndEffectorTarget("right_foot", (0.65, -0.15, 0.65)),
+        EndEffectorTarget("left_hand", (0.58, 0.16, 0.40)),
+        EndEffectorTarget("right_hand", (0.58, -0.16, 0.40)),
     )
     assert script.next_command(1) is None
 

@@ -6,13 +6,16 @@ from shared.messages import AgentCommand, EndEffectorTarget
 
 
 @dataclass(frozen=True)
-class RightKickScript:
-    """Emit one right-leg high-kick command with an optional toe target."""
+class ArmsHoldScript:
+    """Emit one static, shoulder-height bilateral arm-hold command."""
 
     prompt: str
-    # Robot-local: forward, left, vertical. The target is high and slightly to
-    # the right, leaving the supporting left leg unobstructed.
-    right_foot_target: tuple[float, float, float] = (0.65, -0.15, 0.65)
+    # Robot-local: forward, left, vertical. With the G1 standing root, these
+    # place both hands near the natural shoulder-height arms-forward pose.
+    hand_targets: tuple[tuple[float, float, float], ...] = (
+        (0.58, 0.16, 0.40),
+        (0.58, -0.16, 0.40),
+    )
 
     def next_command(self, observation_id: int) -> AgentCommand | None:
         if observation_id != 0:
@@ -23,6 +26,7 @@ class RightKickScript:
             motion=self.prompt,
             target_xys=(),
             end_effectors=(
-                EndEffectorTarget("right_foot", self.right_foot_target),
+                EndEffectorTarget("left_hand", self.hand_targets[0]),
+                EndEffectorTarget("right_hand", self.hand_targets[1]),
             ),
         )
