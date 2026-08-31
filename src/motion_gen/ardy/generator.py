@@ -28,14 +28,12 @@ class Ardy:
         device: str = "cpu",
         constraint_cfg_weight: float = 2.0,
         seed: int | None = None,
-        end_effector_diagnostics: bool = False,
     ) -> None:
         if constraint_cfg_weight < 0.0:
             raise ValueError("constraint_cfg_weight must be non-negative")
         self.device = torch.device(device)
         self.constraint_cfg_weight = constraint_cfg_weight
         self.seed = seed
-        self.end_effector_diagnostics = end_effector_diagnostics
         self.model = load_model(
             "g1",
             device=str(self.device),
@@ -60,6 +58,14 @@ class Ardy:
             device=self.device,
         )
         has_spatial_constraints = bool(target_xys or end_effectors)
+        print(
+            "ARDY EE diagnostic input "
+            f"spatial_constraints={has_spatial_constraints} "
+            f"end_effectors={[target.name for target in end_effectors]} "
+            f"constraint_cfg_weight={getattr(self, 'constraint_cfg_weight', 2.0)}",
+            file=sys.stderr,
+            flush=True,
+        )
         generated_frames = int(self.model.gen_horizon_len)
         lengths = torch.tensor([generated_frames], device=self.device)
         motion_mask = observed_motion = None
@@ -85,7 +91,7 @@ class Ardy:
                 history_frames=0,
                 device=self.device,
             )
-            if getattr(self, "end_effector_diagnostics", False) and end_effectors:
+            if end_effectors:
                 end_effector_targets = global_end_effector_targets(
                     root_history[-1], root_heading, end_effectors, device=self.device
                 )
