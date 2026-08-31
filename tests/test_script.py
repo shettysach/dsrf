@@ -5,8 +5,9 @@ import numpy as np
 from nodes.script_agent import ScriptAgentLoop
 from script.tasks.prompt import PromptScript
 from script.tasks.push import PushScript
+from script.tasks.right_kick import RightKickScript
 from shared.arrow import agent_command_from_arrow, observation_to_arrow
-from shared.messages import VisualObservation
+from shared.messages import EndEffectorTarget, VisualObservation
 
 
 class _Node:
@@ -97,6 +98,20 @@ def test_script_agent_can_send_without_an_observation() -> None:
     ).run()
 
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
+
+
+def test_right_kick_script_constrains_only_the_right_foot() -> None:
+    script = RightKickScript(prompt="perform a high kick forward with the right leg")
+
+    command = script.next_command(0)
+
+    assert command is not None
+    assert command.motion == script.prompt
+    assert command.target_xys == ()
+    assert command.end_effectors == (
+        EndEffectorTarget("right_foot", (0.65, -0.15, 0.65)),
+    )
+    assert script.next_command(1) is None
 
 
 def test_prompt_script_emits_one_unconstrained_motion() -> None:

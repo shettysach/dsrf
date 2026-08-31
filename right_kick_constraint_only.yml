@@ -1,0 +1,43 @@
+# Right-leg high kick guided only by the final right-toe position constraint.
+nodes:
+  - id: agent
+    path: uv
+    args: run dsrf-agent
+    min_log_level: info
+    env:
+      AGENT: script
+      SCRIPT_TASK: right_kick
+      SCRIPT_PROMPT: perform a high kick forward with the right leg
+      SCRIPT_START_IMMEDIATELY: "true"
+      MOTION_GENERATOR: ardy
+    inputs:
+      sim_error: sim/error
+    outputs:
+      - command
+
+  - id: sim
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-sim
+    min_log_level: info
+    env:
+      DEVICE: cuda
+      MOTION_GENERATOR: ardy
+      CHECKPOINTS_DIR: /tmp/checkpoints
+      TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
+      TEXT_ENCODER_DEVICE: cuda
+      ARDY_SEED: "${ARDY_SEED:-1234}"
+      ARDY_TEXT_CFG_WEIGHT: "0.0"
+      ARDY_CONSTRAINT_CFG_WEIGHT: "${ARDY_CONSTRAINT_CFG_WEIGHT:-2.0}"
+      SONIC_DIR: /tmp/GEAR-SONIC
+      TASK: none
+      IMAGE_WIDTH: "1280"
+      IMAGE_HEIGHT: "720"
+      JPEG_QUALITY: "85"
+      PUBLISH_OBSERVATIONS: "false"
+      VIEWER: native
+      REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
+      DEMO_MAX_COMMANDS: "1"
+    inputs:
+      command: agent/command
+    outputs:
+      - error
