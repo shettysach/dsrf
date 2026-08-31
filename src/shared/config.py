@@ -49,6 +49,9 @@ class ArdyConfig:
     checkpoints_dir: Path
     text_encoder_model: Path
     text_encoder_device: str
+    text_cfg_weight: float = dataclass_field(
+        default=2.0, metadata={"env": "ARDY_TEXT_CFG_WEIGHT"}
+    )
     constraint_cfg_weight: float = dataclass_field(
         default=2.0, metadata={"env": "ARDY_CONSTRAINT_CFG_WEIGHT"}
     )

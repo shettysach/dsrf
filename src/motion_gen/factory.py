@@ -24,6 +24,7 @@ def create_motion_generator(
                 Ardy(
                     cfg.backend.checkpoints_dir,
                     device=cfg.device,
+                    text_cfg_weight=cfg.backend.text_cfg_weight,
                     constraint_cfg_weight=cfg.backend.constraint_cfg_weight,
                     seed=cfg.backend.seed,
                 ),

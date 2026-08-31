@@ -25,12 +25,16 @@ class Ardy:
         checkpoints_dir: Path,
         *,
         device: str = "cpu",
+        text_cfg_weight: float = 2.0,
         constraint_cfg_weight: float = 2.0,
         seed: int | None = None,
     ) -> None:
+        if text_cfg_weight < 0.0:
+            raise ValueError("text_cfg_weight must be non-negative")
         if constraint_cfg_weight < 0.0:
             raise ValueError("constraint_cfg_weight must be non-negative")
         self.device = torch.device(device)
+        self.text_cfg_weight = text_cfg_weight
         self.constraint_cfg_weight = constraint_cfg_weight
         self.seed = seed
         self.model = load_model(
@@ -97,9 +101,10 @@ class Ardy:
                 observed_motion=observed_motion,
                 text_feat=text_feat,
                 text_pad_mask=text_pad_mask,
-                cfg_weight=(2.0, getattr(self, "constraint_cfg_weight", 2.0))
+                cfg_weight=(getattr(self, "text_cfg_weight", 2.0),
+                            getattr(self, "constraint_cfg_weight", 2.0))
                 if has_spatial_constraints
-                else 2.0,
+                else getattr(self, "text_cfg_weight", 2.0),
                 progress_bar=lambda iterable: iterable,
                 init_history_sequence=None,
             )

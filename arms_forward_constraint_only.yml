@@ -1,4 +1,4 @@
-# One ARDY arms-forward prompt with two final palm-position constraints.
+# One arms-forward request conditioned only by its two palm-position targets.
 nodes:
   - id: agent
     path: uv
@@ -26,7 +26,7 @@ nodes:
       TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
       TEXT_ENCODER_DEVICE: cuda
       ARDY_SEED: "${ARDY_SEED:-1234}"
-      ARDY_TEXT_CFG_WEIGHT: "${ARDY_TEXT_CFG_WEIGHT:-2.0}"
+      ARDY_TEXT_CFG_WEIGHT: "0.0"
       ARDY_CONSTRAINT_CFG_WEIGHT: "${ARDY_CONSTRAINT_CFG_WEIGHT:-2.0}"
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: box_push

@@ -59,6 +59,7 @@ def test_ardy_motion_gen_config_accepts_constraint_cfg_and_seed(monkeypatch) -> 
     monkeypatch.setenv("CHECKPOINTS_DIR", "/models/ardy")
     monkeypatch.setenv("TEXT_ENCODER_MODEL", "/models/text-encoder")
     monkeypatch.setenv("TEXT_ENCODER_DEVICE", "cpu")
+    monkeypatch.setenv("ARDY_TEXT_CFG_WEIGHT", "0.0")
     monkeypatch.setenv("ARDY_CONSTRAINT_CFG_WEIGHT", "0.5")
     monkeypatch.setenv("ARDY_SEED", "1234")
 
@@ -66,6 +67,7 @@ def test_ardy_motion_gen_config_accepts_constraint_cfg_and_seed(monkeypatch) -> 
         checkpoints_dir=Path("/models/ardy"),
         text_encoder_model=Path("/models/text-encoder"),
         text_encoder_device="cpu",
+        text_cfg_weight=0.0,
         constraint_cfg_weight=0.5,
         seed=1234,
     )

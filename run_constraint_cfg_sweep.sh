@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Compare text-only generation with four constraint-guidance strengths.
+# Compare text-only generation with constraint-guidance strengths and a
+# constraint-only (zero text guidance) control.
 set -uo pipefail
 
 seed="${ARDY_SEED:-1234}"
@@ -24,5 +25,7 @@ for weight in 0 0.5 1.0 2.0; do
   run "constrained_cfg_$weight" env "ARDY_CONSTRAINT_CFG_WEIGHT=$weight" \
     dora run arms_forward_constrained.yml
 done
+run constraint_only env ARDY_TEXT_CFG_WEIGHT=0.0 \
+  ARDY_CONSTRAINT_CFG_WEIGHT=2.0 dora run arms_forward_constraint_only.yml
 
 exit "$failures"
