@@ -20,6 +20,7 @@ class Ardy:
 
     fps = 25
     duration_s = 5
+    history_frames = 4
 
     def __init__(
         self,
@@ -38,7 +39,6 @@ class Ardy:
             raise ValueError(f"Expected ARDY G1 at {self.fps} FPS, got {model_fps}")
 
         self.converter = MujocoQposConverter(self.model.skeleton)
-        self.history_frames = int(self.model.num_frames_per_token)
         standing_history = np.repeat(standing_qpos()[None], self.history_frames, axis=0)
         self.initial_history = build_initial_history(
             standing_history,

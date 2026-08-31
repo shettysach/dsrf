@@ -18,7 +18,7 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
     model = SimpleNamespace(
         motion_rep=SimpleNamespace(fps=25),
         skeleton=object(),
-        num_frames_per_token=4,
+        num_frames_per_token=8,
     )
     monkeypatch.setattr(
         ardy_generator,
@@ -39,9 +39,10 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
             torch.zeros((1, 4, 3)),
         ),
     )
-    ardy_generator.Ardy(tmp_path, device="cuda:0")
+    generator = ardy_generator.Ardy(tmp_path, device="cuda:0")
 
     assert received["device"] == "cuda:0"
+    assert generator.history_frames == 4
 
 
 def test_standing_qpos_round_trips_through_ardy_inputs() -> None:
