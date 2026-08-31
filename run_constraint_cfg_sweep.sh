@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
 # Compare text-only generation with four constraint-guidance strengths.
-set -euo pipefail
+set -uo pipefail
 
 seed="${ARDY_SEED:-1234}"
-output_dir="${1:-ardy-cfg-sweep}"
-mkdir -p "$output_dir"
+log_file="${1:-ardy-cfg-sweep.log}"
+failures=0
 
 run() {
   local name="$1"
+  local status
   shift
-  echo "=== $name (ARDY_SEED=$seed) ==="
-  ARDY_SEED="$seed" "$@" 2>&1 | tee "$output_dir/$name.log"
+  echo "=== $name (ARDY_SEED=$seed) ===" | tee -a "$log_file"
+  ARDY_SEED="$seed" "$@" 2>&1 | tee -a "$log_file"
+  status=${PIPESTATUS[0]}
+  if ((status != 0)); then
+    echo "=== $name FAILED (exit=$status); continuing sweep ===" | tee -a "$log_file"
+    failures=1
+  fi
 }
 
 run text_only dora run arms_forward.yml
 for weight in 0 0.5 1.0 2.0; do
-  echo "=== constrained_cfg_$weight (ARDY_SEED=$seed) ==="
-  ARDY_SEED="$seed" ARDY_CONSTRAINT_CFG_WEIGHT="$weight" \
-    dora run arms_forward_constrained.yml 2>&1 \
-    | tee "$output_dir/constrained_cfg_$weight.log"
+  run "constrained_cfg_$weight" env "ARDY_CONSTRAINT_CFG_WEIGHT=$weight" \
+    dora run arms_forward_constrained.yml
 done
+
+exit "$failures"
