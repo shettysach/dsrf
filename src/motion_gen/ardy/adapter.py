@@ -32,8 +32,3 @@ class ArdyMotionGenerator:
             command.target_xys,
             command.end_effectors,
         )
-
-    @property
-    def diagnostics(self) -> tuple[str, ...]:
-        """Latest ARDY generation diagnostics, for the runtime logger."""
-        return self._generator.diagnostics
