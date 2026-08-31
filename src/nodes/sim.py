@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 from typing import Optional
 
 import torch
@@ -28,6 +29,8 @@ def main() -> None:
     )
     viewer: Optional[SimViewer] = None
     recorder: DemoVideoRecorder | None = None
+    generator = None
+    tracker = None
 
     try:
         with simulation.compute_context():
@@ -68,15 +71,23 @@ def main() -> None:
             publish_observations=cfg.publish_observations,
         ).run()
     finally:
-        if simulation.device.type == "cuda":
-            # ARDY, SONIC, and Warp share CUDA work. Finish all queued kernels
-            # before native viewer/MJLab resources tear down.
-            with simulation.compute_context():
-                torch.cuda.synchronize(simulation.device)
         if recorder is not None:
             recorder.close()
         if viewer is not None:
             viewer.close()
+        # Release ARDY and SONIC before destroying the Warp/MJLab CUDA graph.
+        # Leaving their CUDA tensors for interpreter shutdown can race native
+        # graph teardown and terminate the process with SIGSEGV (139).
+        del generator
+        del tracker
+        gc.collect()
+        if simulation.device.type == "cuda":
+            # Flush both CUDA frontends: MJLab issues graph work through Warp
+            # while ARDY and SONIC use PyTorch on the shared stream.
+            import warp as wp
+
+            wp.synchronize_device(str(simulation.device))
+            torch.cuda.synchronize(simulation.device)
         simulation.close()
 
 
