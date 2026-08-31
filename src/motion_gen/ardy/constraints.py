@@ -17,6 +17,7 @@ _MAX_END_EFFECTOR_REACH_M = {
     "left_foot": 1.5,
     "right_foot": 1.5,
 }
+_END_EFFECTOR_APPROACH_FRACTION = 0.30
 
 
 def build_constraints(
@@ -25,6 +26,7 @@ def build_constraints(
     root_heading: torch.Tensor,
     target_xys: tuple[tuple[float, float], ...],
     end_effectors: tuple[EndEffectorTarget, ...],
+    end_effector_start_positions: torch.Tensor | None = None,
     *,
     generated_frames: int,
     history_frames: int,
@@ -73,7 +75,7 @@ def build_constraints(
         index["root_2d"] = [frame_indices]
         data["root_2d"] = [root_2d]
     if end_effectors:
-        frame = generated_frames + history_frames - 1
+        final_frame = generated_frames + history_frames - 1
         local_2d = torch.tensor(
             [[target.target_xyz[1], target.target_xyz[0]] for target in end_effectors],
             dtype=current_root.dtype,
@@ -95,18 +97,46 @@ def build_constraints(
             motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
             for target in end_effectors
         ]
+
+        frames = torch.tensor([final_frame], device=device)
+        positions = target_positions
+        if end_effector_start_positions is not None:
+            start_positions = end_effector_start_positions.to(
+                dtype=current_root.dtype, device=device
+            )
+            expected_shape = target_positions.shape
+            if start_positions.shape != expected_shape:
+                raise ValueError(
+                    "ARDY end-effector start positions must have shape "
+                    f"{tuple(expected_shape)}, got {tuple(start_positions.shape)}"
+                )
+            approach_frames = max(
+                2, round(generated_frames * _END_EFFECTOR_APPROACH_FRACTION)
+            )
+            start_frame = final_frame - approach_frames + 1
+            frames = torch.arange(start_frame, final_frame + 1, device=device)
+            alpha = torch.linspace(0, 1, approach_frames, device=device)
+            alpha = alpha.square() * (3 - 2 * alpha)
+            positions = (
+                (1 - alpha[:, None, None]) * start_positions[None]
+                + alpha[:, None, None] * target_positions[None]
+            ).reshape(-1, 3)
         global_indices = torch.tensor(
-            [[frame, root_index], *[[frame, joint] for joint in joint_indices]],
+            [[final_frame, root_index], *[
+                [frame, joint]
+                for frame in frames.tolist()
+                for joint in joint_indices
+            ]],
             device=device,
         )
         index.update(
-            root_y_pos=[torch.tensor([frame], device=device)],
+            root_y_pos=[torch.tensor([final_frame], device=device)],
             global_joints_positions=[global_indices],
         )
         data.update(
             root_y_pos=[current_root[1].reshape(1)],
             global_joints_positions=[
-                torch.cat((constraint_root.unsqueeze(0), target_positions))
+                torch.cat((constraint_root.unsqueeze(0), positions))
             ],
         )
 

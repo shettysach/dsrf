@@ -68,6 +68,56 @@ class Ardy:
         num_frames = generated_frames + self.history_frames
         lengths = torch.tensor([num_frames], device=self.device)
         motion_mask = observed_motion = None
+        end_effector_start_positions = None
+        if end_effectors:
+            # Sample the gross motion first.  Its palm positions anchor a short,
+            # smooth final approach instead of pulling the arms from frame zero.
+            preliminary_mask = preliminary_observed = None
+            if target_xys:
+                preliminary_mask, preliminary_observed = build_constraints(
+                    self.model.motion_rep,
+                    self.root_history,
+                    self.root_heading,
+                    target_xys,
+                    (),
+                    generated_frames=generated_frames,
+                    history_frames=self.history_frames,
+                    device=self.device,
+                )
+            with torch.inference_mode():
+                preliminary_motion = self.model(
+                    num_frames,
+                    num_denoising_steps=int(self.model.diffusion.num_base_steps),
+                    pad_mask=length_to_mask(lengths),
+                    first_heading_angle=None,
+                    motion_mask=preliminary_mask,
+                    observed_motion=preliminary_observed,
+                    text_feat=text_feat,
+                    text_pad_mask=text_pad_mask,
+                    cfg_weight=(2.0, 2.0),
+                    progress_bar=lambda iterable: iterable,
+                    init_history_sequence=self.initial_history,
+                )
+                preliminary_decoded = self.model.motion_rep.inverse(
+                    preliminary_motion[:, self.history_frames :],
+                    is_normalized=True,
+                )
+            approach_start = generated_frames - max(2, round(generated_frames * 0.30))
+            joint_indices = [
+                self.model.skeleton.bone_order_names.index(
+                    {
+                        "left_hand": "left_hand_roll_skel",
+                        "right_hand": "right_hand_roll_skel",
+                        "left_foot": "left_toe_base",
+                        "right_foot": "right_toe_base",
+                    }[target.name]
+                )
+                for target in end_effectors
+            ]
+            end_effector_start_positions = preliminary_decoded["posed_joints"][
+                0, approach_start, joint_indices
+            ].detach()
+
         if target_xys or end_effectors:
             motion_mask, observed_motion = build_constraints(
                 self.model.motion_rep,
@@ -75,6 +125,7 @@ class Ardy:
                 self.root_heading,
                 target_xys,
                 end_effectors,
+                end_effector_start_positions,
                 generated_frames=generated_frames,
                 history_frames=self.history_frames,
                 device=self.device,
