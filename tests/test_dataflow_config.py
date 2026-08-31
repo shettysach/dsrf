@@ -61,6 +61,17 @@ def test_ardy_dataflow_encodes_commands_in_sim() -> None:
     assert "encoding_error" not in nodes["agent"]["inputs"]
 
 
+def test_push_script_dataflow_waits_for_each_phase_observation() -> None:
+    descriptor = yaml.safe_load(Path("push_script.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["SCRIPT_START_IMMEDIATELY"] == "false"
+    assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
+    assert nodes["sim"]["env"]["PUBLISH_OBSERVATIONS"] == "true"
+    assert nodes["sim"]["env"]["DEMO_MAX_COMMANDS"] == "2"
+    assert "observation" in nodes["sim"]["outputs"]
+
+
 def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     descriptor = yaml.safe_load(Path("sokoban.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}

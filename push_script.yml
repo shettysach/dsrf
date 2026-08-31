@@ -1,4 +1,4 @@
-# Contact-only box script: no VLM, grounding, or rendered observations.
+# Two-phase box script: reach the box, then push it to the goal.
 nodes:
   - id: agent
     path: uv
@@ -7,11 +7,12 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: box_push
-      SCRIPT_PROMPT: Walk forward and push the box onto the green goal with both palms.
-      SCRIPT_START_IMMEDIATELY: "true"
+      SCRIPT_PROMPT: Reach both palms to the box.
+      SCRIPT_START_IMMEDIATELY: "false"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
+      observation: sim/observation
     outputs:
       - command
 
@@ -30,11 +31,12 @@ nodes:
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
-      PUBLISH_OBSERVATIONS: "false"
+      PUBLISH_OBSERVATIONS: "true"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
-      DEMO_MAX_COMMANDS: "1"
+      DEMO_MAX_COMMANDS: "2"
     inputs:
       command: agent/command
     outputs:
       - error
+      - observation

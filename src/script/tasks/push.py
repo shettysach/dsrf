@@ -7,7 +7,7 @@ from shared.messages import AgentCommand, EndEffectorTarget
 
 @dataclass(frozen=True)
 class PushScript:
-    """One deterministic waypoint-guided two-palm box push."""
+    """Reach the box, then walk it to the goal with two palm contacts."""
 
     prompt: str
     box_position: tuple[float, float, float] = (1.55, 0.0, 0.55)
@@ -19,12 +19,8 @@ class PushScript:
     # stop its hands slightly short of a surface target; collision then resolves
     # this to palm contact without requesting a continuing push.
     contact_depth: float = 0.05
-    def next_command(self, observation_id: int) -> AgentCommand | None:
-        # This initial experiment has exactly one phase.  Future phases belong
-        # here, rather than in the generic TaskScript interface.
-        if observation_id != 0:
-            return None
 
+    def next_command(self, observation_id: int) -> AgentCommand | None:
         box_x, _, box_z = self.box_position
         robot_x, robot_y, robot_z = self.robot_position
         goal_x, goal_y = self.goal_position
@@ -34,27 +30,67 @@ class PushScript:
         hand_reach_x = initial_near_face_x - robot_x
         final_near_face_x = goal_x - box_depth / 2.0 + self.contact_depth
         final_robot_x = final_near_face_x - hand_reach_x
-        return AgentCommand(
-            observation_id=observation_id,
-            text=self.prompt,
-            motion="walk forward while pushing the box with both palms",
-            target_xys=((final_robot_x - robot_x, goal_y - robot_y),),
-            end_effectors=(
-                EndEffectorTarget(
-                    "left_hand",
-                    (
-                        final_near_face_x - robot_x,
-                        goal_y + half_spacing - robot_y,
-                        box_z - robot_z,
+        match observation_id:
+            case 0:
+                return AgentCommand(
+                    observation_id=observation_id,
+                    text=self.prompt,
+                    motion="face both palms outward, then reach forward to touch",
+                    target_xys=(),
+                    end_effectors=self._palm_targets(
+                        initial_near_face_x,
+                        0.0,
+                        box_z,
+                        robot_x,
+                        robot_y,
+                        robot_z,
+                        half_spacing,
                     ),
+                )
+            case 1:
+                return AgentCommand(
+                    observation_id=observation_id,
+                    text="Walk forward and push the box onto the green goal.",
+                    motion="walk forward while pushing the box with both palms",
+                    target_xys=((final_robot_x - robot_x, goal_y - robot_y),),
+                    end_effectors=self._palm_targets(
+                        final_near_face_x,
+                        goal_y,
+                        box_z,
+                        robot_x,
+                        robot_y,
+                        robot_z,
+                        half_spacing,
+                    ),
+                )
+            case _:
+                return None
+
+    @staticmethod
+    def _palm_targets(
+        contact_x: float,
+        contact_y: float,
+        contact_z: float,
+        robot_x: float,
+        robot_y: float,
+        robot_z: float,
+        half_spacing: float,
+    ) -> tuple[EndEffectorTarget, EndEffectorTarget]:
+        return (
+            EndEffectorTarget(
+                "left_hand",
+                (
+                    contact_x - robot_x,
+                    contact_y + half_spacing - robot_y,
+                    contact_z - robot_z,
                 ),
-                EndEffectorTarget(
-                    "right_hand",
-                    (
-                        final_near_face_x - robot_x,
-                        goal_y - half_spacing - robot_y,
-                        box_z - robot_z,
-                    ),
+            ),
+            EndEffectorTarget(
+                "right_hand",
+                (
+                    contact_x - robot_x,
+                    contact_y - half_spacing - robot_y,
+                    contact_z - robot_z,
                 ),
             ),
         )
