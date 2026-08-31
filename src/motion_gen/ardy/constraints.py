@@ -27,6 +27,7 @@ def build_constraints(
     target_xys: tuple[tuple[float, float], ...],
     end_effectors: tuple[EndEffectorTarget, ...],
     end_effector_start_positions: torch.Tensor | None = None,
+    end_effector_root_positions: torch.Tensor | None = None,
     *,
     generated_frames: int,
     history_frames: int,
@@ -100,6 +101,7 @@ def build_constraints(
 
         frames = torch.tensor([final_frame], device=device)
         positions = target_positions
+        root_positions = constraint_root.unsqueeze(0)
         if end_effector_start_positions is not None:
             start_positions = end_effector_start_positions.to(
                 dtype=current_root.dtype, device=device
@@ -121,22 +123,43 @@ def build_constraints(
                 (1 - alpha[:, None, None]) * start_positions[None]
                 + alpha[:, None, None] * target_positions[None]
             ).reshape(-1, 3)
+            if end_effector_root_positions is None:
+                root_positions = current_root.repeat(approach_frames, 1)
+            else:
+                root_positions = end_effector_root_positions.to(
+                    dtype=current_root.dtype, device=device
+                )
+                expected_shape = (approach_frames, 3)
+                if root_positions.shape != expected_shape:
+                    raise ValueError(
+                        "ARDY end-effector root positions must have shape "
+                        f"{expected_shape}, got {tuple(root_positions.shape)}"
+                    )
+            # The final root remains the explicit waypoint constraint; the
+            # preceding roots retain the unconditioned motion's trajectory.
+            root_positions = root_positions.clone()
+            root_positions[-1, [0, 2]] = constraint_root[[0, 2]]
+            index["root_2d"] = [frames]
+            data["root_2d"] = [root_positions[:, [0, 2]]]
         global_indices = torch.tensor(
-            [[final_frame, root_index], *[
+            [
+                *[[frame, root_index] for frame in frames.tolist()],
+                *[
                 [frame, joint]
                 for frame in frames.tolist()
                 for joint in joint_indices
-            ]],
+                ],
+            ],
             device=device,
         )
         index.update(
-            root_y_pos=[torch.tensor([final_frame], device=device)],
+            root_y_pos=[frames],
             global_joints_positions=[global_indices],
         )
         data.update(
-            root_y_pos=[current_root[1].reshape(1)],
+            root_y_pos=[root_positions[:, 1]],
             global_joints_positions=[
-                torch.cat((constraint_root.unsqueeze(0), positions))
+                torch.cat((root_positions, positions))
             ],
         )
 

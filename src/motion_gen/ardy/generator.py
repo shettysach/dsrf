@@ -69,6 +69,7 @@ class Ardy:
         lengths = torch.tensor([num_frames], device=self.device)
         motion_mask = observed_motion = None
         end_effector_start_positions = None
+        end_effector_root_positions = None
         if end_effectors:
             # Sample the gross motion first.  Its palm positions anchor a short,
             # smooth final approach instead of pulling the arms from frame zero.
@@ -117,6 +118,9 @@ class Ardy:
             end_effector_start_positions = preliminary_decoded["posed_joints"][
                 0, approach_start, joint_indices
             ].detach()
+            end_effector_root_positions = preliminary_decoded["root_positions"][
+                0, approach_start:
+            ].detach()
 
         if target_xys or end_effectors:
             motion_mask, observed_motion = build_constraints(
@@ -126,6 +130,7 @@ class Ardy:
                 target_xys,
                 end_effectors,
                 end_effector_start_positions,
+                end_effector_root_positions,
                 generated_frames=generated_frames,
                 history_frames=self.history_frames,
                 device=self.device,
