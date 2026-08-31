@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from script.interface import TaskScript
+from script.tasks.prompt import PromptScript
 from script.tasks.push import PushScript
 
 
@@ -9,5 +10,7 @@ def create_task_script(task_name: str, prompt: str) -> TaskScript:
     match task_name:
         case "box_push":
             return PushScript(prompt=prompt)
+        case "prompt":
+            return PromptScript(prompt=prompt)
         case _:
             raise ValueError(f"No script is registered for task {task_name!r}")
