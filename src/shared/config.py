@@ -49,6 +49,10 @@ class ArdyConfig:
     checkpoints_dir: Path
     text_encoder_model: Path
     text_encoder_device: str
+    constraint_cfg_weight: float = dataclass_field(
+        default=2.0, metadata={"env": "ARDY_CONSTRAINT_CFG_WEIGHT"}
+    )
+    seed: int | None = dataclass_field(default=None, metadata={"env": "ARDY_SEED"})
 
     @classmethod
     def from_env(cls) -> "ArdyConfig":
@@ -256,6 +260,10 @@ def _parse_env_value(name: str, value: str, value_type: object) -> object:
         return value == "true"
     if value_type is Path:
         return Path(value)
+    if get_origin(value_type) is not None and type(None) in get_args(value_type):
+        non_none_types = tuple(arg for arg in get_args(value_type) if arg is not type(None))
+        if len(non_none_types) == 1:
+            return _parse_env_value(name, value, non_none_types[0])
     if get_origin(value_type) is Literal:
         choices = get_args(value_type)
         if value not in choices:

@@ -21,7 +21,12 @@ def create_motion_generator(
             from motion_gen.ardy.text_encoder import TextEncoder
 
             return ArdyMotionGenerator(
-                Ardy(cfg.backend.checkpoints_dir, device=cfg.device),
+                Ardy(
+                    cfg.backend.checkpoints_dir,
+                    device=cfg.device,
+                    constraint_cfg_weight=cfg.backend.constraint_cfg_weight,
+                    seed=cfg.backend.seed,
+                ),
                 TextEncoder(
                     cfg.backend.text_encoder_model,
                     device=cfg.backend.text_encoder_device,

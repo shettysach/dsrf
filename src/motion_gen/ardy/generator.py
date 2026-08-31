@@ -25,8 +25,14 @@ class Ardy:
         checkpoints_dir: Path,
         *,
         device: str = "cpu",
+        constraint_cfg_weight: float = 2.0,
+        seed: int | None = None,
     ) -> None:
+        if constraint_cfg_weight < 0.0:
+            raise ValueError("constraint_cfg_weight must be non-negative")
         self.device = torch.device(device)
+        self.constraint_cfg_weight = constraint_cfg_weight
+        self.seed = seed
         self.model = load_model(
             "g1",
             device=str(self.device),
@@ -77,6 +83,11 @@ class Ardy:
             )
 
         with torch.inference_mode():
+            # Seed immediately before diffusion so separate process runs use
+            # identical noise, regardless of model-loading side effects.
+            seed = getattr(self, "seed", None)
+            if seed is not None:
+                torch.manual_seed(seed)
             motion = self.model(
                 generated_frames,
                 num_denoising_steps=int(self.model.diffusion.num_base_steps),
@@ -86,7 +97,9 @@ class Ardy:
                 observed_motion=observed_motion,
                 text_feat=text_feat,
                 text_pad_mask=text_pad_mask,
-                cfg_weight=(2.0, 2.0) if has_spatial_constraints else 2.0,
+                cfg_weight=(2.0, getattr(self, "constraint_cfg_weight", 2.0))
+                if has_spatial_constraints
+                else 2.0,
                 progress_bar=lambda iterable: iterable,
                 init_history_sequence=None,
             )

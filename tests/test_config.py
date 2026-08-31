@@ -53,6 +53,24 @@ def test_ardy_motion_gen_config_requires_no_fixed_conditioning(monkeypatch) -> N
     )
 
 
+def test_ardy_motion_gen_config_accepts_constraint_cfg_and_seed(monkeypatch) -> None:
+    monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("MOTION_GENERATOR", "ardy")
+    monkeypatch.setenv("CHECKPOINTS_DIR", "/models/ardy")
+    monkeypatch.setenv("TEXT_ENCODER_MODEL", "/models/text-encoder")
+    monkeypatch.setenv("TEXT_ENCODER_DEVICE", "cpu")
+    monkeypatch.setenv("ARDY_CONSTRAINT_CFG_WEIGHT", "0.5")
+    monkeypatch.setenv("ARDY_SEED", "1234")
+
+    assert MotionGenConfig.from_env().backend == ArdyConfig(
+        checkpoints_dir=Path("/models/ardy"),
+        text_encoder_model=Path("/models/text-encoder"),
+        text_encoder_device="cpu",
+        constraint_cfg_weight=0.5,
+        seed=1234,
+    )
+
+
 def test_motion_gen_config_rejects_unknown_backend(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
     monkeypatch.setenv("MOTION_GENERATOR", "unknown")

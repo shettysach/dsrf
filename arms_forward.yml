@@ -25,6 +25,7 @@ nodes:
       CHECKPOINTS_DIR: /tmp/checkpoints
       TEXT_ENCODER_MODEL: /home/sach/Desktop/encoding/model/
       TEXT_ENCODER_DEVICE: cuda
+      ARDY_SEED: "${ARDY_SEED:-1234}"
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: box_push
       IMAGE_WIDTH: "1280"
