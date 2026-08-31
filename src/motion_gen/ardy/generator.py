@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +33,7 @@ class Ardy:
         self.device = torch.device(device)
         self.constraint_cfg_weight = constraint_cfg_weight
         self.seed = seed
+        self.diagnostics: tuple[str, ...] = ()
         self.model = load_model(
             "g1",
             device=str(self.device),
@@ -58,14 +58,13 @@ class Ardy:
             device=self.device,
         )
         has_spatial_constraints = bool(target_xys or end_effectors)
-        print(
+        diagnostics = [
             "ARDY EE diagnostic input "
             f"spatial_constraints={has_spatial_constraints} "
             f"end_effectors={[target.name for target in end_effectors]} "
-            f"constraint_cfg_weight={getattr(self, 'constraint_cfg_weight', 2.0)}",
-            file=sys.stderr,
-            flush=True,
-        )
+            f"constraint_cfg_weight={getattr(self, 'constraint_cfg_weight', 2.0)}"
+        ]
+        self.diagnostics = tuple(diagnostics)
         generated_frames = int(self.model.gen_horizon_len)
         lengths = torch.tensor([generated_frames], device=self.device)
         motion_mask = observed_motion = None
@@ -128,12 +127,15 @@ class Ardy:
                 is_normalized=True,
             )
             if end_effector_targets is not None:
-                self._log_end_effector_diagnostics(
-                    generated_motion,
-                    decoded,
-                    end_effectors,
-                    end_effector_targets,
+                diagnostics.extend(
+                    self._end_effector_diagnostics(
+                        generated_motion,
+                        decoded,
+                        end_effectors,
+                        end_effector_targets,
+                    )
                 )
+                self.diagnostics = tuple(diagnostics)
             root_positions = decoded["root_positions"]
             root_headings = decoded["global_root_heading"]
             if root_positions.shape[1] < 2:
@@ -156,20 +158,21 @@ class Ardy:
         self.root_heading = next_root_heading
         return qpos
 
-    def _log_end_effector_diagnostics(
+    def _end_effector_diagnostics(
         self,
         generated_motion: torch.Tensor,
         rotations_decoded: dict[str, torch.Tensor],
         end_effectors: tuple[EndEffectorTarget, ...],
         targets: torch.Tensor,
-    ) -> None:
-        """Log final-frame target errors from both ARDY pose representations."""
+    ) -> tuple[str, ...]:
+        """Return final-frame errors from both ARDY pose representations."""
         positions_decoded = self.model.motion_rep.inverse(
             generated_motion,
             is_normalized=True,
             posed_joints_from="positions",
         )
         names = self.model.motion_rep.skeleton.bone_order_names
+        messages: list[str] = []
         for target, requested in zip(end_effectors, targets, strict=True):
             joint = names.index(
                 {"left_hand": "left_hand_roll_skel", "right_hand": "right_hand_roll_skel",
@@ -177,7 +180,7 @@ class Ardy:
             )
             from_positions = positions_decoded["posed_joints"][0, -1, joint]
             from_rotations = rotations_decoded["posed_joints"][0, -1, joint]
-            print(
+            messages.append(
                 "ARDY EE diagnostic "
                 f"frame={generated_motion.shape[1] - 1} "
                 f"effector={target.name} target={_format_xyz(requested)} "
@@ -186,10 +189,9 @@ class Ardy:
                 f"{torch.linalg.vector_norm(from_positions - requested).item():.4f} "
                 f"rotation_fk_xyz={_format_xyz(from_rotations)} "
                 "rotation_fk_error_m="
-                f"{torch.linalg.vector_norm(from_rotations - requested).item():.4f}",
-                file=sys.stderr,
-                flush=True,
+                f"{torch.linalg.vector_norm(from_rotations - requested).item():.4f}"
             )
+        return tuple(messages)
 
     def _standing_constraint_root_history(self) -> torch.Tensor:
         """Return the standing pose only as a spatial coordinate reference."""

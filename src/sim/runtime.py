@@ -204,6 +204,12 @@ class SimRuntime:
         try:
             with self.simulation.compute_context():
                 source_qpos = self.generator.generate(command)
+                for diagnostic in getattr(self.generator, "diagnostics", ()):
+                    self.node.log(
+                        "info",
+                        f"[OBS {command.observation_id}] {diagnostic}",
+                        target="dsrf.motion_gen",
+                    )
                 qpos = resample_qpos(source_qpos, source_fps=self.generator.fps)
                 state = self.simulation.robot_state()
                 self.tracker.load_motion(qpos, state)
