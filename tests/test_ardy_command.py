@@ -145,38 +145,6 @@ def test_end_effector_becomes_final_global_joint_position() -> None:
     )
 
 
-def test_end_effector_approach_smoothly_interpolates_from_generated_pose() -> None:
-    motion_rep, received = _conditions()
-    root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])
-
-    build_constraints(
-        motion_rep,
-        root_history,
-        torch.tensor(0.0),
-        (),
-        (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
-        torch.tensor([[0.2, 1.0, 2.2]]),
-        generated_frames=125,
-        history_frames=4,
-        device=torch.device("cpu"),
-    )
-
-    indices = received["index"]["global_joints_positions"][0]
-    positions = received["data"]["global_joints_positions"][0]
-    assert indices[0].tolist() == [91, 0]
-    assert indices[37].tolist() == [128, 0]
-    assert indices[38].tolist() == [91, 2]
-    assert indices[-1].tolist() == [128, 2]
-    assert received["index"]["root_2d"][0].tolist() == list(range(91, 129))
-    assert positions.shape == (76, 3)
-    torch.testing.assert_close(positions[38], torch.tensor([0.2, 1.0, 2.2]))
-    torch.testing.assert_close(positions[-1], torch.tensor([1.2, 1.1, 2.4]))
-    # Smoothstep has zero slope at the endpoints, unlike raw linear blending.
-    assert (positions[39] - positions[38]).norm() < (
-        positions[57] - positions[56]
-    ).norm()
-
-
 def test_waypoint_and_end_effector_share_the_final_constraint_frame() -> None:
     motion_rep, received = _conditions()
     root_history = torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]])
@@ -274,15 +242,11 @@ def test_end_effector_compiles_with_ardy_motion_representation() -> None:
         torch.tensor(0.0),
         (),
         (EndEffectorTarget("right_hand", (0.4, -0.2, 0.2)),),
-        torch.zeros((1, 3)),
-        torch.zeros((38, 3)),
         generated_frames=125,
         history_frames=4,
         device=torch.device("cpu"),
     )
 
     assert motion_mask.shape == observed_motion.shape == (1, 129, 414)
-    # ARDY requires a root condition at every frame that has a global-joint
-    # constraint; this also exercises its internal hips-time assertion.
-    assert int(motion_mask.sum()) == 228
+    assert int(motion_mask.sum()) == 6
     assert torch.isfinite(observed_motion).all()

@@ -35,7 +35,7 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
 
 
 def test_push_script_emits_one_symmetric_two_palm_command() -> None:
-    script = PushScript(motion_prompt="face both palms outward, then reach forward to touch")
+    script = PushScript(prompt="touch the box with both palms")
 
     command = script.next_command(0)
 
@@ -53,9 +53,7 @@ def test_push_script_emits_one_symmetric_two_palm_command() -> None:
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
-    command = PushScript(
-        motion_prompt="face both palms outward, then reach forward to touch"
-    ).next_command(0)
+    command = PushScript(prompt="touch the box with both palms").next_command(0)
     assert command is not None
     node = _Node(
         [
@@ -66,12 +64,7 @@ def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
     )
 
     ScriptAgentLoop(
-        cast(
-            Any,
-            node,
-        ), PushScript(
-            motion_prompt="face both palms outward, then reach forward to touch"
-        )
+        cast(Any, node), PushScript(prompt="touch the box with both palms")
     ).run()
 
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
@@ -85,12 +78,7 @@ def test_script_agent_can_send_without_an_observation() -> None:
     node = _Node([{"type": "STOP"}])
 
     ScriptAgentLoop(
-        cast(
-            Any,
-            node,
-        ), PushScript(
-            motion_prompt="face both palms outward, then reach forward to touch"
-        ), start_immediately=True
+        cast(Any, node), PushScript(prompt="touch the box with both palms"), start_immediately=True
     ).run()
 
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]

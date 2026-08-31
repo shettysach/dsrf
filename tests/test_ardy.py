@@ -9,7 +9,6 @@ from ardy.skeleton import G1Skeleton34
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
-from shared.messages import EndEffectorTarget
 
 
 def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> None:
@@ -141,50 +140,6 @@ def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
     assert model.motion_rep.create_conditions.call_count == 0
     assert model.call_args.kwargs["motion_mask"] is None
     assert model.call_args.kwargs["observed_motion"] is None
-
-
-def test_ardy_uses_unconstrained_palm_pose_for_final_approach(monkeypatch) -> None:
-    import motion_gen.ardy.generator as ardy_generator
-
-    skeleton = SimpleNamespace(
-        root_idx=0,
-        bone_order_names=["pelvis_skel", "left_hand_roll_skel", "right_hand_roll_skel"],
-    )
-    model = Mock()
-    model.diffusion.num_base_steps = 10
-    model.skeleton = skeleton
-    model.motion_rep.skeleton = skeleton
-    model.motion_rep.create_conditions.return_value = (
-        torch.zeros((129, 3)),
-        torch.zeros((129, 3)),
-    )
-    model.return_value = torch.zeros((1, 129, 3))
-    model.motion_rep.inverse.return_value = {
-        "posed_joints": torch.zeros((1, 125, 3, 3)),
-        "root_positions": torch.zeros((1, 125, 3)),
-        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 125]),
-    }
-    converter = Mock()
-    converter.dict_to_qpos.return_value = torch.zeros((1, 125, 36))
-    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
-    generator.device = torch.device("cpu")
-    generator.model = model
-    generator.converter = converter
-    generator.history_frames = 4
-    generator.initial_history = torch.zeros((1, 4, 3))
-    generator.root_history = torch.zeros((2, 3))
-    generator.root_heading = torch.tensor(0.0)
-
-    generator.generate(
-        torch.arange(4096, dtype=torch.float32),
-        (),
-        (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
-    )
-
-    assert model.call_count == 2
-    assert model.call_args_list[0].kwargs["motion_mask"] is None
-    assert model.call_args_list[1].kwargs["motion_mask"] is not None
-    assert model.motion_rep.inverse.call_count == 2
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:
