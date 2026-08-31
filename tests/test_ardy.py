@@ -43,6 +43,7 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
 
     assert received["device"] == "cuda:0"
     assert generator.history_frames == 4
+    assert generator.initial_history is None
 
 
 def test_standing_qpos_round_trips_through_ardy_inputs() -> None:
@@ -114,12 +115,15 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     torch.testing.assert_close(generator.root_heading, torch.tensor(torch.pi / 2.0))
 
 
-def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
+def test_unconstrained_ardy_uses_hf_style_rolling_four_frame_history() -> None:
     import motion_gen.ardy.generator as ardy_generator
 
     model = Mock()
+    model.gen_horizon_len = 52
     model.diffusion.num_base_steps = 10
-    model.return_value = torch.zeros((1, 129, 3))
+    model.autoregressive_step.side_effect = lambda **kwargs: torch.zeros(
+        (1, kwargs["num_frames"], 3)
+    )
     model.motion_rep.inverse.return_value = {
         "root_positions": torch.zeros((1, 125, 3)),
         "global_root_heading": torch.tensor([[[1.0, 0.0]] * 125]),
@@ -139,8 +143,15 @@ def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
 
     assert model.motion_rep.create_conditions.call_count == 0
-    assert model.call_args.kwargs["motion_mask"] is None
-    assert model.call_args.kwargs["observed_motion"] is None
+    assert model.call_count == 0
+    assert model.autoregressive_step.call_count == 3
+    calls = model.autoregressive_step.call_args_list
+    assert calls[0].kwargs["num_frames"] == 52
+    assert calls[0].kwargs["init_history_sequence"] is None
+    assert calls[1].kwargs["num_frames"] == 56
+    assert calls[1].kwargs["init_history_sequence"].shape == (1, 4, 3)
+    assert calls[2].kwargs["init_history_sequence"].shape == (1, 4, 3)
+    assert all(call.kwargs["cfg_weight"] == 2.0 for call in calls)
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:
