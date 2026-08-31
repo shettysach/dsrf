@@ -191,6 +191,10 @@ class Ardy:
                 end_effector_start_positions,
                 approach_start,
             )
+            # MJLab captures its CUDA graph immediately after generation. Free
+            # diagnostic-only temporaries from PyTorch's caching allocator first.
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
         self.initial_history = next_history
         self.root_history = next_root_history
         self.root_heading = next_root_heading
@@ -206,10 +210,28 @@ class Ardy:
         approach_start: int,
     ) -> None:
         """Print requested, feature-space, FK, and qpos-round-trip hand paths."""
+        with torch.inference_mode():
+            report = self._end_effector_diagnostic_report(
+                generated_motion,
+                decoded_from_rotations,
+                qpos,
+                end_effectors,
+                start_positions,
+                approach_start,
+            )
+        print("ARDY end-effector diagnostics=" + json.dumps(report))
+
+    def _end_effector_diagnostic_report(
+        self,
+        generated_motion: torch.Tensor,
+        decoded_from_rotations: dict[str, torch.Tensor],
+        qpos: torch.Tensor,
+        end_effectors: tuple[EndEffectorTarget, ...],
+        start_positions: torch.Tensor,
+        approach_start: int,
+    ) -> list[dict[str, object]]:
         decoded_from_positions = self.model.motion_rep.inverse(
-            generated_motion,
-            is_normalized=True,
-            posed_joints_from="positions",
+            generated_motion, is_normalized=True, posed_joints_from="positions"
         )
         names_to_joints = {
             "left_hand": "left_hand_roll_skel",
@@ -249,7 +271,7 @@ class Ardy:
         _, qpos_roundtrip_positions, _ = fk(
             local_rot_mats[0], qpos_root_positions[0], self.model.skeleton
         )
-        report = [
+        return [
             {
                 "frame": approach_start + offset,
                 "requested": requested[offset, target_index].tolist(),
@@ -266,4 +288,3 @@ class Ardy:
             for offset in range(count)
             for target_index, joint in enumerate(joint_indices)
         ]
-        print("ARDY end-effector diagnostics=" + json.dumps(report))
