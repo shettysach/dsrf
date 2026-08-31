@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 import numpy as np
 import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
+from ardy.motion_rep.reps.ardy_motionrep import fk
 from ardy.motion_rep.tools import length_to_mask
 
-from motion_gen.ardy.constraints import build_constraints
+from motion_gen.ardy.constraints import _rotate_2d, build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
@@ -179,7 +182,85 @@ class Ardy:
             )
 
         qpos = batched_qpos[0].contiguous()
+        if end_effectors and os.getenv("ARDY_END_EFFECTOR_DIAGNOSTICS") == "1":
+            self._log_end_effector_diagnostics(
+                generated_motion,
+                decoded,
+                qpos,
+                end_effectors,
+                end_effector_start_positions,
+                approach_start,
+            )
         self.initial_history = next_history
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
+
+    def _log_end_effector_diagnostics(
+        self,
+        generated_motion: torch.Tensor,
+        decoded_from_rotations: dict[str, torch.Tensor],
+        qpos: torch.Tensor,
+        end_effectors: tuple[EndEffectorTarget, ...],
+        start_positions: torch.Tensor,
+        approach_start: int,
+    ) -> None:
+        """Print requested, feature-space, FK, and qpos-round-trip hand paths."""
+        decoded_from_positions = self.model.motion_rep.inverse(
+            generated_motion,
+            is_normalized=True,
+            posed_joints_from="positions",
+        )
+        names_to_joints = {
+            "left_hand": "left_hand_roll_skel",
+            "right_hand": "right_hand_roll_skel",
+            "left_foot": "left_toe_base",
+            "right_foot": "right_toe_base",
+        }
+        joint_indices = [
+            self.model.skeleton.bone_order_names.index(names_to_joints[target.name])
+            for target in end_effectors
+        ]
+        current_root = self.root_history[-1].to(device=self.device)
+        local_2d = torch.tensor(
+            [[target.target_xyz[1], target.target_xyz[0]] for target in end_effectors],
+            dtype=current_root.dtype,
+            device=self.device,
+        )
+        final_targets = current_root.repeat(len(end_effectors), 1)
+        final_targets[:, [0, 2]] += _rotate_2d(local_2d, self.root_heading)
+        final_targets[:, 1] += torch.tensor(
+            [target.target_xyz[2] for target in end_effectors],
+            dtype=current_root.dtype,
+            device=self.device,
+        )
+        count = generated_motion.shape[1] - approach_start
+        alpha = torch.linspace(0, 1, count, device=self.device)
+        alpha = alpha.square() * (3 - 2 * alpha)
+        requested = (1 - alpha[:, None, None]) * start_positions[None] + alpha[
+            :, None, None
+        ] * final_targets[None]
+        local_rot_mats, qpos_root_positions = qpos_to_ardy_inputs(
+            qpos.detach().cpu().numpy(), self.converter, device=self.device
+        )
+        _, qpos_roundtrip_positions, _ = fk(
+            local_rot_mats[0], qpos_root_positions[0], self.model.skeleton
+        )
+        report = [
+            {
+                "frame": approach_start + offset,
+                "requested": requested[offset, target_index].tolist(),
+                "position_features": decoded_from_positions["posed_joints"][
+                    0, approach_start + offset, joint
+                ].tolist(),
+                "rotation_fk": decoded_from_rotations["posed_joints"][
+                    0, approach_start + offset, joint
+                ].tolist(),
+                "qpos_roundtrip_fk": qpos_roundtrip_positions[
+                    approach_start + offset, joint
+                ].tolist(),
+            }
+            for offset in range(count)
+            for target_index, joint in enumerate(joint_indices)
+        ]
+        print("ARDY end-effector diagnostics=" + json.dumps(report))
