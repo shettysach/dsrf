@@ -43,7 +43,7 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
     generator = ardy_generator.Ardy(tmp_path, device="cuda:0")
 
     assert received["device"] == "cuda:0"
-    assert generator.history_crop_frames == 52
+    assert generator.history_crop_frames == 4
     assert generator.motion_history.shape == (1, 4, 1)
 
 
@@ -91,7 +91,7 @@ def test_ardy_history_conditions_generation_and_is_retained() -> None:
     generator.device = torch.device("cpu")
     generator.model = model
     generator.converter = converter
-    generator.history_crop_frames = 52
+    generator.history_crop_frames = 4
     generator.motion_history = torch.zeros((1, 4, 3))
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
@@ -112,7 +112,7 @@ def test_ardy_history_conditions_generation_and_is_retained() -> None:
     assert call.kwargs["observed_motion"] is not None
     assert call.kwargs["text_feat"].shape == (1, 1, 4096)
     torch.testing.assert_close(call.kwargs["text_feat"][0, 0], embedding)
-    torch.testing.assert_close(generator.motion_history, returned_motion[:, -52:])
+    torch.testing.assert_close(generator.motion_history, returned_motion[:, -4:])
     torch.testing.assert_close(generator.root_history, torch.zeros((2, 3)))
     torch.testing.assert_close(generator.root_heading, torch.tensor(torch.pi / 2.0))
 
@@ -124,7 +124,7 @@ def test_unconstrained_ardy_uses_one_native_continuation_window() -> None:
     model.gen_horizon_len = 52
     model.diffusion.num_base_steps = 10
     first_motion = torch.zeros((1, 56, 3))
-    second_motion = torch.ones((1, 104, 3))
+    second_motion = torch.ones((1, 56, 3))
     model.autoregressive_step.side_effect = [first_motion, second_motion]
     model.motion_rep.inverse.return_value = {
         "root_positions": torch.zeros((1, 52, 3)),
@@ -137,14 +137,14 @@ def test_unconstrained_ardy_uses_one_native_continuation_window() -> None:
     generator.device = torch.device("cpu")
     generator.model = model
     generator.converter = converter
-    generator.history_crop_frames = 52
+    generator.history_crop_frames = 4
     generator.motion_history = torch.zeros((1, 4, 3))
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
     initial_history = generator.motion_history
 
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
-    first_history = first_motion[:, -52:]
+    first_history = first_motion[:, -4:]
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
 
     assert model.motion_rep.create_conditions.call_count == 0
@@ -152,10 +152,10 @@ def test_unconstrained_ardy_uses_one_native_continuation_window() -> None:
     first_call, second_call = model.autoregressive_step.call_args_list
     assert first_call.kwargs["num_frames"] == 56
     assert first_call.kwargs["init_history_sequence"] is initial_history
-    assert second_call.kwargs["num_frames"] == 104
+    assert second_call.kwargs["num_frames"] == 56
     torch.testing.assert_close(second_call.kwargs["init_history_sequence"], first_history)
     assert second_call.kwargs["cfg_weight"] == 2.0
-    torch.testing.assert_close(generator.motion_history, second_motion[:, -52:])
+    torch.testing.assert_close(generator.motion_history, second_motion[:, -4:])
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:

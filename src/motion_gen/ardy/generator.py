@@ -47,11 +47,13 @@ class Ardy:
 
         self.converter = MujocoQposConverter(self.model.skeleton)
         frames_per_token = int(self.model.num_frames_per_token)
-        self.history_crop_frames = int(self.model.gen_horizon_len)
-        if self.history_crop_frames % frames_per_token != 0:
+        generated_frames = int(self.model.gen_horizon_len)
+        if generated_frames % frames_per_token != 0:
             raise ValueError(
                 "ARDY generation horizon must be a multiple of its token patch size"
             )
+        # Match ARDY's interactive demo: retain exactly one tokenizer patch.
+        self.history_crop_frames = frames_per_token
         standing_history = np.repeat(standing_qpos()[None], frames_per_token, axis=0)
         self.motion_history = build_initial_history(
             standing_history,
