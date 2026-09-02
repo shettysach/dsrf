@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
-from ardy.motion_rep.tools import length_to_mask
 
 from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
@@ -19,7 +18,6 @@ class Ardy:
     """Text-conditioned ARDY motion generator for Unitree G1."""
 
     fps = 25
-    duration_s = 5
 
     def __init__(
         self,
@@ -38,9 +36,14 @@ class Ardy:
             raise ValueError(f"Expected ARDY G1 at {self.fps} FPS, got {model_fps}")
 
         self.converter = MujocoQposConverter(self.model.skeleton)
-        self.history_frames = int(self.model.num_frames_per_token)
-        standing_history = np.repeat(standing_qpos()[None], self.history_frames, axis=0)
-        self.initial_history = build_initial_history(
+        frames_per_token = int(self.model.num_frames_per_token)
+        self.history_crop_frames = int(self.model.gen_horizon_len)
+        if self.history_crop_frames % frames_per_token != 0:
+            raise ValueError(
+                "ARDY generation horizon must be a multiple of its token patch size"
+            )
+        standing_history = np.repeat(standing_qpos()[None], frames_per_token, axis=0)
+        self.motion_history = build_initial_history(
             standing_history,
             self.converter,
             self.model.motion_rep,
@@ -64,9 +67,9 @@ class Ardy:
             embedding,
             device=self.device,
         )
-        generated_frames = self.fps * self.duration_s
-        num_frames = generated_frames + self.history_frames
-        lengths = torch.tensor([num_frames], device=self.device)
+        history_frames = self.motion_history.shape[1]
+        generated_frames = int(self.model.gen_horizon_len)
+        num_frames = history_frames + generated_frames
         motion_mask = observed_motion = None
         if target_xys or end_effectors:
             motion_mask, observed_motion = build_constraints(
@@ -76,31 +79,32 @@ class Ardy:
                 target_xys,
                 end_effectors,
                 generated_frames=generated_frames,
-                history_frames=self.history_frames,
+                history_frames=history_frames,
                 device=self.device,
             )
 
         with torch.inference_mode():
-            motion = self.model(
-                num_frames,
+            motion = self.model.autoregressive_step(
+                num_frames=num_frames,
                 num_denoising_steps=int(self.model.diffusion.num_base_steps),
-                pad_mask=length_to_mask(lengths),
-                first_heading_angle=None,
                 motion_mask=motion_mask,
                 observed_motion=observed_motion,
                 text_feat=text_feat,
                 text_pad_mask=text_pad_mask,
                 cfg_weight=(2.0, 2.0),
-                progress_bar=lambda iterable: iterable,
-                init_history_sequence=self.initial_history,
+                init_history_sequence=self.motion_history,
             )
-            generated_motion = motion[:, self.history_frames :]
+            if motion.shape[1] != num_frames:
+                raise ValueError(
+                    f"ARDY returned {motion.shape[1]} total frames; expected {num_frames}"
+                )
+            generated_motion = motion[:, history_frames:]
             if generated_motion.shape[1] != generated_frames:
                 raise ValueError(
                     f"ARDY generated {generated_motion.shape[1]} frames; "
                     f"expected {generated_frames}"
                 )
-            next_history = motion[:, -self.history_frames :].detach().clone()
+            next_history = motion[:, -self.history_crop_frames :].detach().clone()
             decoded = self.model.motion_rep.inverse(
                 generated_motion,
                 is_normalized=True,
@@ -123,7 +127,7 @@ class Ardy:
             )
 
         qpos = batched_qpos[0].contiguous()
-        self.initial_history = next_history
+        self.motion_history = next_history
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
