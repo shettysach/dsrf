@@ -6,7 +6,7 @@ from tasks import get_task
 
 
 def test_runtime_environment_is_scoped_to_consuming_nodes() -> None:
-    descriptor = yaml.safe_load(Path("corridors.yml").read_text())
+    descriptor = yaml.safe_load(Path("demo.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"] == {

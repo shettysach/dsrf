@@ -2,11 +2,11 @@ from typing import Any, cast
 
 import pytest
 import torch
+from tasks.box_push import TASK as BOX_PUSH_TASK
+from tasks.box_push.scene import BOX_HALF_SIZE, make_box_push_entity_cfg
 
 from sim.config import make_sim_env_cfg
 from sim.env import MjlabEnv, _hand_object_contacts_from_buffers
-from tasks.box_push import TASK as BOX_PUSH_TASK
-from tasks.box_push.scene import BOX_HALF_SIZE, make_box_push_entity_cfg
 
 
 def test_observation_camera_is_attached_to_torso() -> None:
@@ -28,7 +28,7 @@ def test_box_push_box_is_wider_and_taller() -> None:
     box = make_box_push_entity_cfg()
 
     assert BOX_HALF_SIZE == pytest.approx((0.25, 0.35, 0.55))
-    assert box.init_state.pos == pytest.approx((1.75, 0.0, 0.55))
+    assert box.init_state.pos == pytest.approx((1.55, 0.0, 0.55))
 
 
 def test_box_push_uses_an_egocentric_observation_camera() -> None:

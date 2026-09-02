@@ -6,11 +6,10 @@ import numpy as np
 import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
-from ardy.motion_rep.tools import length_to_mask
 
 from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
-from motion_gen.ardy.history import qpos_to_ardy_inputs
+from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
@@ -47,8 +46,26 @@ class Ardy:
             raise ValueError(f"Expected ARDY G1 at {self.fps} FPS, got {model_fps}")
 
         self.converter = MujocoQposConverter(self.model.skeleton)
-        self.root_history: torch.Tensor | None = None
-        self.root_heading: torch.Tensor | None = None
+        frames_per_token = int(self.model.num_frames_per_token)
+        self.history_crop_frames = int(self.model.gen_horizon_len)
+        if self.history_crop_frames % frames_per_token != 0:
+            raise ValueError(
+                "ARDY generation horizon must be a multiple of its token patch size"
+            )
+        standing_history = np.repeat(standing_qpos()[None], frames_per_token, axis=0)
+        self.motion_history = build_initial_history(
+            standing_history,
+            self.converter,
+            self.model.motion_rep,
+            device=self.device,
+        )
+        _, root_positions = qpos_to_ardy_inputs(
+            standing_history,
+            self.converter,
+            device=self.device,
+        )
+        self.root_history = root_positions[0, -2:].detach().clone()
+        self.root_heading = torch.tensor(0.0)
 
     def generate(
         self,
@@ -61,28 +78,19 @@ class Ardy:
             device=self.device,
         )
         has_spatial_constraints = bool(target_xys or end_effectors)
+        history_frames = self.motion_history.shape[1]
         generated_frames = int(self.model.gen_horizon_len)
-        lengths = torch.tensor([generated_frames], device=self.device)
+        num_frames = history_frames + generated_frames
         motion_mask = observed_motion = None
         if has_spatial_constraints:
-            root_history = (
-                self.root_history
-                if self.root_history is not None
-                else self._standing_constraint_root_history()
-            )
-            root_heading = (
-                self.root_heading
-                if self.root_heading is not None
-                else torch.tensor(0.0, device=self.device)
-            )
             motion_mask, observed_motion = build_constraints(
                 self.model.motion_rep,
-                root_history,
-                root_heading,
+                self.root_history,
+                self.root_heading,
                 target_xys,
                 end_effectors,
                 generated_frames=generated_frames,
-                history_frames=0,
+                history_frames=history_frames,
                 device=self.device,
             )
 
@@ -92,11 +100,9 @@ class Ardy:
             seed = getattr(self, "seed", None)
             if seed is not None:
                 torch.manual_seed(seed)
-            motion = self.model(
-                generated_frames,
+            motion = self.model.autoregressive_step(
+                num_frames=num_frames,
                 num_denoising_steps=int(self.model.diffusion.num_base_steps),
-                pad_mask=length_to_mask(lengths),
-                first_heading_angle=torch.zeros(1, device=self.device),
                 motion_mask=motion_mask,
                 observed_motion=observed_motion,
                 text_feat=text_feat,
@@ -105,15 +111,19 @@ class Ardy:
                             getattr(self, "constraint_cfg_weight", 2.0))
                 if has_spatial_constraints
                 else getattr(self, "text_cfg_weight", 2.0),
-                progress_bar=lambda iterable: iterable,
-                init_history_sequence=None,
+                init_history_sequence=self.motion_history,
             )
-            generated_motion = motion
+            if motion.shape[1] != num_frames:
+                raise ValueError(
+                    f"ARDY returned {motion.shape[1]} total frames; expected {num_frames}"
+                )
+            generated_motion = motion[:, history_frames:]
             if generated_motion.shape[1] != generated_frames:
                 raise ValueError(
                     f"ARDY generated {generated_motion.shape[1]} frames; "
                     f"expected {generated_frames}"
                 )
+            next_history = motion[:, -self.history_crop_frames :].detach().clone()
             decoded = self.model.motion_rep.inverse(
                 generated_motion,
                 is_normalized=True,
@@ -136,16 +146,7 @@ class Ardy:
             )
 
         qpos = batched_qpos[0].contiguous()
+        self.motion_history = next_history
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
-
-    def _standing_constraint_root_history(self) -> torch.Tensor:
-        """Return the standing pose only as a spatial coordinate reference."""
-        standing_qpos_history = np.repeat(standing_qpos()[None], 2, axis=0)
-        _, root_positions = qpos_to_ardy_inputs(
-            standing_qpos_history,
-            self.converter,
-            device=self.device,
-        )
-        return root_positions[0, -2:].detach().clone()
