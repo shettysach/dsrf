@@ -9,6 +9,7 @@ from ardy.skeleton import G1Skeleton34
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
+from shared.messages import EndEffectorTarget
 
 
 def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> None:
@@ -156,6 +157,71 @@ def test_first_generation_uses_initial_pose_then_retains_continuation_window() -
     torch.testing.assert_close(second_call.kwargs["init_history_sequence"], first_history)
     assert second_call.kwargs["cfg_weight"] == 2.0
     torch.testing.assert_close(generator.motion_history, second_motion[:, -4:])
+
+
+def test_ee_condition_comparison_changes_only_the_condition_tensors(
+    monkeypatch,
+) -> None:
+    import motion_gen.ardy.diagnostics as diagnostics
+
+    model = Mock()
+    model.gen_horizon_len = 52
+    model.diffusion.num_base_steps = 10
+    first_motion = torch.zeros((1, 52, 3))
+    second_motion = torch.ones((1, 52, 3))
+    model.autoregressive_step.side_effect = [first_motion, second_motion]
+    model.motion_rep.inverse.side_effect = [
+        {"posed_joints": torch.zeros((1, 52, 3, 3))},
+        {"posed_joints": torch.ones((1, 52, 3, 3))},
+    ]
+    motion_mask = torch.ones((1, 52, 3))
+    observed_motion = torch.full((1, 52, 3), 2.0)
+    monkeypatch.setattr(
+        diagnostics,
+        "build_constraints",
+        lambda *args, **kwargs: (motion_mask, observed_motion),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "global_end_effector_targets",
+        lambda *args, **kwargs: torch.tensor([[1.0, 2.0, 3.0]]),
+    )
+    generator = SimpleNamespace(
+        motion_history=None,
+        device=torch.device("cpu"),
+        model=model,
+        root_history=torch.tensor([[1.0, 0.8, 3.0], [4.0, 0.8, 6.0]]),
+        root_heading=torch.tensor(0.0),
+        text_cfg_weight=1.5,
+        constraint_cfg_weight=2.5,
+        seed=123,
+    )
+
+    result = diagnostics.compare_first_generation_ee_conditioning(
+        generator,
+        torch.arange(4096, dtype=torch.float32),
+        (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
+    )
+
+    first_call, second_call = model.autoregressive_step.call_args_list
+    assert first_call.kwargs["motion_mask"] is None
+    assert first_call.kwargs["observed_motion"] is None
+    assert second_call.kwargs["motion_mask"] is motion_mask
+    assert second_call.kwargs["observed_motion"] is observed_motion
+    assert first_call.kwargs["cfg_weight"] == second_call.kwargs["cfg_weight"] == (
+        1.5,
+        2.5,
+    )
+    torch.testing.assert_close(
+        first_call.kwargs["init_global_translation"], torch.tensor([[4.0, 0.0, 6.0]])
+    )
+    torch.testing.assert_close(
+        first_call.kwargs["init_global_translation"],
+        second_call.kwargs["init_global_translation"],
+    )
+    assert result.unconstrained_motion is first_motion
+    assert result.conditioned_motion is second_motion
+    torch.testing.assert_close(result.target_positions, torch.tensor([[1.0, 2.0, 3.0]]))
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:
