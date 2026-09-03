@@ -21,8 +21,11 @@ class SimRenderer:
         """Capture the image sent to the VLM, retaining its RGB pixels for demos."""
         image, projection = self.simulation.capture_rgbd()
         # Keep an immutable snapshot while inference and motion generation run.
-        rgb = image.detach().cpu().numpy().copy()
-        return self._encode(image), projection, rgb
+        # Encoding on the CPU also avoids torchvision's unreliable CUDA JPEG path
+        # on machines whose display server lacks NVIDIA GLX support.
+        image_cpu = image.detach().cpu()
+        rgb = image_cpu.numpy().copy()
+        return self._encode(image_cpu), projection, rgb
 
     def capture_demo_rgb(self) -> np.ndarray:
         """Capture an RGB frame from the VLM observation camera for a demo video."""
