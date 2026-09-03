@@ -49,29 +49,35 @@ def build_constraints(
         raise ValueError("ARDY constraints require at least one target")
     heading = root_heading.reshape(()).to(dtype=current_root_2d.dtype, device=device)
 
+    # End-effector-only requests should not silently pin the pelvis. ARDY's
+    # public global-joint conditioning API requires a root observation, so
+    # write its equivalent local-joint features directly instead.
+    if end_effectors and not target_xys:
+        return _build_local_end_effector_conditions(
+            motion_rep,
+            current_root,
+            heading,
+            end_effectors,
+            generated_frames=generated_frames,
+            history_frames=history_frames,
+            device=device,
+        )
+
     index: dict[str, list[torch.Tensor]] = {}
     data: dict[str, list[torch.Tensor]] = {}
 
-    if target_xys:
-        local_2d = torch.tensor(
-            [[left, forward] for forward, left in target_xys],
-            dtype=current_root.dtype,
-            device=device,
-        )
-        root_2d = current_root_2d + _rotate_2d(local_2d, heading)
-        relative_indices = (
-            torch.arange(1, len(target_xys) + 1, device=device)
-            * generated_frames
-            // len(target_xys)
-        )
-        frame_indices = relative_indices + history_frames - 1
-    else:
-        # ARDY's global-joint conditioning requires a Hips/root observation.
-        # Pin an EE-only request to the current pelvis pose at its terminal frame.
-        root_2d = current_root_2d.unsqueeze(0)
-        frame_indices = torch.tensor(
-            [generated_frames + history_frames - 1], device=device
-        )
+    local_2d = torch.tensor(
+        [[left, forward] for forward, left in target_xys],
+        dtype=current_root.dtype,
+        device=device,
+    )
+    root_2d = current_root_2d + _rotate_2d(local_2d, heading)
+    relative_indices = (
+        torch.arange(1, len(target_xys) + 1, device=device)
+        * generated_frames
+        // len(target_xys)
+    )
+    frame_indices = relative_indices + history_frames - 1
     index["root_2d"] = [frame_indices]
     data["root_2d"] = [root_2d]
     if end_effectors:
@@ -94,14 +100,10 @@ def build_constraints(
         )
         index.update(
             root_y_pos=[torch.tensor([frame], device=device)],
-            global_root_heading=[torch.tensor([frame], device=device)],
             global_joints_positions=[global_indices],
         )
         data.update(
             root_y_pos=[current_root[1].reshape(1)],
-            global_root_heading=[
-                torch.stack((torch.cos(heading), torch.sin(heading))).unsqueeze(0)
-            ],
             global_joints_positions=[
                 torch.cat((constraint_root.unsqueeze(0), target_positions))
             ],
@@ -115,6 +117,54 @@ def build_constraints(
         device,
     )
     return motion_mask.unsqueeze(0), observed_motion.unsqueeze(0)
+
+
+def _build_local_end_effector_conditions(
+    motion_rep,
+    current_root: torch.Tensor,
+    heading: torch.Tensor,
+    end_effectors: tuple[EndEffectorTarget, ...],
+    *,
+    generated_frames: int,
+    history_frames: int,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build EE-only conditions without masking any root feature.
+
+    ``local_joints_positions`` stores root-relative x/z but world-height y.
+    This is exactly the representation produced by ARDY's global-position
+    conditioning path after it subtracts the root, except no root observation
+    is required or emitted here.
+    """
+    target_positions = global_end_effector_targets(
+        current_root, heading, end_effectors, device=device
+    )
+    _validate_end_effector_reach(end_effectors, target_positions, current_root)
+
+    total_frames = generated_frames + history_frames
+    frame = total_frames - 1
+    observed_motion = torch.zeros(
+        (total_frames, motion_rep.motion_rep_dim),
+        dtype=current_root.dtype,
+        device=device,
+    )
+    motion_mask = torch.zeros_like(observed_motion, dtype=torch.bool)
+    joint_slice = motion_rep.slice_dict["local_joints_positions"]
+    joint_positions = observed_motion[:, joint_slice].reshape(
+        total_frames, motion_rep.skeleton.nbjoints - 1, 3
+    )
+    joint_mask = motion_mask[:, joint_slice].reshape_as(joint_positions)
+    for target, target_position in zip(end_effectors, target_positions, strict=True):
+        joint = motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
+        if joint == motion_rep.skeleton.root_idx:
+            raise ValueError("End-effector target cannot refer to the root joint")
+        local_position = target_position - current_root
+        local_position[1] = target_position[1]
+        joint_positions[frame, joint - 1] = local_position
+        joint_mask[frame, joint - 1] = True
+
+    normalized = motion_rep.normalize(observed_motion) * motion_mask
+    return motion_mask.unsqueeze(0).float(), normalized.unsqueeze(0)
 
 
 def global_end_effector_targets(
