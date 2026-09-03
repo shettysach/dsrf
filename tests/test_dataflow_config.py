@@ -66,6 +66,8 @@ def test_push_script_dataflow_waits_for_each_phase_observation() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"]["SCRIPT_START_IMMEDIATELY"] == "false"
+    assert nodes["agent"]["env"]["BOX_PUSH_GOAL_X"] == "4.0"
+    assert nodes["sim"]["env"]["BOX_PUSH_GOAL_X"] == "4.0"
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
     assert nodes["sim"]["env"]["PUBLISH_OBSERVATIONS"] == "true"
     assert nodes["sim"]["env"]["DEMO_MAX_COMMANDS"] == "2"

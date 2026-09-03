@@ -9,6 +9,7 @@ nodes:
       SCRIPT_TASK: box_push
       SCRIPT_PROMPT: Reach both palms to the box.
       SCRIPT_START_IMMEDIATELY: "false"
+      BOX_PUSH_GOAL_X: "4.0"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
@@ -28,6 +29,7 @@ nodes:
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: box_push
+      BOX_PUSH_GOAL_X: "4.0"
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"

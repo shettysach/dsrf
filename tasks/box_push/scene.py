@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import os
 from typing import TYPE_CHECKING
 
 import mujoco
@@ -18,7 +20,15 @@ BOX_MASS = 1.0
 # Keep the near face 0.55 m in front of the fixed robot root at x=0.75 m.
 # This leaves room to establish palm contact without requiring navigation.
 BOX_START = (1.65, 0.0)
-GOAL_CENTER = (5.0, 0.0)
+
+
+def _goal_center() -> tuple[float, float]:
+    """Read the optional per-workflow goal position."""
+
+    goal_x = float(os.environ.get("BOX_PUSH_GOAL_X", "5.0"))
+    if not math.isfinite(goal_x):
+        raise ValueError("BOX_PUSH_GOAL_X must be finite")
+    return (goal_x, 0.0)
 
 _BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
 
@@ -62,7 +72,7 @@ def _add_goal(spec: "MjSpec") -> None:
     spec.worldbody.add_geom(
         name="box_goal",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
-        pos=(*GOAL_CENTER, 0.01),
+        pos=(*_goal_center(), 0.01),
         size=(0.55, 0.55, 0.01),
         rgba=(0.1, 0.8, 0.2, 0.5),
         contype=0,
