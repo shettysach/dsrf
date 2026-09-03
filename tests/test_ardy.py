@@ -29,11 +29,6 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(ardy_generator, "MujocoQposConverter", lambda _: object())
     monkeypatch.setattr(
         ardy_generator,
-        "build_initial_history",
-        lambda *args, **kwargs: torch.zeros((1, 4, 1)),
-    )
-    monkeypatch.setattr(
-        ardy_generator,
         "qpos_to_ardy_inputs",
         lambda *args, **kwargs: (
             torch.zeros((1, 4, 1, 3, 3)),
@@ -44,7 +39,7 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
 
     assert received["device"] == "cuda:0"
     assert generator.history_crop_frames == 4
-    assert generator.motion_history.shape == (1, 4, 1)
+    assert generator.motion_history is None
 
 
 def test_standing_qpos_round_trips_through_ardy_inputs() -> None:
@@ -67,7 +62,7 @@ def test_standing_qpos_round_trips_through_ardy_inputs() -> None:
     np.testing.assert_allclose(restored[0], expected, atol=1e-5)
 
 
-def test_ardy_history_conditions_generation_and_is_retained() -> None:
+def test_ardy_history_conditions_continuation_and_is_retained() -> None:
     import motion_gen.ardy.generator as ardy_generator
 
     model = Mock()
@@ -117,13 +112,13 @@ def test_ardy_history_conditions_generation_and_is_retained() -> None:
     torch.testing.assert_close(generator.root_heading, torch.tensor(torch.pi / 2.0))
 
 
-def test_unconstrained_ardy_uses_one_native_continuation_window() -> None:
+def test_first_generation_uses_initial_pose_then_retains_continuation_window() -> None:
     import motion_gen.ardy.generator as ardy_generator
 
     model = Mock()
     model.gen_horizon_len = 52
     model.diffusion.num_base_steps = 10
-    first_motion = torch.zeros((1, 56, 3))
+    first_motion = torch.zeros((1, 52, 3))
     second_motion = torch.ones((1, 56, 3))
     model.autoregressive_step.side_effect = [first_motion, second_motion]
     model.motion_rep.inverse.return_value = {
@@ -138,11 +133,9 @@ def test_unconstrained_ardy_uses_one_native_continuation_window() -> None:
     generator.model = model
     generator.converter = converter
     generator.history_crop_frames = 4
-    generator.motion_history = torch.zeros((1, 4, 3))
+    generator.motion_history = None
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
-    initial_history = generator.motion_history
-
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
     first_history = first_motion[:, -4:]
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
@@ -150,8 +143,14 @@ def test_unconstrained_ardy_uses_one_native_continuation_window() -> None:
     assert model.motion_rep.create_conditions.call_count == 0
     assert model.autoregressive_step.call_count == 2
     first_call, second_call = model.autoregressive_step.call_args_list
-    assert first_call.kwargs["num_frames"] == 56
-    assert first_call.kwargs["init_history_sequence"] is initial_history
+    assert first_call.kwargs["num_frames"] == 52
+    assert "init_history_sequence" not in first_call.kwargs
+    torch.testing.assert_close(
+        first_call.kwargs["init_global_translation"], generator.root_history[-1:]
+    )
+    torch.testing.assert_close(
+        first_call.kwargs["init_first_heading_angle"], torch.tensor([0.0])
+    )
     assert second_call.kwargs["num_frames"] == 56
     torch.testing.assert_close(second_call.kwargs["init_history_sequence"], first_history)
     assert second_call.kwargs["cfg_weight"] == 2.0

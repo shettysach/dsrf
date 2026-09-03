@@ -9,7 +9,7 @@ from ardy.model import load_model
 
 from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
-from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
+from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
@@ -54,15 +54,13 @@ class Ardy:
             )
         # Match ARDY's interactive demo: retain exactly one tokenizer patch.
         self.history_crop_frames = frames_per_token
-        standing_history = np.repeat(standing_qpos()[None], frames_per_token, axis=0)
-        self.motion_history = build_initial_history(
-            standing_history,
-            self.converter,
-            self.model.motion_rep,
-            device=self.device,
-        )
+        # ARDY's interactive path starts the first window without a motion
+        # history.  A history is only retained after that first generation and
+        # used to continue later windows.
+        self.motion_history: torch.Tensor | None = None
+        standing_pose = np.repeat(standing_qpos()[None], 2, axis=0)
         _, root_positions = qpos_to_ardy_inputs(
-            standing_history,
+            standing_pose,
             self.converter,
             device=self.device,
         )
@@ -80,7 +78,9 @@ class Ardy:
             device=self.device,
         )
         has_spatial_constraints = bool(target_xys or end_effectors)
-        history_frames = self.motion_history.shape[1]
+        history_frames = (
+            0 if self.motion_history is None else self.motion_history.shape[1]
+        )
         generated_frames = int(self.model.gen_horizon_len)
         num_frames = history_frames + generated_frames
         motion_mask = observed_motion = None
@@ -102,19 +102,26 @@ class Ardy:
             seed = getattr(self, "seed", None)
             if seed is not None:
                 torch.manual_seed(seed)
-            motion = self.model.autoregressive_step(
-                num_frames=num_frames,
-                num_denoising_steps=int(self.model.diffusion.num_base_steps),
-                motion_mask=motion_mask,
-                observed_motion=observed_motion,
-                text_feat=text_feat,
-                text_pad_mask=text_pad_mask,
-                cfg_weight=(getattr(self, "text_cfg_weight", 2.0),
-                            getattr(self, "constraint_cfg_weight", 2.0))
+            autoregressive_kwargs: dict[str, object] = {
+                "num_frames": num_frames,
+                "num_denoising_steps": int(self.model.diffusion.num_base_steps),
+                "motion_mask": motion_mask,
+                "observed_motion": observed_motion,
+                "text_feat": text_feat,
+                "text_pad_mask": text_pad_mask,
+                "cfg_weight": (getattr(self, "text_cfg_weight", 2.0),
+                               getattr(self, "constraint_cfg_weight", 2.0))
                 if has_spatial_constraints
                 else getattr(self, "text_cfg_weight", 2.0),
-                init_history_sequence=self.motion_history,
-            )
+            }
+            if self.motion_history is None:
+                autoregressive_kwargs.update(
+                    init_global_translation=self.root_history[-1:],
+                    init_first_heading_angle=self.root_heading.reshape(1).to(self.device),
+                )
+            else:
+                autoregressive_kwargs["init_history_sequence"] = self.motion_history
+            motion = self.model.autoregressive_step(**autoregressive_kwargs)
             if motion.shape[1] != num_frames:
                 raise ValueError(
                     f"ARDY returned {motion.shape[1]} total frames; expected {num_frames}"
