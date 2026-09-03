@@ -10,8 +10,8 @@ class PushScript:
     """Reach the box, then walk it to the goal with two palm contacts."""
 
     prompt: str
-    box_position: tuple[float, float, float] = (1.55, 0.0, 0.55)
-    box_size: tuple[float, float, float] = (0.5, 0.7, 1.1)
+    box_position: tuple[float, float, float] = (1.65, 0.0, 0.55)
+    box_size: tuple[float, float, float] = (0.7, 0.7, 1.1)
     goal_position: tuple[float, float] = (5.0, 0.0)
     robot_position: tuple[float, float, float] = (0.75, 0.0, 0.76)
     hand_spacing: float = 0.32

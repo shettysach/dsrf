@@ -11,15 +11,16 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-# A slightly broader, taller face gives both hands more usable contact area.
-BOX_HALF_SIZE = (0.25, 0.35, 0.55)
+# A square footprint makes the box substantially more resistant to toppling while
+# retaining the established 1.10 m height for palm contact.
+BOX_HALF_SIZE = (0.35, 0.35, 0.55)
 BOX_MASS = 1.0
 # Keep the near face 0.55 m in front of the fixed robot root at x=0.75 m.
 # This leaves room to establish palm contact without requiring navigation.
-BOX_START = (1.55, 0.0)
+BOX_START = (1.65, 0.0)
 GOAL_CENTER = (5.0, 0.0)
 
-_BOX_RGBA = (0.45, 0.24, 0.1, 1.0)
+_BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
 
 
 def make_box_push_spec_fn() -> SceneSpecFn:
