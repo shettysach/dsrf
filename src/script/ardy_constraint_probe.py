@@ -82,8 +82,8 @@ def _print_result(generator: Ardy, target: EndEffectorTarget, result) -> None:
     requested = result.target_positions[0]
     for label, decoded in (
         ("unconstrained", result.unconstrained_decoded),
-        ("conditioned", result.conditioned_decoded),
-        ("native", result.native_decoded),
+        ("legacy_sparse", result.conditioned_decoded),
+        ("native_requested_xyz", result.native_decoded),
     ):
         endpoint = decoded["posed_joints"][0, -1, joint]
         error = torch.linalg.vector_norm(endpoint - requested)

@@ -71,10 +71,11 @@ def test_ardy_history_conditions_continuation_and_is_retained() -> None:
     model.diffusion.num_base_steps = 10
     returned_motion = torch.arange(56 * 3, dtype=torch.float32).reshape(1, 56, 3)
     model.autoregressive_step.return_value = returned_motion
-    model.motion_rep.create_conditions.return_value = (
+    model.motion_rep.create_conditions_from_constraints.return_value = (
         torch.zeros((56, 3)),
         torch.zeros((56, 3)),
     )
+    model.motion_rep.normalize.side_effect = lambda value: value
     model.motion_rep.inverse.side_effect = lambda motion, **kwargs: {
         "motion": motion,
         "root_positions": torch.zeros((1, 52, 3)),
@@ -159,6 +160,72 @@ def test_first_generation_uses_initial_pose_then_retains_continuation_window() -
     torch.testing.assert_close(generator.motion_history, second_motion[:, -4:])
 
 
+def test_ee_generation_uses_reference_pass_and_commits_only_final_motion(
+    monkeypatch,
+) -> None:
+    import motion_gen.ardy.generator as ardy_generator
+
+    model = Mock()
+    model.gen_horizon_len = 52
+    model.diffusion.num_base_steps = 10
+    reference_motion = torch.zeros((1, 52, 3))
+    final_motion = torch.ones((1, 52, 3))
+    model.autoregressive_step.side_effect = [reference_motion, final_motion]
+    reference_decoded = {
+        "posed_joints": torch.zeros((1, 52, 34, 3)),
+        "global_rot_mats": torch.eye(3).expand(1, 52, 34, 3, 3),
+    }
+    final_decoded = {
+        "root_positions": torch.zeros((1, 52, 3)),
+        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 52]),
+    }
+    model.motion_rep.inverse.side_effect = [reference_decoded, final_decoded]
+    converter = Mock()
+    converter.dict_to_qpos.return_value = torch.zeros((1, 52, 36))
+    final_mask = torch.ones((1, 52, 3))
+    final_observed = torch.full((1, 52, 3), 2.0)
+    received_reference: dict[str, object] = {}
+    seeds: list[int] = []
+
+    def constraints(*args, **kwargs):
+        received_reference["decoded"] = args[5]
+        return final_mask, final_observed
+
+    monkeypatch.setattr(ardy_generator, "build_constraints", constraints)
+    monkeypatch.setattr(torch, "manual_seed", seeds.append)
+    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
+    generator.device = torch.device("cpu")
+    generator.model = model
+    generator.converter = converter
+    generator.history_crop_frames = 4
+    generator.motion_history = None
+    generator.root_history = torch.zeros((2, 3))
+    generator.root_heading = torch.tensor(0.0)
+    generator.text_cfg_weight = 1.5
+    generator.constraint_cfg_weight = 2.5
+    generator.seed = 123
+
+    qpos = generator.generate(
+        torch.arange(4096, dtype=torch.float32),
+        (),
+        (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
+    )
+
+    reference_call, final_call = model.autoregressive_step.call_args_list
+    assert reference_call.kwargs["motion_mask"] is None
+    assert reference_call.kwargs["observed_motion"] is None
+    assert final_call.kwargs["motion_mask"] is final_mask
+    assert final_call.kwargs["observed_motion"] is final_observed
+    assert reference_call.kwargs["cfg_weight"] == final_call.kwargs["cfg_weight"] == (
+        1.5,
+        2.5,
+    )
+    assert received_reference["decoded"] is reference_decoded
+    assert seeds == [123, 123]
+    torch.testing.assert_close(generator.motion_history, final_motion[:, -4:])
+    assert qpos.shape == (52, 36)
+
+
 def test_ee_condition_comparison_changes_only_the_condition_tensors(
     monkeypatch,
 ) -> None:
@@ -188,6 +255,11 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
     observed_motion = torch.full((1, 52, 3), 2.0)
     monkeypatch.setattr(
         diagnostics,
+        "_legacy_sparse_ee_constraints",
+        lambda *args, **kwargs: (motion_mask, observed_motion),
+    )
+    monkeypatch.setattr(
+        diagnostics,
         "build_constraints",
         lambda *args, **kwargs: (motion_mask, observed_motion),
     )
@@ -196,11 +268,10 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
         "global_end_effector_targets",
         lambda *args, **kwargs: torch.tensor([[1.0, 2.0, 3.0]]),
     )
-    native_constraint = object()
     monkeypatch.setattr(
         diagnostics,
-        "_native_hand_constraint",
-        lambda *args, **kwargs: (native_constraint, "native test constraint"),
+        "native_constraint_source",
+        lambda: "native test constraint",
     )
     generator = SimpleNamespace(
         motion_history=None,
@@ -239,7 +310,7 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
         native_call.kwargs["motion_mask"], torch.ones((1, 52, 3))
     )
     torch.testing.assert_close(
-        native_call.kwargs["observed_motion"], torch.full((1, 52, 3), 4.0)
+        native_call.kwargs["observed_motion"], torch.full((1, 52, 3), 2.0)
     )
     assert result.unconstrained_motion is first_motion
     assert result.conditioned_motion is second_motion

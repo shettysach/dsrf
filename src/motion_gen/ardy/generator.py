@@ -83,37 +83,29 @@ class Ardy:
         )
         generated_frames = int(self.model.gen_horizon_len)
         num_frames = history_frames + generated_frames
-        motion_mask = observed_motion = None
-        if has_spatial_constraints:
-            motion_mask, observed_motion = build_constraints(
+        root_motion_mask = root_observed_motion = None
+        if target_xys:
+            root_motion_mask, root_observed_motion = build_constraints(
                 self.model.motion_rep,
                 self.root_history,
                 self.root_heading,
                 target_xys,
-                end_effectors,
+                (),
                 generated_frames=generated_frames,
                 history_frames=history_frames,
                 device=self.device,
             )
 
         with torch.inference_mode():
-            # Seed immediately before diffusion so separate process runs use
-            # identical noise, regardless of model-loading side effects.
-            seed = getattr(self, "seed", None)
-            if seed is not None:
-                torch.manual_seed(seed)
-            autoregressive_kwargs: dict[str, object] = {
-                "num_frames": num_frames,
-                "num_denoising_steps": int(self.model.diffusion.num_base_steps),
-                "motion_mask": motion_mask,
-                "observed_motion": observed_motion,
-                "text_feat": text_feat,
-                "text_pad_mask": text_pad_mask,
-                "cfg_weight": (getattr(self, "text_cfg_weight", 2.0),
-                               getattr(self, "constraint_cfg_weight", 2.0))
+            cfg_weight = (
+                (
+                    getattr(self, "text_cfg_weight", 2.0),
+                    getattr(self, "constraint_cfg_weight", 2.0),
+                )
                 if has_spatial_constraints
-                else getattr(self, "text_cfg_weight", 2.0),
-            }
+                else getattr(self, "text_cfg_weight", 2.0)
+            )
+            autoregressive_kwargs: dict[str, object] = {}
             if self.motion_history is None:
                 # ARDY's initial translation is a horizontal-world offset;
                 # root height belongs to the generated root motion itself.
@@ -125,7 +117,50 @@ class Ardy:
                 )
             else:
                 autoregressive_kwargs["init_history_sequence"] = self.motion_history
-            motion = self.model.autoregressive_step(**autoregressive_kwargs)
+
+            def generate_window(
+                motion_mask: torch.Tensor | None,
+                observed_motion: torch.Tensor | None,
+            ) -> torch.Tensor:
+                # Reset immediately before every pass so reference and final
+                # generation use identical diffusion noise.
+                seed = getattr(self, "seed", None)
+                if seed is not None:
+                    torch.manual_seed(seed)
+                return self.model.autoregressive_step(
+                    num_frames=num_frames,
+                    num_denoising_steps=int(self.model.diffusion.num_base_steps),
+                    motion_mask=motion_mask,
+                    observed_motion=observed_motion,
+                    text_feat=text_feat,
+                    text_pad_mask=text_pad_mask,
+                    cfg_weight=cfg_weight,
+                    **autoregressive_kwargs,
+                )
+
+            if end_effectors:
+                reference_motion = generate_window(
+                    root_motion_mask, root_observed_motion
+                )
+                reference_generated = reference_motion[:, history_frames:]
+                reference_decoded = self.model.motion_rep.inverse(
+                    reference_generated,
+                    is_normalized=True,
+                )
+                motion_mask, observed_motion = build_constraints(
+                    self.model.motion_rep,
+                    self.root_history,
+                    self.root_heading,
+                    target_xys,
+                    end_effectors,
+                    reference_decoded,
+                    generated_frames=generated_frames,
+                    history_frames=history_frames,
+                    device=self.device,
+                )
+                motion = generate_window(motion_mask, observed_motion)
+            else:
+                motion = generate_window(root_motion_mask, root_observed_motion)
             if motion.shape[1] != num_frames:
                 raise ValueError(
                     f"ARDY returned {motion.shape[1]} total frames; expected {num_frames}"

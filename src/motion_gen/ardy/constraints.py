@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib
+
 import torch
-from ardy.motion_rep.tools import RotateFeatures
+from ardy.motion_rep.tools import RotateFeatures, compute_heading_angle
 
 from shared.messages import EndEffectorTarget
 
@@ -25,12 +27,13 @@ def build_constraints(
     root_heading: torch.Tensor,
     target_xys: tuple[tuple[float, float], ...],
     end_effectors: tuple[EndEffectorTarget, ...],
+    reference_decoded: dict[str, torch.Tensor] | None = None,
     *,
     generated_frames: int,
     history_frames: int,
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Convert robot-local navigation and end-effector targets into ARDY conditions."""
+    """Build root and native-style EE constraints for an ARDY generation."""
     if (
         root_history.ndim != 2
         or root_history.shape[0] < 2
@@ -49,122 +52,205 @@ def build_constraints(
         raise ValueError("ARDY constraints require at least one target")
     heading = root_heading.reshape(()).to(dtype=current_root_2d.dtype, device=device)
 
-    # End-effector-only requests should not silently pin the pelvis. ARDY's
-    # public global-joint conditioning API requires a root observation, so
-    # write its equivalent local-joint features directly instead.
-    if end_effectors and not target_xys:
-        return _build_local_end_effector_conditions(
-            motion_rep,
-            current_root,
-            heading,
-            end_effectors,
-            generated_frames=generated_frames,
-            history_frames=history_frames,
+    constraints: list[object] = []
+    if target_xys:
+        local_2d = torch.tensor(
+            [[left, forward] for forward, left in target_xys],
+            dtype=current_root.dtype,
             device=device,
         )
+        root_2d = current_root_2d + _rotate_2d(local_2d, heading)
+        relative_indices = (
+            torch.arange(1, len(target_xys) + 1, device=device)
+            * generated_frames
+            // len(target_xys)
+        )
+        frame_indices = relative_indices + history_frames - 1
+        constraints.append(_root_constraint(motion_rep.skeleton, frame_indices, root_2d))
 
-    index: dict[str, list[torch.Tensor]] = {}
-    data: dict[str, list[torch.Tensor]] = {}
-
-    local_2d = torch.tensor(
-        [[left, forward] for forward, left in target_xys],
-        dtype=current_root.dtype,
-        device=device,
-    )
-    root_2d = current_root_2d + _rotate_2d(local_2d, heading)
-    relative_indices = (
-        torch.arange(1, len(target_xys) + 1, device=device)
-        * generated_frames
-        // len(target_xys)
-    )
-    frame_indices = relative_indices + history_frames - 1
-    index["root_2d"] = [frame_indices]
-    data["root_2d"] = [root_2d]
     if end_effectors:
-        frame = generated_frames + history_frames - 1
+        if reference_decoded is None:
+            raise ValueError("ARDY end-effector constraints require a reference pose")
         target_positions = global_end_effector_targets(
             current_root, heading, end_effectors, device=device
         )
-        root_index = motion_rep.skeleton.root_idx
-        constraint_root = current_root.clone()
-        constraint_root[[0, 2]] = root_2d[-1]
-        _validate_end_effector_reach(end_effectors, target_positions, constraint_root)
-        joint_indices = [
-            motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
-            for target in end_effectors
-        ]
+        positions, rotations = _reference_final_pose(reference_decoded, device)
+        final_root = positions[0, motion_rep.skeleton.root_idx]
+        _validate_end_effector_reach(end_effectors, target_positions, final_root)
+        frame = torch.tensor(
+            [generated_frames + history_frames - 1], device=device
+        )
+        for target, target_position in zip(
+            end_effectors, target_positions, strict=True
+        ):
+            edited_positions = positions.clone()
+            hand_index = motion_rep.skeleton.bone_order_names.index(
+                _JOINT_NAMES[target.name]
+            )
+            delta = target_position - edited_positions[0, hand_index]
+            base_name = _base_end_effector_name(target.name)
+            _, chain_names = motion_rep.skeleton.expand_joint_names([base_name])
+            chain_indices = [
+                motion_rep.skeleton.bone_order_names.index(name)
+                for name in chain_names
+            ]
+            edited_positions[0, chain_indices] += delta
+            constraints.append(
+                _end_effector_constraint(
+                    motion_rep.skeleton,
+                    target.name,
+                    frame,
+                    edited_positions,
+                    rotations,
+                )
+            )
 
-        global_indices = torch.tensor(
-            [[frame, root_index], *[[frame, joint] for joint in joint_indices]],
-            device=device,
-        )
-        index.update(
-            root_y_pos=[torch.tensor([frame], device=device)],
-            global_joints_positions=[global_indices],
-        )
-        data.update(
-            root_y_pos=[current_root[1].reshape(1)],
-            global_joints_positions=[
-                torch.cat((constraint_root.unsqueeze(0), target_positions))
-            ],
-        )
-
-    observed_motion, motion_mask = motion_rep.create_conditions(
-        index,
-        data,
+    observed_motion, motion_mask = motion_rep.create_conditions_from_constraints(
+        constraints,
         generated_frames + history_frames,
-        True,
-        device,
+        False,
+        str(device),
     )
-    return motion_mask.unsqueeze(0), observed_motion.unsqueeze(0)
-
-
-def _build_local_end_effector_conditions(
-    motion_rep,
-    current_root: torch.Tensor,
-    heading: torch.Tensor,
-    end_effectors: tuple[EndEffectorTarget, ...],
-    *,
-    generated_frames: int,
-    history_frames: int,
-    device: torch.device,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Build EE-only conditions without masking any root feature.
-
-    ``local_joints_positions`` stores root-relative x/z but world-height y.
-    This is exactly the representation produced by ARDY's global-position
-    conditioning path after it subtracts the root, except no root observation
-    is required or emitted here.
-    """
-    target_positions = global_end_effector_targets(
-        current_root, heading, end_effectors, device=device
-    )
-    _validate_end_effector_reach(end_effectors, target_positions, current_root)
-
-    total_frames = generated_frames + history_frames
-    frame = total_frames - 1
-    observed_motion = torch.zeros(
-        (total_frames, motion_rep.motion_rep_dim),
-        dtype=current_root.dtype,
-        device=device,
-    )
-    motion_mask = torch.zeros_like(observed_motion, dtype=torch.bool)
-    joint_slice = motion_rep.slice_dict["local_joints_positions"]
-    joint_positions = observed_motion[:, joint_slice].reshape(
-        total_frames, motion_rep.skeleton.nbjoints - 1, 3
-    )
-    joint_mask = motion_mask[:, joint_slice].reshape_as(joint_positions)
-    for target, target_position in zip(end_effectors, target_positions, strict=True):
-        joint = motion_rep.skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
-        if joint == motion_rep.skeleton.root_idx:
-            raise ValueError("End-effector target cannot refer to the root joint")
-        local_position = target_position - current_root
-        local_position[1] = target_position[1]
-        joint_positions[frame, joint - 1] = local_position
-        joint_mask[frame, joint - 1] = True
-
     normalized = motion_rep.normalize(observed_motion) * motion_mask
-    return motion_mask.unsqueeze(0).float(), normalized.unsqueeze(0)
+    return motion_mask.unsqueeze(0), normalized.unsqueeze(0)
+
+
+def _reference_final_pose(
+    decoded: dict[str, torch.Tensor], device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
+    try:
+        positions = decoded["posed_joints"][:, -1].to(device=device)
+        rotations = decoded["global_rot_mats"][:, -1].to(device=device)
+    except KeyError as exc:
+        raise ValueError(f"ARDY reference pose is missing {exc.args[0]}") from exc
+    if positions.ndim != 3 or positions.shape[-1] != 3:
+        raise ValueError("ARDY posed_joints must have shape [B, T, J, 3]")
+    if rotations.ndim != 4 or rotations.shape[-2:] != (3, 3):
+        raise ValueError("ARDY global_rot_mats must have shape [B, T, J, 3, 3]")
+    if positions.shape[:2] != rotations.shape[:2] or positions.shape[0] != 1:
+        raise ValueError("ARDY reference positions and rotations must share one pose")
+    return positions, rotations
+
+
+def _base_end_effector_name(name: str) -> str:
+    return {
+        "left_hand": "LeftHand",
+        "right_hand": "RightHand",
+        "left_foot": "LeftFoot",
+        "right_foot": "RightFoot",
+    }[name]
+
+
+def _root_constraint(skeleton, frame_indices: torch.Tensor, root_2d: torch.Tensor):
+    try:
+        constraints_module = importlib.import_module("ardy.constraints")
+    except ModuleNotFoundError:
+        return _Root2DConstraint(frame_indices, root_2d)
+    return constraints_module.Root2DConstraintSet(skeleton, frame_indices, root_2d)
+
+
+def native_constraint_source() -> str:
+    """Describe which native-constraint implementation is active."""
+    try:
+        importlib.import_module("ardy.constraints")
+    except ModuleNotFoundError:
+        return "production compatibility shim"
+    return "ardy.constraints"
+
+
+def _end_effector_constraint(
+    skeleton,
+    name: str,
+    frame_indices: torch.Tensor,
+    positions: torch.Tensor,
+    rotations: torch.Tensor,
+):
+    try:
+        constraints_module = importlib.import_module("ardy.constraints")
+    except ModuleNotFoundError:
+        return _EndEffectorConstraint(
+            skeleton,
+            frame_indices,
+            positions,
+            rotations,
+            _base_end_effector_name(name),
+        )
+    constraint_class = {
+        "left_hand": constraints_module.LeftHandConstraintSet,
+        "right_hand": constraints_module.RightHandConstraintSet,
+        "left_foot": constraints_module.LeftFootConstraintSet,
+        "right_foot": constraints_module.RightFootConstraintSet,
+    }[name]
+    return constraint_class(
+        skeleton,
+        frame_indices=frame_indices,
+        global_joints_positions=positions,
+        global_joints_rots=rotations,
+        root_2d=None,
+    )
+
+
+class _Root2DConstraint:
+    def __init__(self, frame_indices: torch.Tensor, root_2d: torch.Tensor) -> None:
+        self.frame_indices = frame_indices
+        self.root_2d = root_2d
+
+    def update_constraints(self, data_dict: dict, index_dict: dict) -> None:
+        data_dict["root_2d"].append(self.root_2d)
+        index_dict["root_2d"].append(self.frame_indices)
+
+
+class _EndEffectorConstraint:
+    """Compatibility implementation of NVIDIA's EE constraint semantics."""
+
+    def __init__(
+        self,
+        skeleton,
+        frame_indices: torch.Tensor,
+        positions: torch.Tensor,
+        rotations: torch.Tensor,
+        base_name: str,
+    ) -> None:
+        self.skeleton = skeleton
+        self.frame_indices = frame_indices
+        self.positions = positions
+        self.rotations = rotations
+        rot_names, pos_names = skeleton.expand_joint_names([base_name, "Hips"])
+        self.rot_indices = torch.tensor(
+            [skeleton.bone_order_names.index(name) for name in rot_names],
+            device=positions.device,
+        )
+        self.pos_indices = torch.tensor(
+            [skeleton.bone_order_names.index(name) for name in pos_names],
+            device=positions.device,
+        )
+        heading = compute_heading_angle(positions, skeleton)
+        self.global_root_heading = torch.stack(
+            (torch.cos(heading), torch.sin(heading)), dim=-1
+        )
+
+    def update_constraints(self, data_dict: dict, index_dict: dict) -> None:
+        data_dict["global_joints_positions"].append(
+            self.positions[0, self.pos_indices]
+        )
+        index_dict["global_joints_positions"].append(
+            _constraint_pairs(self.frame_indices, self.pos_indices)
+        )
+        data_dict["global_joints_rots"].append(self.rotations[0, self.rot_indices])
+        index_dict["global_joints_rots"].append(
+            _constraint_pairs(self.frame_indices, self.rot_indices)
+        )
+        root = self.positions[:, self.skeleton.root_idx]
+        data_dict["root_2d"].append(root[:, [0, 2]])
+        index_dict["root_2d"].append(self.frame_indices)
+        data_dict["root_y_pos"].append(root[:, 1])
+        index_dict["root_y_pos"].append(self.frame_indices)
+        data_dict["global_root_heading"].append(self.global_root_heading)
+        index_dict["global_root_heading"].append(self.frame_indices)
+
+
+def _constraint_pairs(frames: torch.Tensor, joints: torch.Tensor) -> torch.Tensor:
+    return torch.stack((frames.expand(len(joints)), joints), dim=-1)
 
 
 def global_end_effector_targets(

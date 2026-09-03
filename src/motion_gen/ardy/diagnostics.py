@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from motion_gen.ardy.constraints import build_constraints, global_end_effector_targets
+from motion_gen.ardy.constraints import (
+    build_constraints,
+    global_end_effector_targets,
+    native_constraint_source,
+)
 from motion_gen.ardy.encoder import prepare_conditioning
 from shared.messages import EndEffectorTarget
 
@@ -17,7 +21,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class EEConditionComparison:
-    """Raw outputs from matched unconstrained and EE-conditioned ARDY calls."""
+    """Raw outputs from matched unconstrained, sparse, and native EE calls."""
 
     unconstrained_motion: torch.Tensor
     conditioned_motion: torch.Tensor
@@ -38,32 +42,23 @@ def compare_first_generation_ee_conditioning(
     embedding: torch.Tensor,
     end_effectors: tuple[EndEffectorTarget, ...],
 ) -> EEConditionComparison:
-    """Run a seed-matched first-window A/B comparison.
-
-    Both calls have no ARDY motion history and use the same text/constraint CFG
-    tuple, root translation, heading, denoising steps, and random seed.  Only
-    ``motion_mask`` and ``observed_motion`` differ.
-    """
+    """Run seed-matched A/B/C generation against the requested hand XYZ."""
     if generator.motion_history is not None:
         raise ValueError("EE comparison requires a fresh generator with no history")
-    if not end_effectors:
-        raise ValueError("EE comparison requires at least one end-effector target")
     if len(end_effectors) != 1 or end_effectors[0].name not in {
         "left_hand",
         "right_hand",
     }:
-        raise ValueError("Native EE comparison supports exactly one hand target")
+        raise ValueError("EE comparison supports exactly one hand target")
 
     text_feat, text_pad_mask = prepare_conditioning(embedding, device=generator.device)
     generated_frames = int(generator.model.gen_horizon_len)
-    motion_mask, observed_motion = build_constraints(
+    sparse_mask, sparse_observed = _legacy_sparse_ee_constraints(
         generator.model.motion_rep,
-        generator.root_history,
+        generator.root_history[-1],
         generator.root_heading,
-        (),
         end_effectors,
         generated_frames=generated_frames,
-        history_frames=0,
         device=generator.device,
     )
     init_global_translation = generator.root_history[-1:].clone()
@@ -92,38 +87,25 @@ def compare_first_generation_ee_conditioning(
 
     with torch.inference_mode():
         unconstrained_motion = generate(None, None)
-        conditioned_motion = generate(motion_mask, observed_motion)
-        if unconstrained_motion.shape[1] != generated_frames:
-            raise ValueError("Unconstrained ARDY call returned an unexpected frame count")
-        if conditioned_motion.shape != unconstrained_motion.shape:
-            raise ValueError("Conditioned and unconstrained ARDY outputs differ in shape")
         unconstrained_decoded = generator.model.motion_rep.inverse(
             unconstrained_motion, is_normalized=True
         )
-        conditioned_decoded = generator.model.motion_rep.inverse(
-            conditioned_motion, is_normalized=True
+        sparse_motion = generate(sparse_mask, sparse_observed)
+        sparse_decoded = generator.model.motion_rep.inverse(
+            sparse_motion, is_normalized=True
         )
-        native_constraint, native_constraint_source = _native_hand_constraint(
-            generator.model.skeleton,
-            end_effectors[0].name,
-            unconstrained_decoded["posed_joints"][:, -1],
-            unconstrained_decoded["global_rot_mats"][:, -1],
-            generated_frames - 1,
+        native_mask, native_observed = build_constraints(
+            generator.model.motion_rep,
+            generator.root_history,
+            generator.root_heading,
+            (),
+            end_effectors,
+            unconstrained_decoded,
+            generated_frames=generated_frames,
+            history_frames=0,
+            device=generator.device,
         )
-        native_observed_motion, native_motion_mask = (
-            generator.model.motion_rep.create_conditions_from_constraints(
-                [native_constraint],
-                generated_frames,
-                False,
-                str(generator.device),
-            )
-        )
-        native_observed_motion = (
-            generator.model.motion_rep.normalize(native_observed_motion)
-            * native_motion_mask
-        ).unsqueeze(0)
-        native_motion_mask = native_motion_mask.unsqueeze(0)
-        native_motion = generate(native_motion_mask, native_observed_motion)
+        native_motion = generate(native_mask, native_observed)
         native_decoded = generator.model.motion_rep.inverse(
             native_motion, is_normalized=True
         )
@@ -134,100 +116,61 @@ def compare_first_generation_ee_conditioning(
             device=generator.device,
         )
 
+    if not (
+        unconstrained_motion.shape == sparse_motion.shape == native_motion.shape
+    ):
+        raise ValueError("ARDY diagnostic outputs differ in shape")
     return EEConditionComparison(
         unconstrained_motion=unconstrained_motion,
-        conditioned_motion=conditioned_motion,
-        motion_mask=motion_mask,
-        observed_motion=observed_motion,
+        conditioned_motion=sparse_motion,
+        motion_mask=sparse_mask,
+        observed_motion=sparse_observed,
         unconstrained_decoded=unconstrained_decoded,
-        conditioned_decoded=conditioned_decoded,
+        conditioned_decoded=sparse_decoded,
         native_motion=native_motion,
-        native_motion_mask=native_motion_mask,
-        native_observed_motion=native_observed_motion,
+        native_motion_mask=native_mask,
+        native_observed_motion=native_observed,
         native_decoded=native_decoded,
-        native_constraint_source=native_constraint_source,
+        native_constraint_source=native_constraint_source(),
         target_positions=target_positions,
     )
 
 
-def _native_hand_constraint(
-    skeleton,
-    hand: str,
-    positions: torch.Tensor,
-    rotations: torch.Tensor,
-    frame_index: int,
-) -> tuple[object, str]:
-    """Use ARDY's hand class when available, else its source-identical shim.
-
-    The dependency pinned by this project predates ``ardy.constraints`` but
-    retains ``create_conditions_from_constraints``.  The shim exists solely to
-    make the A/B/C probe runnable against that pinned version.
-    """
-    try:
-        from ardy.constraints import LeftHandConstraintSet, RightHandConstraintSet
-    except ImportError:
-        classes = {"left_hand": _NativeHandConstraint, "right_hand": _NativeHandConstraint}
-        return (
-            classes[hand](skeleton, positions, rotations, hand, frame_index),
-            "source-identical compatibility shim",
-        )
-    constraint_class = (
-        LeftHandConstraintSet if hand == "left_hand" else RightHandConstraintSet
+def _legacy_sparse_ee_constraints(
+    motion_rep,
+    current_root: torch.Tensor,
+    root_heading: torch.Tensor,
+    end_effectors: tuple[EndEffectorTarget, ...],
+    *,
+    generated_frames: int,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Reproduce the retired 3-feature mask for diagnostic arm B only."""
+    targets = global_end_effector_targets(
+        current_root,
+        root_heading.to(device),
+        end_effectors,
+        device=device,
     )
-    frame = torch.tensor([frame_index], device=positions.device)
-    return (
-        constraint_class(skeleton, frame, positions, rotations, root_2d=None),
-        "ardy.constraints",
+    observed = torch.zeros(
+        (generated_frames, motion_rep.motion_rep_dim),
+        dtype=current_root.dtype,
+        device=device,
     )
-
-
-class _NativeHandConstraint:
-    """Minimal implementation of NVIDIA's EndEffectorConstraintSet update path."""
-
-    def __init__(
-        self,
-        skeleton,
-        positions: torch.Tensor,
-        rotations: torch.Tensor,
-        hand: str,
-        frame_index: int,
-    ):
-        from ardy.motion_rep.tools import compute_heading_angle
-
-        self.skeleton = skeleton
-        self.positions = positions
-        self.rotations = rotations
-        self.frame = torch.tensor([frame_index], device=positions.device)
-        hand_name = "LeftHand" if hand == "left_hand" else "RightHand"
-        rot_names, pos_names = skeleton.expand_joint_names([hand_name, "Hips"])
-        self.rot_indices = torch.tensor(
-            [skeleton.bone_index[name] for name in rot_names], device=positions.device
+    mask = torch.zeros_like(observed, dtype=torch.bool)
+    joint_slice = motion_rep.slice_dict["local_joints_positions"]
+    positions = observed[:, joint_slice].reshape(
+        generated_frames, motion_rep.skeleton.nbjoints - 1, 3
+    )
+    position_mask = mask[:, joint_slice].reshape_as(positions)
+    for target, target_position in zip(end_effectors, targets, strict=True):
+        side = target.name.removesuffix("_hand")
+        joint = motion_rep.skeleton.bone_order_names.index(
+            f"{side}_hand_roll_skel"
         )
-        self.pos_indices = torch.tensor(
-            [skeleton.bone_index[name] for name in pos_names], device=positions.device
-        )
-        heading = compute_heading_angle(positions, skeleton)
-        self.global_root_heading = torch.stack(
-            (torch.cos(heading), torch.sin(heading)), dim=-1
-        )
-
-    def update_constraints(self, data_dict: dict, index_dict: dict) -> None:
-        index_dict["global_joints_positions"].append(
-            torch.stack(
-                (self.frame.expand(len(self.pos_indices)), self.pos_indices), dim=-1
-            )
-        )
-        data_dict["global_joints_positions"].append(self.positions[0, self.pos_indices])
-        index_dict["global_joints_rots"].append(
-            torch.stack(
-                (self.frame.expand(len(self.rot_indices)), self.rot_indices), dim=-1
-            )
-        )
-        data_dict["global_joints_rots"].append(self.rotations[0, self.rot_indices])
-        root = self.positions[:, self.skeleton.root_idx]
-        index_dict["root_2d"].append(self.frame)
-        data_dict["root_2d"].append(root[:, [0, 2]])
-        index_dict["root_y_pos"].append(self.frame)
-        data_dict["root_y_pos"].append(root[:, 1])
-        index_dict["global_root_heading"].append(self.frame)
-        data_dict["global_root_heading"].append(self.global_root_heading)
+        local_position = target_position - current_root.to(device)
+        local_position[1] = target_position[1]
+        positions[-1, joint - 1] = local_position
+        position_mask[-1, joint - 1] = True
+    normalized = motion_rep.normalize(observed) * mask
+    return mask.unsqueeze(0).float(), normalized.unsqueeze(0)
