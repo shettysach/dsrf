@@ -43,10 +43,15 @@ def main() -> None:
             "target_xyz": args.target_xyz,
             "unconstrained_motion": result.unconstrained_motion.cpu(),
             "conditioned_motion": result.conditioned_motion.cpu(),
+            "native_motion": result.native_motion.cpu(),
             "motion_mask": result.motion_mask.cpu(),
             "observed_motion": result.observed_motion.cpu(),
+            "native_motion_mask": result.native_motion_mask.cpu(),
+            "native_observed_motion": result.native_observed_motion.cpu(),
             "unconstrained_decoded": _cpu_tensors(result.unconstrained_decoded),
             "conditioned_decoded": _cpu_tensors(result.conditioned_decoded),
+            "native_decoded": _cpu_tensors(result.native_decoded),
+            "native_constraint_source": result.native_constraint_source,
             "target_positions": result.target_positions.cpu(),
         },
         args.output,
@@ -78,6 +83,7 @@ def _print_result(generator: Ardy, target: EndEffectorTarget, result) -> None:
     for label, decoded in (
         ("unconstrained", result.unconstrained_decoded),
         ("conditioned", result.conditioned_decoded),
+        ("native", result.native_decoded),
     ):
         endpoint = decoded["posed_joints"][0, -1, joint]
         error = torch.linalg.vector_norm(endpoint - requested)
@@ -87,6 +93,8 @@ def _print_result(generator: Ardy, target: EndEffectorTarget, result) -> None:
     )
     print(
         f"mask_features={int(result.motion_mask.sum())} "
+        f"native_mask_features={int(result.native_motion_mask.sum())} "
+        f"native_constraint_source={result.native_constraint_source} "
         f"feature_delta_final={float(feature_delta[0, -1]):.6f}"
     )
 

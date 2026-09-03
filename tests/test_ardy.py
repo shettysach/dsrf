@@ -169,11 +169,21 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
     model.diffusion.num_base_steps = 10
     first_motion = torch.zeros((1, 52, 3))
     second_motion = torch.ones((1, 52, 3))
-    model.autoregressive_step.side_effect = [first_motion, second_motion]
+    native_motion = torch.full((1, 52, 3), 3.0)
+    model.autoregressive_step.side_effect = [first_motion, second_motion, native_motion]
     model.motion_rep.inverse.side_effect = [
-        {"posed_joints": torch.zeros((1, 52, 3, 3))},
+        {
+            "posed_joints": torch.zeros((1, 52, 3, 3)),
+            "global_rot_mats": torch.eye(3).expand(1, 52, 3, 3, 3),
+        },
         {"posed_joints": torch.ones((1, 52, 3, 3))},
+        {"posed_joints": torch.full((1, 52, 3, 3), 3.0)},
     ]
+    model.motion_rep.create_conditions_from_constraints.return_value = (
+        torch.full((52, 3), 4.0),
+        torch.ones((52, 3)),
+    )
+    model.motion_rep.normalize.side_effect = lambda value: value
     motion_mask = torch.ones((1, 52, 3))
     observed_motion = torch.full((1, 52, 3), 2.0)
     monkeypatch.setattr(
@@ -185,6 +195,12 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
         diagnostics,
         "global_end_effector_targets",
         lambda *args, **kwargs: torch.tensor([[1.0, 2.0, 3.0]]),
+    )
+    native_constraint = object()
+    monkeypatch.setattr(
+        diagnostics,
+        "_native_hand_constraint",
+        lambda *args, **kwargs: (native_constraint, "native test constraint"),
     )
     generator = SimpleNamespace(
         motion_history=None,
@@ -203,7 +219,7 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
         (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
     )
 
-    first_call, second_call = model.autoregressive_step.call_args_list
+    first_call, second_call, native_call = model.autoregressive_step.call_args_list
     assert first_call.kwargs["motion_mask"] is None
     assert first_call.kwargs["observed_motion"] is None
     assert second_call.kwargs["motion_mask"] is motion_mask
@@ -219,8 +235,16 @@ def test_ee_condition_comparison_changes_only_the_condition_tensors(
         first_call.kwargs["init_global_translation"],
         second_call.kwargs["init_global_translation"],
     )
+    torch.testing.assert_close(
+        native_call.kwargs["motion_mask"], torch.ones((1, 52, 3))
+    )
+    torch.testing.assert_close(
+        native_call.kwargs["observed_motion"], torch.full((1, 52, 3), 4.0)
+    )
     assert result.unconstrained_motion is first_motion
     assert result.conditioned_motion is second_motion
+    assert result.native_motion is native_motion
+    assert result.native_constraint_source == "native test constraint"
     torch.testing.assert_close(result.target_positions, torch.tensor([[1.0, 2.0, 3.0]]))
 
 
