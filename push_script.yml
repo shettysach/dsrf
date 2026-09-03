@@ -36,7 +36,8 @@ nodes:
       PUBLISH_OBSERVATIONS: "true"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
-      DEMO_MAX_COMMANDS: "2"
+      # One arm-reach window plus six <=0.4 m pushing windows.
+      DEMO_MAX_COMMANDS: "7"
     inputs:
       command: agent/command
     outputs:

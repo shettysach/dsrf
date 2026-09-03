@@ -37,7 +37,9 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
 
 
 def test_push_script_reaches_then_walks_the_box_to_the_goal() -> None:
-    script = PushScript(prompt="touch the box with both palms")
+    script = PushScript(
+        prompt="touch the box with both palms", goal_position=(4.0, 0.0)
+    )
 
     command = script.next_command(0)
 
@@ -55,11 +57,19 @@ def test_push_script_reaches_then_walks_the_box_to_the_goal() -> None:
     push = script.next_command(1)
 
     assert push is not None
-    assert push.motion == "walk forward while pushing the box with both palms"
-    np.testing.assert_allclose(push.target_xys, ((3.35, 0.0),))
-    np.testing.assert_allclose(push.end_effectors[0].target_xyz, (3.95, 0.16, 0.29))
-    np.testing.assert_allclose(push.end_effectors[1].target_xyz, (3.95, -0.16, 0.29))
-    assert script.next_command(2) is None
+    assert push.motion == "walk slowly forward while maintaining steady pressure with both palms"
+    np.testing.assert_allclose(push.target_xys, ((0.4, 0.0),))
+    np.testing.assert_allclose(push.end_effectors[0].target_xyz, (1.0, 0.16, 0.29))
+    np.testing.assert_allclose(push.end_effectors[1].target_xyz, (1.0, -0.16, 0.29))
+
+    for observation_id in range(2, 6):
+        next_push = script.next_command(observation_id)
+        assert next_push is not None
+        np.testing.assert_allclose(next_push.target_xys, ((0.4, 0.0),))
+    final_push = script.next_command(6)
+    assert final_push is not None
+    np.testing.assert_allclose(final_push.target_xys, ((0.35, 0.0),))
+    assert script.next_command(7) is None
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
