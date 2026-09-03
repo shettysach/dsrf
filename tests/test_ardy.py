@@ -134,7 +134,7 @@ def test_first_generation_uses_initial_pose_then_retains_continuation_window() -
     generator.converter = converter
     generator.history_crop_frames = 4
     generator.motion_history = None
-    generator.root_history = torch.zeros((2, 3))
+    generator.root_history = torch.tensor([[1.0, 0.8, 3.0], [4.0, 0.8, 6.0]])
     generator.root_heading = torch.tensor(0.0)
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
     first_history = first_motion[:, -4:]
@@ -146,7 +146,8 @@ def test_first_generation_uses_initial_pose_then_retains_continuation_window() -
     assert first_call.kwargs["num_frames"] == 52
     assert "init_history_sequence" not in first_call.kwargs
     torch.testing.assert_close(
-        first_call.kwargs["init_global_translation"], generator.root_history[-1:]
+        first_call.kwargs["init_global_translation"],
+        torch.tensor([[4.0, 0.0, 6.0]]),
     )
     torch.testing.assert_close(
         first_call.kwargs["init_first_heading_angle"], torch.tensor([0.0])

@@ -115,8 +115,12 @@ class Ardy:
                 else getattr(self, "text_cfg_weight", 2.0),
             }
             if self.motion_history is None:
+                # ARDY's initial translation is a horizontal-world offset;
+                # root height belongs to the generated root motion itself.
+                init_global_translation = self.root_history[-1:].clone()
+                init_global_translation[:, 1] = 0.0
                 autoregressive_kwargs.update(
-                    init_global_translation=self.root_history[-1:],
+                    init_global_translation=init_global_translation,
                     init_first_heading_angle=self.root_heading.reshape(1).to(self.device),
                 )
             else:
