@@ -57,8 +57,8 @@ class PushScript:
                 push_distance = self._push_distance(push_index, total_push_distance)
                 return AgentCommand(
                     observation_id=observation_id,
-                    text="Walk slowly forward and steadily push the box toward the green goal.",
-                    motion="walk slowly forward while maintaining steady pressure with both palms",
+                    text="Walk forward and push the box onto the green goal.",
+                    motion="walk forward while pushing the box with both palms",
                     target_xys=((push_distance, goal_y - robot_y),),
                     end_effectors=self._palm_targets(
                         robot_x + hand_reach_x + push_distance,
