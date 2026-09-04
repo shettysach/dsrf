@@ -1,9 +1,12 @@
-from __future__ import annotations
-
-import importlib
-
 import torch
-from ardy.motion_rep.tools import RotateFeatures, compute_heading_angle
+from ardy.constraints import (
+    LeftFootConstraintSet,
+    LeftHandConstraintSet,
+    RightFootConstraintSet,
+    RightHandConstraintSet,
+    Root2DConstraintSet,
+)
+from ardy.motion_rep.tools import RotateFeatures
 
 from shared.messages import EndEffectorTarget
 
@@ -33,7 +36,7 @@ def build_constraints(
     history_frames: int,
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Build root and native-style EE constraints for an ARDY generation."""
+    """Build root and end-effector constraints for an ARDY generation."""
     if (
         root_history.ndim != 2
         or root_history.shape[0] < 2
@@ -142,19 +145,11 @@ def _base_end_effector_name(name: str) -> str:
 
 
 def _root_constraint(skeleton, frame_indices: torch.Tensor, root_2d: torch.Tensor):
-    try:
-        constraints_module = importlib.import_module("ardy.constraints")
-    except ModuleNotFoundError:
-        return _Root2DConstraint(frame_indices, root_2d)
-    return constraints_module.Root2DConstraintSet(skeleton, frame_indices, root_2d)
+    return Root2DConstraintSet(skeleton, frame_indices, root_2d)
 
 
 def native_constraint_source() -> str:
-    """Describe which native-constraint implementation is active."""
-    try:
-        importlib.import_module("ardy.constraints")
-    except ModuleNotFoundError:
-        return "production compatibility shim"
+    """Describe the constraint implementation used by this generator."""
     return "ardy.constraints"
 
 
@@ -165,21 +160,11 @@ def _end_effector_constraint(
     positions: torch.Tensor,
     rotations: torch.Tensor,
 ):
-    try:
-        constraints_module = importlib.import_module("ardy.constraints")
-    except ModuleNotFoundError:
-        return _EndEffectorConstraint(
-            skeleton,
-            frame_indices,
-            positions,
-            rotations,
-            _base_end_effector_name(name),
-        )
     constraint_class = {
-        "left_hand": constraints_module.LeftHandConstraintSet,
-        "right_hand": constraints_module.RightHandConstraintSet,
-        "left_foot": constraints_module.LeftFootConstraintSet,
-        "right_foot": constraints_module.RightFootConstraintSet,
+        "left_hand": LeftHandConstraintSet,
+        "right_hand": RightHandConstraintSet,
+        "left_foot": LeftFootConstraintSet,
+        "right_foot": RightFootConstraintSet,
     }[name]
     return constraint_class(
         skeleton,
@@ -188,70 +173,6 @@ def _end_effector_constraint(
         global_joints_rots=rotations,
         root_2d=None,
     )
-
-
-class _Root2DConstraint:
-    def __init__(self, frame_indices: torch.Tensor, root_2d: torch.Tensor) -> None:
-        self.frame_indices = frame_indices
-        self.root_2d = root_2d
-
-    def update_constraints(self, data_dict: dict, index_dict: dict) -> None:
-        data_dict["root_2d"].append(self.root_2d)
-        index_dict["root_2d"].append(self.frame_indices)
-
-
-class _EndEffectorConstraint:
-    """Compatibility implementation of NVIDIA's EE constraint semantics."""
-
-    def __init__(
-        self,
-        skeleton,
-        frame_indices: torch.Tensor,
-        positions: torch.Tensor,
-        rotations: torch.Tensor,
-        base_name: str,
-    ) -> None:
-        self.skeleton = skeleton
-        self.frame_indices = frame_indices
-        self.positions = positions
-        self.rotations = rotations
-        rot_names, pos_names = skeleton.expand_joint_names([base_name, "Hips"])
-        self.rot_indices = torch.tensor(
-            [skeleton.bone_order_names.index(name) for name in rot_names],
-            device=positions.device,
-        )
-        self.pos_indices = torch.tensor(
-            [skeleton.bone_order_names.index(name) for name in pos_names],
-            device=positions.device,
-        )
-        heading = compute_heading_angle(positions, skeleton)
-        self.global_root_heading = torch.stack(
-            (torch.cos(heading), torch.sin(heading)), dim=-1
-        )
-
-    def update_constraints(self, data_dict: dict, index_dict: dict) -> None:
-        data_dict["global_joints_positions"].append(
-            self.positions[0, self.pos_indices]
-        )
-        index_dict["global_joints_positions"].append(
-            _constraint_pairs(self.frame_indices, self.pos_indices)
-        )
-        data_dict["global_joints_rots"].append(self.rotations[0, self.rot_indices])
-        index_dict["global_joints_rots"].append(
-            _constraint_pairs(self.frame_indices, self.rot_indices)
-        )
-        root = self.positions[:, self.skeleton.root_idx]
-        data_dict["root_2d"].append(root[:, [0, 2]])
-        index_dict["root_2d"].append(self.frame_indices)
-        data_dict["root_y_pos"].append(root[:, 1])
-        index_dict["root_y_pos"].append(self.frame_indices)
-        data_dict["global_root_heading"].append(self.global_root_heading)
-        index_dict["global_root_heading"].append(self.frame_indices)
-
-
-def _constraint_pairs(frames: torch.Tensor, joints: torch.Tensor) -> torch.Tensor:
-    return torch.stack((frames.expand(len(joints)), joints), dim=-1)
-
 
 def global_end_effector_targets(
     root_position: torch.Tensor,

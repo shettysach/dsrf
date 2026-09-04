@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from ardy.constraints import RightHandConstraintSet, Root2DConstraintSet
 from ardy.motion_rep.reps.ardy_motionrep import ArdyMotionRep
 from ardy.skeleton import G1Skeleton34
 
@@ -97,6 +98,7 @@ def test_local_waypoint_becomes_ardy_root_endpoint() -> None:
         history_frames=4,
         device=torch.device("cpu"),
     )
+    assert isinstance(received["constraints"][0], Root2DConstraintSet)
     assert received["index"]["root_2d"][0].tolist() == [128]
     torch.testing.assert_close(
         received["data"]["root_2d"][0], torch.tensor([[1.3, 2.8]])
@@ -179,6 +181,7 @@ def test_native_ee_translates_wrist_and_hand_and_preserves_root() -> None:
         device=torch.device("cpu"),
     )
 
+    assert isinstance(received["constraints"][0], RightHandConstraintSet)
     assert received["index"]["global_joints_positions"][0].tolist() == [
         [128, 5],
         [128, 6],
