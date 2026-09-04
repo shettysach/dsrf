@@ -1,3 +1,5 @@
+# ty:ignore[invalid-argument-type]
+
 import torch
 from ardy.constraints import (
     LeftFootConstraintSet,
