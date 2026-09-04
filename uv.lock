@@ -86,7 +86,7 @@ wheels = [
 [[package]]
 name = "ardy"
 version = "0.2.0"
-source = { git = "https://github.com/shettysach/ardy?branch=main#746c485094e0c591062928508b247eaa2c2efa2f" }
+source = { git = "https://github.com/shettysach/ardy?branch=main#466fc564ed3af374dfe9631f217cbf58d9beaee5" }
 dependencies = [
     { name = "accelerate" },
     { name = "bitsandbytes" },

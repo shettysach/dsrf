@@ -24,11 +24,11 @@ def test_box_push_starts_g1_directly_behind_the_box() -> None:
     assert robot.init_state.pos == pytest.approx((0.75, 0.0, 0.76))
 
 
-def test_box_push_box_has_a_square_footprint_and_unchanged_height() -> None:
+def test_box_push_box_has_a_wide_stable_footprint() -> None:
     box = make_box_push_entity_cfg()
 
-    assert BOX_HALF_SIZE == pytest.approx((0.35, 0.35, 0.55))
-    assert box.init_state.pos == pytest.approx((1.65, 0.0, 0.55))
+    assert BOX_HALF_SIZE == pytest.approx((0.45, 0.45, 0.55))
+    assert box.init_state.pos == pytest.approx((1.60, 0.0, 0.55))
 
 
 def test_box_push_uses_an_egocentric_observation_camera() -> None:

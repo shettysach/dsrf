@@ -61,16 +61,16 @@ def test_ardy_dataflow_encodes_commands_in_sim() -> None:
     assert "encoding_error" not in nodes["agent"]["inputs"]
 
 
-def test_push_script_dataflow_waits_for_each_phase_observation() -> None:
+def test_push_script_dataflow_runs_one_observation_driven_motion() -> None:
     descriptor = yaml.safe_load(Path("push_script.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"]["SCRIPT_START_IMMEDIATELY"] == "false"
-    assert nodes["agent"]["env"]["BOX_PUSH_GOAL_X"] == "4.0"
-    assert nodes["sim"]["env"]["BOX_PUSH_GOAL_X"] == "4.0"
+    assert nodes["agent"]["env"]["BOX_PUSH_GOAL_X"] == "1.90"
+    assert nodes["sim"]["env"]["BOX_PUSH_GOAL_X"] == "1.90"
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
     assert nodes["sim"]["env"]["PUBLISH_OBSERVATIONS"] == "true"
-    assert nodes["sim"]["env"]["DEMO_MAX_COMMANDS"] == "7"
+    assert nodes["sim"]["env"]["DEMO_MAX_COMMANDS"] == "1"
     assert "observation" in nodes["sim"]["outputs"]
 
 

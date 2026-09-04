@@ -8,7 +8,7 @@ from ardy.constraints import RightHandConstraintSet, Root2DConstraintSet
 from ardy.motion_rep.reps.ardy_motionrep import ArdyMotionRep
 from ardy.skeleton import G1Skeleton34
 
-from motion_gen.ardy.constraints import build_constraints
+from motion_gen.ardy.constraints import _end_effector_constraint, build_constraints
 from shared.messages import EndEffectorTarget
 
 
@@ -189,9 +189,7 @@ def test_native_ee_translates_wrist_and_hand_and_preserves_root() -> None:
     ]
     torch.testing.assert_close(
         received["data"]["global_joints_positions"][0],
-        torch.tensor(
-            [[1.2, 1.1, 2.3], [1.2, 1.1, 2.4], [1.0, 0.8, 2.0]]
-        ),
+        torch.tensor([[1.2, 1.1, 2.3], [1.2, 1.1, 2.4], [1.0, 0.8, 2.0]]),
     )
     torch.testing.assert_close(
         received["data"]["global_joints_rots"][0],
@@ -264,3 +262,26 @@ def test_native_ee_compiles_with_ardy_motion_representation() -> None:
     assert motion_mask.shape == observed_motion.shape == (1, 129, 414)
     assert int(motion_mask.sum()) == 23
     assert torch.isfinite(observed_motion).all()
+
+
+def test_native_ee_constraint_keeps_temporary_indices_on_its_device() -> None:
+    """ARDY keeps end-effector index tensors on the frame-index device."""
+    skeleton = G1Skeleton34()
+    joints = skeleton.nbjoints
+    constraint = _end_effector_constraint(
+        skeleton,
+        "right_hand",
+        torch.tensor([128], device="meta"),
+        torch.zeros((1, joints, 3), device="meta"),
+        torch.eye(3, device="meta").expand(1, joints, 3, 3),
+    )
+    data, indices = defaultdict(list), defaultdict(list)
+
+    constraint.update_constraints(data, indices)
+
+    assert all(
+        value.device.type == "meta" for values in data.values() for value in values
+    )
+    assert all(
+        value.device.type == "meta" for values in indices.values() for value in values
+    )

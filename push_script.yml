@@ -1,4 +1,4 @@
-# Two-phase box script: reach the box, then push it to the goal.
+# One continuous, deterministic two-palm box push.
 nodes:
   - id: agent
     path: uv
@@ -7,9 +7,9 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: box_push
-      SCRIPT_PROMPT: Reach both palms to the box.
+      SCRIPT_PROMPT: Reach forward with both open palms and push the box straight ahead while taking one short step.
       SCRIPT_START_IMMEDIATELY: "false"
-      BOX_PUSH_GOAL_X: "4.0"
+      BOX_PUSH_GOAL_X: "1.90"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
@@ -29,15 +29,14 @@ nodes:
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: box_push
-      BOX_PUSH_GOAL_X: "4.0"
+      BOX_PUSH_GOAL_X: "1.90"
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
       PUBLISH_OBSERVATIONS: "true"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
-      # One arm-reach window plus six <=0.4 m pushing windows.
-      DEMO_MAX_COMMANDS: "7"
+      DEMO_MAX_COMMANDS: "1"
     inputs:
       command: agent/command
     outputs:

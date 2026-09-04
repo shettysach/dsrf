@@ -69,7 +69,9 @@ def build_constraints(
             // len(target_xys)
         )
         frame_indices = relative_indices + history_frames - 1
-        constraints.append(_root_constraint(motion_rep.skeleton, frame_indices, root_2d))
+        constraints.append(
+            _root_constraint(motion_rep.skeleton, frame_indices, root_2d)
+        )
 
     if end_effectors:
         if reference_decoded is None:
@@ -80,9 +82,7 @@ def build_constraints(
         positions, rotations = _reference_final_pose(reference_decoded, device)
         final_root = positions[0, motion_rep.skeleton.root_idx]
         _validate_end_effector_reach(end_effectors, target_positions, final_root)
-        frame = torch.tensor(
-            [generated_frames + history_frames - 1], device=device
-        )
+        frame = torch.tensor([generated_frames + history_frames - 1], device=device)
         for target, target_position in zip(
             end_effectors, target_positions, strict=True
         ):
@@ -94,8 +94,7 @@ def build_constraints(
             base_name = _base_end_effector_name(target.name)
             _, chain_names = motion_rep.skeleton.expand_joint_names([base_name])
             chain_indices = [
-                motion_rep.skeleton.bone_order_names.index(name)
-                for name in chain_names
+                motion_rep.skeleton.bone_order_names.index(name) for name in chain_names
             ]
             edited_positions[0, chain_indices] += delta
             constraints.append(
@@ -173,6 +172,7 @@ def _end_effector_constraint(
         global_joints_rots=rotations,
         root_2d=None,
     )
+
 
 def global_end_effector_targets(
     root_position: torch.Tensor,

@@ -13,19 +13,18 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-# A square footprint makes the box substantially more resistant to toppling while
-# retaining the established 1.10 m height for palm contact.
-BOX_HALF_SIZE = (0.35, 0.35, 0.55)
+# The wide footprint and modest height make a short two-palm push stable.
+BOX_HALF_SIZE = (0.45, 0.45, 0.55)
 BOX_MASS = 1.0
-# Keep the near face 0.55 m in front of the fixed robot root at x=0.75 m.
-# This leaves room to establish palm contact without requiring navigation.
-BOX_START = (1.65, 0.0)
+# Put the near face 0.40 m in front of the robot root. The hands make contact
+# early enough to keep pushing before the single ARDY window ends.
+BOX_START = (1.60, 0.0)
 
 
 def _goal_center() -> tuple[float, float]:
     """Read the optional per-workflow goal position."""
 
-    goal_x = float(os.environ.get("BOX_PUSH_GOAL_X", "5.0"))
+    goal_x = float(os.environ.get("BOX_PUSH_GOAL_X", "1.90"))
     if not math.isfinite(goal_x):
         raise ValueError("BOX_PUSH_GOAL_X must be finite")
     return (goal_x, 0.0)
@@ -60,7 +59,7 @@ def _make_box_spec() -> "MjSpec":
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
         size=BOX_HALF_SIZE,
         mass=BOX_MASS,
-        friction=(0.75, 0.01, 0.001),
+        friction=(0.5, 0.01, 0.001),
         rgba=_BOX_RGBA,
         contype=1,
         conaffinity=1,

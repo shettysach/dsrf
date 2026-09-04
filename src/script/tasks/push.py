@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 from shared.messages import AgentCommand, EndEffectorTarget
@@ -8,81 +7,45 @@ from shared.messages import AgentCommand, EndEffectorTarget
 
 @dataclass(frozen=True)
 class PushScript:
-    """Reach the box, then walk it to the goal with two palm contacts."""
+    """Push the nearby aligned box in one continuous two-palm motion."""
 
     prompt: str
-    box_position: tuple[float, float, float] = (1.65, 0.0, 0.55)
-    box_size: tuple[float, float, float] = (0.7, 0.7, 1.1)
-    goal_position: tuple[float, float] = (5.0, 0.0)
+    box_position: tuple[float, float, float] = (1.60, 0.0, 0.55)
+    box_size: tuple[float, float, float] = (0.9, 0.9, 1.1)
+    goal_position: tuple[float, float] = (1.90, 0.0)
     robot_position: tuple[float, float, float] = (0.75, 0.0, 0.76)
-    hand_spacing: float = 0.32
-    max_push_distance: float = 0.4
-    # Upper part of the 1.10 m-tall box face. This remains on the physical
-    # face (top is z=1.10) while matching ARDY's natural arms-forward height
-    # much better than the old center-height target (z=0.55).
-    palm_contact_height: float = 1.05
+    hand_spacing: float = 0.36
+    palm_contact_height: float = 1.0
     # Bias the positional constraint just through the face.  ARDY can otherwise
     # stop its hands slightly short of a surface target; collision then resolves
     # this to palm contact without requesting a continuing push.
     contact_depth: float = 0.05
 
     def next_command(self, observation_id: int) -> AgentCommand | None:
+        if observation_id != 0:
+            return None
+
         box_x, _, _ = self.box_position
         robot_x, robot_y, robot_z = self.robot_position
         goal_x, goal_y = self.goal_position
         box_depth, _, _ = self.box_size
         half_spacing = self.hand_spacing / 2.0
-        initial_near_face_x = box_x - box_depth / 2.0 + self.contact_depth
-        hand_reach_x = initial_near_face_x - robot_x
+        push_distance = goal_x - box_x
         final_near_face_x = goal_x - box_depth / 2.0 + self.contact_depth
-        total_push_distance = final_near_face_x - hand_reach_x - robot_x
-        match observation_id:
-            case 0:
-                return AgentCommand(
-                    observation_id=observation_id,
-                    text=self.prompt,
-                    motion="extend both arms straight forward and hold them there",
-                    target_xys=(),
-                    end_effectors=self._palm_targets(
-                        initial_near_face_x,
-                        0.0,
-                        self.palm_contact_height,
-                        robot_x,
-                        robot_y,
-                        robot_z,
-                        half_spacing,
-                    ),
-                )
-            case push_index if 1 <= push_index <= self._push_count(total_push_distance):
-                push_distance = self._push_distance(push_index, total_push_distance)
-                return AgentCommand(
-                    observation_id=observation_id,
-                    text="Walk forward and push the box onto the green goal.",
-                    motion="walk forward while pushing the box with both palms",
-                    target_xys=((push_distance, goal_y - robot_y),),
-                    end_effectors=self._palm_targets(
-                        robot_x + hand_reach_x + push_distance,
-                        goal_y,
-                        self.palm_contact_height,
-                        robot_x,
-                        robot_y,
-                        robot_z,
-                        half_spacing,
-                    ),
-                )
-            case _:
-                return None
-
-    def _push_count(self, total_push_distance: float) -> int:
-        if self.max_push_distance <= 0.0:
-            raise ValueError("max_push_distance must be positive")
-        return math.ceil(max(0.0, total_push_distance) / self.max_push_distance)
-
-    def _push_distance(self, push_index: int, total_push_distance: float) -> float:
-        previous_distance = (push_index - 1) * self.max_push_distance
-        return min(
-            self.max_push_distance,
-            max(0.0, total_push_distance - previous_distance),
+        return AgentCommand(
+            observation_id=observation_id,
+            text=self.prompt,
+            motion=self.prompt,
+            target_xys=((push_distance, goal_y - robot_y),),
+            end_effectors=self._palm_targets(
+                final_near_face_x,
+                goal_y,
+                self.palm_contact_height,
+                robot_x,
+                robot_y,
+                robot_z,
+                half_spacing,
+            ),
         )
 
     @staticmethod

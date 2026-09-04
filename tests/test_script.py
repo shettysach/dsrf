@@ -36,40 +36,24 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
     }
 
 
-def test_push_script_reaches_then_walks_the_box_to_the_goal() -> None:
+def test_push_script_emits_one_continuous_contact_and_push_motion() -> None:
     script = PushScript(
-        prompt="touch the box with both palms", goal_position=(4.0, 0.0)
+        prompt="reach and push with both palms", goal_position=(1.90, 0.0)
     )
 
     command = script.next_command(0)
 
     assert command is not None
-    assert command.motion == "extend both arms straight forward and hold them there"
-    assert command.target_xys == ()
+    assert command.motion == "reach and push with both palms"
+    np.testing.assert_allclose(command.target_xys, ((0.3, 0.0),))
     assert [target.name for target in command.end_effectors] == [
         "left_hand",
         "right_hand",
     ]
     left, right = command.end_effectors
-    np.testing.assert_allclose(left.target_xyz, (0.60, 0.16, 0.29))
-    np.testing.assert_allclose(right.target_xyz, (0.60, -0.16, 0.29))
-
-    push = script.next_command(1)
-
-    assert push is not None
-    assert push.motion == "walk forward while pushing the box with both palms"
-    np.testing.assert_allclose(push.target_xys, ((0.4, 0.0),))
-    np.testing.assert_allclose(push.end_effectors[0].target_xyz, (1.0, 0.16, 0.29))
-    np.testing.assert_allclose(push.end_effectors[1].target_xyz, (1.0, -0.16, 0.29))
-
-    for observation_id in range(2, 6):
-        next_push = script.next_command(observation_id)
-        assert next_push is not None
-        np.testing.assert_allclose(next_push.target_xys, ((0.4, 0.0),))
-    final_push = script.next_command(6)
-    assert final_push is not None
-    np.testing.assert_allclose(final_push.target_xys, ((0.35, 0.0),))
-    assert script.next_command(7) is None
+    np.testing.assert_allclose(left.target_xyz, (0.75, 0.18, 0.24))
+    np.testing.assert_allclose(right.target_xyz, (0.75, -0.18, 0.24))
+    assert script.next_command(1) is None
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
@@ -87,15 +71,11 @@ def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:
         cast(Any, node), PushScript(prompt="touch the box with both palms")
     ).run()
 
-    assert [output_id for output_id, _, _ in node.outputs] == ["command", "command"]
+    assert [output_id for output_id, _, _ in node.outputs] == ["command"]
     emitted = agent_command_from_arrow(
         node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
     )
     assert emitted == command
-    push = agent_command_from_arrow(
-        node.outputs[1][1], cast(Any, node.outputs[1][2]["metadata"])
-    )
-    assert push == PushScript(prompt="touch the box with both palms").next_command(1)
 
 
 def test_script_agent_can_send_without_an_observation() -> None:
