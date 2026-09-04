@@ -70,30 +70,58 @@ class Ardy:
         history_frames = self.motion_history.shape[1]
         generated_frames = int(self.model.gen_horizon_len)
         num_frames = history_frames + generated_frames
-        motion_mask = observed_motion = None
-        if target_xys or end_effectors:
-            motion_mask, observed_motion = build_constraints(
+        root_motion_mask = root_observed_motion = None
+        if target_xys:
+            root_motion_mask, root_observed_motion = build_constraints(
                 self.model.motion_rep,
                 self.root_history,
                 self.root_heading,
                 target_xys,
-                end_effectors,
+                (),
                 generated_frames=generated_frames,
                 history_frames=history_frames,
                 device=self.device,
             )
 
         with torch.inference_mode():
-            motion = self.model.autoregressive_step(
-                num_frames=num_frames,
-                num_denoising_steps=int(self.model.diffusion.num_base_steps),
-                motion_mask=motion_mask,
-                observed_motion=observed_motion,
-                text_feat=text_feat,
-                text_pad_mask=text_pad_mask,
-                cfg_weight=(2.0, 2.0),
-                init_history_sequence=self.motion_history,
-            )
+            def generate_window(
+                motion_mask: torch.Tensor | None,
+                observed_motion: torch.Tensor | None,
+            ) -> torch.Tensor:
+                return self.model.autoregressive_step(
+                    num_frames=num_frames,
+                    num_denoising_steps=int(self.model.diffusion.num_base_steps),
+                    motion_mask=motion_mask,
+                    observed_motion=observed_motion,
+                    text_feat=text_feat,
+                    text_pad_mask=text_pad_mask,
+                    cfg_weight=(2.0, 2.0),
+                    init_history_sequence=self.motion_history,
+                )
+
+            if end_effectors:
+                reference_motion = generate_window(
+                    root_motion_mask,
+                    root_observed_motion,
+                )
+                reference_decoded = self.model.motion_rep.inverse(
+                    reference_motion[:, history_frames:],
+                    is_normalized=True,
+                )
+                motion_mask, observed_motion = build_constraints(
+                    self.model.motion_rep,
+                    self.root_history,
+                    self.root_heading,
+                    target_xys,
+                    end_effectors,
+                    reference_decoded,
+                    generated_frames=generated_frames,
+                    history_frames=history_frames,
+                    device=self.device,
+                )
+                motion = generate_window(motion_mask, observed_motion)
+            else:
+                motion = generate_window(root_motion_mask, root_observed_motion)
             if motion.shape[1] != num_frames:
                 raise ValueError(
                     f"ARDY returned {motion.shape[1]} total frames; expected {num_frames}"

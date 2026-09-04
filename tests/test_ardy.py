@@ -9,6 +9,7 @@ from ardy.skeleton import G1Skeleton34
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
+from shared.messages import EndEffectorTarget
 
 
 def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> None:
@@ -147,6 +148,66 @@ def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
     assert call.kwargs["num_frames"] == 56
     assert call.kwargs["motion_mask"] is None
     assert call.kwargs["observed_motion"] is None
+
+
+def test_ee_generation_uses_a_reference_pass_before_native_constraints(
+    monkeypatch,
+) -> None:
+    import motion_gen.ardy.generator as ardy_generator
+
+    model = Mock()
+    model.gen_horizon_len = 52
+    model.diffusion.num_base_steps = 10
+    reference_motion = torch.zeros((1, 56, 3))
+    final_motion = torch.ones((1, 56, 3))
+    model.autoregressive_step.side_effect = [reference_motion, final_motion]
+    reference_decoded = {
+        "posed_joints": torch.zeros((1, 52, 34, 3)),
+        "global_rot_mats": torch.eye(3).expand(1, 52, 34, 3, 3),
+    }
+    final_decoded = {
+        "root_positions": torch.zeros((1, 52, 3)),
+        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 52]),
+    }
+    model.motion_rep.inverse.side_effect = [reference_decoded, final_decoded]
+    converter = Mock()
+    converter.dict_to_qpos.return_value = torch.zeros((1, 52, 36))
+    final_mask = torch.ones((1, 56, 3))
+    final_observed = torch.full((1, 56, 3), 2.0)
+    received: dict[str, object] = {}
+
+    def constraints(*args, **kwargs):
+        received["reference_decoded"] = args[5]
+        return final_mask, final_observed
+
+    monkeypatch.setattr(ardy_generator, "build_constraints", constraints)
+    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
+    generator.device = torch.device("cpu")
+    generator.model = model
+    generator.converter = converter
+    generator.history_crop_frames = 52
+    generator.motion_history = torch.zeros((1, 4, 3))
+    generator.root_history = torch.zeros((2, 3))
+    generator.root_heading = torch.tensor(0.0)
+    initial_history = generator.motion_history
+
+    qpos = generator.generate(
+        torch.arange(4096, dtype=torch.float32),
+        (),
+        (EndEffectorTarget("right_hand", (0.4, 0.2, 0.3)),),
+    )
+
+    reference_call, final_call = model.autoregressive_step.call_args_list
+    assert reference_call.kwargs["motion_mask"] is None
+    assert reference_call.kwargs["observed_motion"] is None
+    assert final_call.kwargs["motion_mask"] is final_mask
+    assert final_call.kwargs["observed_motion"] is final_observed
+    assert received["reference_decoded"] is reference_decoded
+    torch.testing.assert_close(
+        reference_call.kwargs["init_history_sequence"], initial_history
+    )
+    torch.testing.assert_close(generator.motion_history, final_motion[:, -52:])
+    assert qpos.shape == (52, 36)
 
 
 def test_prepare_conditioning_accepts_per_request_embedding() -> None:
