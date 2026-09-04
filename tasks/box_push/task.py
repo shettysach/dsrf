@@ -26,7 +26,8 @@ TASK = TaskSpec(
     make_scene=_make_scene,
     make_entities=_make_entities,
     virtual_force_objects=("box",),
-    # Enough assistance to overcome box friction without launching a 1 kg box.
+    # Enough assistance to overcome the ballasted box's sliding friction while
+    # remaining well below its approximate forward-tipping threshold.
     virtual_force_magnitude=4.0,
     virtual_force_max=8.0,
     # The box near face is x=1.15 m, 0.40 m ahead of the G1 root.
