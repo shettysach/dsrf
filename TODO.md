@@ -14,6 +14,8 @@
 
 [ ] Per chunk rebasing vs not.
 
+[ ] Ablate ARDY history policies for VLM trajectory collection: native first-window initialization with a four-frame rolling history versus fabricated standing history with a full-horizon continuation. Measure first-window discontinuity, transition smoothness, prompt responsiveness, and rollout quality.
+
 # Structure
 
 [ ] Align kinematic planner commands with NVIDIA inputs: **separate movement/facing directions** 

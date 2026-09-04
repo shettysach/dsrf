@@ -30,22 +30,17 @@ def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(ardy_generator, "MujocoQposConverter", lambda _: object())
     monkeypatch.setattr(
         ardy_generator,
-        "build_initial_history",
-        lambda *args, **kwargs: torch.zeros((1, 4, 1)),
-    )
-    monkeypatch.setattr(
-        ardy_generator,
         "qpos_to_ardy_inputs",
         lambda *args, **kwargs: (
-            torch.zeros((1, 4, 1, 3, 3)),
-            torch.zeros((1, 4, 3)),
+            torch.zeros((1, 2, 1, 3, 3)),
+            torch.zeros((1, 2, 3)),
         ),
     )
     generator = ardy_generator.Ardy(tmp_path, device="cuda:0")
 
     assert received["device"] == "cuda:0"
-    assert generator.history_crop_frames == 52
-    assert generator.motion_history.shape == (1, 4, 1)
+    assert generator.history_crop_frames == 4
+    assert generator.motion_history is None
 
 
 def test_standing_qpos_round_trips_through_ardy_inputs() -> None:
@@ -76,10 +71,11 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     model.diffusion.num_base_steps = 10
     returned_motion = torch.arange(56 * 3, dtype=torch.float32).reshape(1, 56, 3)
     model.autoregressive_step.return_value = returned_motion
-    model.motion_rep.create_conditions.return_value = (
+    model.motion_rep.create_conditions_from_constraints.return_value = (
         torch.zeros((56, 3)),
         torch.zeros((56, 3)),
     )
+    model.motion_rep.normalize.side_effect = lambda value: value
     model.motion_rep.inverse.side_effect = lambda motion, **kwargs: {
         "motion": motion,
         "root_positions": torch.zeros((1, 52, 3)),
@@ -92,7 +88,7 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     generator.device = torch.device("cpu")
     generator.model = model
     generator.converter = converter
-    generator.history_crop_frames = 52
+    generator.history_crop_frames = 4
     generator.motion_history = torch.zeros((1, 4, 3))
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
@@ -113,9 +109,52 @@ def test_ardy_history_conditions_generation_but_is_not_returned() -> None:
     assert call.kwargs["observed_motion"] is not None
     assert call.kwargs["text_feat"].shape == (1, 1, 4096)
     torch.testing.assert_close(call.kwargs["text_feat"][0, 0], embedding)
-    torch.testing.assert_close(generator.motion_history, returned_motion[:, -52:])
+    torch.testing.assert_close(generator.motion_history, returned_motion[:, -4:])
     torch.testing.assert_close(generator.root_history, torch.zeros((2, 3)))
     torch.testing.assert_close(generator.root_heading, torch.tensor(torch.pi / 2.0))
+
+
+def test_first_generation_uses_root_initialization_then_retains_one_token() -> None:
+    import motion_gen.ardy.generator as ardy_generator
+
+    model = Mock()
+    model.gen_horizon_len = 52
+    model.diffusion.num_base_steps = 10
+    first_motion = torch.zeros((1, 52, 3))
+    second_motion = torch.ones((1, 56, 3))
+    model.autoregressive_step.side_effect = [first_motion, second_motion]
+    model.motion_rep.inverse.return_value = {
+        "root_positions": torch.zeros((1, 52, 3)),
+        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 52]),
+    }
+    converter = Mock()
+    converter.dict_to_qpos.return_value = torch.zeros((1, 52, 36))
+
+    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
+    generator.device = torch.device("cpu")
+    generator.model = model
+    generator.converter = converter
+    generator.history_crop_frames = 4
+    generator.motion_history = None
+    generator.root_history = torch.tensor([[1.0, 0.8, 3.0], [4.0, 0.8, 6.0]])
+    generator.root_heading = torch.tensor(0.0)
+
+    generator.generate(torch.arange(4096, dtype=torch.float32), ())
+    first_history = first_motion[:, -4:]
+    generator.generate(torch.arange(4096, dtype=torch.float32), ())
+
+    first_call, second_call = model.autoregressive_step.call_args_list
+    assert first_call.kwargs["num_frames"] == 52
+    assert "init_history_sequence" not in first_call.kwargs
+    torch.testing.assert_close(
+        first_call.kwargs["init_global_translation"], torch.tensor([[4.0, 0.0, 6.0]])
+    )
+    torch.testing.assert_close(
+        first_call.kwargs["init_first_heading_angle"], torch.tensor([0.0])
+    )
+    assert second_call.kwargs["num_frames"] == 56
+    torch.testing.assert_close(second_call.kwargs["init_history_sequence"], first_history)
+    torch.testing.assert_close(generator.motion_history, second_motion[:, -4:])
 
 
 def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
@@ -136,14 +175,14 @@ def test_ardy_without_a_waypoint_has_no_position_constraint() -> None:
     generator.device = torch.device("cpu")
     generator.model = model
     generator.converter = converter
-    generator.history_crop_frames = 52
+    generator.history_crop_frames = 4
     generator.motion_history = torch.zeros((1, 4, 3))
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
 
     generator.generate(torch.arange(4096, dtype=torch.float32), ())
 
-    assert model.motion_rep.create_conditions.call_count == 0
+    assert model.motion_rep.create_conditions_from_constraints.call_count == 0
     call = model.autoregressive_step.call_args
     assert call.kwargs["num_frames"] == 56
     assert call.kwargs["motion_mask"] is None
@@ -185,7 +224,7 @@ def test_ee_generation_uses_a_reference_pass_before_native_constraints(
     generator.device = torch.device("cpu")
     generator.model = model
     generator.converter = converter
-    generator.history_crop_frames = 52
+    generator.history_crop_frames = 4
     generator.motion_history = torch.zeros((1, 4, 3))
     generator.root_history = torch.zeros((2, 3))
     generator.root_heading = torch.tensor(0.0)
@@ -206,7 +245,7 @@ def test_ee_generation_uses_a_reference_pass_before_native_constraints(
     torch.testing.assert_close(
         reference_call.kwargs["init_history_sequence"], initial_history
     )
-    torch.testing.assert_close(generator.motion_history, final_motion[:, -52:])
+    torch.testing.assert_close(generator.motion_history, final_motion[:, -4:])
     assert qpos.shape == (52, 36)
 
 

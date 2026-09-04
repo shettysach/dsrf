@@ -9,7 +9,7 @@ from ardy.model import load_model
 
 from motion_gen.ardy.constraints import build_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
-from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
+from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
@@ -37,20 +37,16 @@ class Ardy:
 
         self.converter = MujocoQposConverter(self.model.skeleton)
         frames_per_token = int(self.model.num_frames_per_token)
-        self.history_crop_frames = int(self.model.gen_horizon_len)
-        if self.history_crop_frames % frames_per_token != 0:
+        generated_frames = int(self.model.gen_horizon_len)
+        if generated_frames % frames_per_token != 0:
             raise ValueError(
                 "ARDY generation horizon must be a multiple of its token patch size"
             )
-        standing_history = np.repeat(standing_qpos()[None], frames_per_token, axis=0)
-        self.motion_history = build_initial_history(
-            standing_history,
-            self.converter,
-            self.model.motion_rep,
-            device=self.device,
-        )
+        self.history_crop_frames = frames_per_token
+        self.motion_history: torch.Tensor | None = None
+        standing_pose = np.repeat(standing_qpos()[None], 2, axis=0)
         _, root_positions = qpos_to_ardy_inputs(
-            standing_history,
+            standing_pose,
             self.converter,
             device=self.device,
         )
@@ -67,7 +63,9 @@ class Ardy:
             embedding,
             device=self.device,
         )
-        history_frames = self.motion_history.shape[1]
+        history_frames = (
+            0 if self.motion_history is None else self.motion_history.shape[1]
+        )
         generated_frames = int(self.model.gen_horizon_len)
         num_frames = history_frames + generated_frames
         root_motion_mask = root_observed_motion = None
@@ -84,6 +82,17 @@ class Ardy:
             )
 
         with torch.inference_mode():
+            autoregressive_kwargs: dict[str, object] = {}
+            if self.motion_history is None:
+                init_global_translation = self.root_history[-1:].clone()
+                init_global_translation[:, 1] = 0.0
+                autoregressive_kwargs.update(
+                    init_global_translation=init_global_translation,
+                    init_first_heading_angle=self.root_heading.reshape(1).to(self.device),
+                )
+            else:
+                autoregressive_kwargs["init_history_sequence"] = self.motion_history
+
             def generate_window(
                 motion_mask: torch.Tensor | None,
                 observed_motion: torch.Tensor | None,
@@ -96,7 +105,7 @@ class Ardy:
                     text_feat=text_feat,
                     text_pad_mask=text_pad_mask,
                     cfg_weight=(2.0, 2.0),
-                    init_history_sequence=self.motion_history,
+                    **autoregressive_kwargs,
                 )
 
             if end_effectors:
