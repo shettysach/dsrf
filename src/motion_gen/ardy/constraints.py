@@ -10,11 +10,11 @@ from ardy.motion_rep.tools import RotateFeatures
 
 from shared.messages import EndEffectorTarget
 
-_JOINT_NAMES = {
-    "left_hand": "left_hand_roll_skel",
-    "right_hand": "right_hand_roll_skel",
-    "left_foot": "left_toe_base",
-    "right_foot": "right_toe_base",
+_END_EFFECTORS = {
+    "left_hand": ("LeftHand", LeftHandConstraintSet),
+    "right_hand": ("RightHand", RightHandConstraintSet),
+    "left_foot": ("LeftFoot", LeftFootConstraintSet),
+    "right_foot": ("RightFoot", RightFootConstraintSet),
 }
 
 
@@ -63,7 +63,9 @@ def build_constraints(
             // len(target_xys)
         )
         frame_indices = relative_indices + history_frames - 1
-        constraints.append(_root_constraint(motion_rep.skeleton, frame_indices, root_2d))
+        constraints.append(
+            Root2DConstraintSet(motion_rep.skeleton, frame_indices, root_2d)
+        )
 
     if end_effectors:
         if reference_decoded is None:
@@ -72,31 +74,26 @@ def build_constraints(
             current_root, heading, end_effectors, device=device
         )
         positions, rotations = _reference_final_pose(reference_decoded, device)
-        frame = torch.tensor(
-            [generated_frames + history_frames - 1], device=device
-        )
+        frame = torch.tensor([generated_frames + history_frames - 1], device=device)
         for target, target_position in zip(
             end_effectors, target_positions, strict=True
         ):
             edited_positions = positions.clone()
-            hand_index = motion_rep.skeleton.bone_order_names.index(
-                _JOINT_NAMES[target.name]
-            )
-            delta = target_position - edited_positions[0, hand_index]
-            base_name = _base_end_effector_name(target.name)
+            base_name, constraint_class = _END_EFFECTORS[target.name]
             _, chain_names = motion_rep.skeleton.expand_joint_names([base_name])
+            terminal_index = motion_rep.skeleton.bone_order_names.index(chain_names[-1])
+            delta = target_position - edited_positions[0, terminal_index]
             chain_indices = [
-                motion_rep.skeleton.bone_order_names.index(name)
-                for name in chain_names
+                motion_rep.skeleton.bone_order_names.index(name) for name in chain_names
             ]
             edited_positions[0, chain_indices] += delta
             constraints.append(
-                _end_effector_constraint(
+                constraint_class(
                     motion_rep.skeleton,
-                    target.name,
-                    frame,
-                    edited_positions,
-                    rotations,
+                    frame_indices=frame,
+                    global_joints_positions=edited_positions,
+                    global_joints_rots=rotations,
+                    root_2d=None,
                 )
             )
 
@@ -125,41 +122,6 @@ def _reference_final_pose(
     if positions.shape[:2] != rotations.shape[:2] or positions.shape[0] != 1:
         raise ValueError("ARDY reference positions and rotations must share one pose")
     return positions, rotations
-
-
-def _base_end_effector_name(name: str) -> str:
-    return {
-        "left_hand": "LeftHand",
-        "right_hand": "RightHand",
-        "left_foot": "LeftFoot",
-        "right_foot": "RightFoot",
-    }[name]
-
-
-def _root_constraint(skeleton, frame_indices: torch.Tensor, root_2d: torch.Tensor):
-    return Root2DConstraintSet(skeleton, frame_indices, root_2d)
-
-
-def _end_effector_constraint(
-    skeleton,
-    name: str,
-    frame_indices: torch.Tensor,
-    positions: torch.Tensor,
-    rotations: torch.Tensor,
-):
-    constraint_class = {
-        "left_hand": LeftHandConstraintSet,
-        "right_hand": RightHandConstraintSet,
-        "left_foot": LeftFootConstraintSet,
-        "right_foot": RightFootConstraintSet,
-    }[name]
-    return constraint_class(
-        skeleton,
-        frame_indices=frame_indices,
-        global_joints_positions=positions,
-        global_joints_rots=rotations,
-        root_2d=None,
-    )
 
 
 def global_end_effector_targets(
