@@ -14,6 +14,8 @@
 
 [ ] Per chunk rebasing vs not.
 
+[ ] Long horizon ARDY
+
 # Structure
 
 [ ] Align kinematic planner commands with NVIDIA inputs: **separate movement/facing directions** 
