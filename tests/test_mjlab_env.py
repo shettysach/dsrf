@@ -27,14 +27,14 @@ def test_box_push_starts_g1_directly_behind_the_box() -> None:
     cfg = make_sim_env_cfg(task=BOX_PUSH_TASK)
 
     robot = cfg.scene.entities["robot"]
-    assert robot.init_state.pos == pytest.approx((0.75, 0.0, 0.76))
+    assert robot.init_state.pos == pytest.approx((0.0, 0.0, 0.76))
 
 
 def test_box_push_box_has_a_wide_stable_footprint() -> None:
     box = make_box_push_entity_cfg()
 
-    assert BOX_HALF_SIZE == pytest.approx((0.25, 0.45, 0.50))
-    assert box.init_state.pos == pytest.approx((1.40, 0.0, 0.50))
+    assert BOX_HALF_SIZE == pytest.approx((0.40, 0.40, 0.40))
+    assert box.init_state.pos == pytest.approx((1.40, 0.0, 0.40))
 
 
 def test_box_push_box_starts_entirely_before_the_goal() -> None:

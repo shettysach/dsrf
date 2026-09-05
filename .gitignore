@@ -18,3 +18,22 @@ TASK.md
 NOTES.md
 !tasks/**/TASK.md
 LOGS.md
+
+# Local experiment artifacts and scratch files
+.env
+:w
+NEW.md
+SAMPLE.md
+USED.md
+_ardy.yml
+_demo.yml
+new.md
+new_nt.md
+temp.py
+test.yml
+*.log
+*.jsonl
+*.mp4
+pi-session-*.html
+ardy-cfg-sweep/
+none/

@@ -30,8 +30,8 @@ TASK = TaskSpec(
     # remaining well below its approximate forward-tipping threshold.
     virtual_force_magnitude=4.0,
     virtual_force_max=8.0,
-    # The box near face is x=1.15 m, 0.40 m ahead of the G1 root.
-    robot_initial_pos=(0.75, 0.0, 0.76),
+    # The robot starts at the world origin and walks into the contact pose.
+    robot_initial_pos=(0.0, 0.0, 0.76),
     observation_camera=ObservationCameraSpec(
         # Head-height, forward-facing view used for the VLM observation stream.
         egocentric=True,

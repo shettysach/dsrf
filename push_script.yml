@@ -7,9 +7,9 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: box_push
-      SCRIPT_PROMPT: Reach forward with both open palms and push the box straight ahead while taking one short step.
+      SCRIPT_PROMPT: Walk into position behind the box and hold both open palms ready to push.
       SCRIPT_START_IMMEDIATELY: "false"
-      BOX_PUSH_GOAL_X: "2.05"
+      BOX_PUSH_GOAL_X: "2.35"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
@@ -29,7 +29,7 @@ nodes:
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: box_push
-      BOX_PUSH_GOAL_X: "2.05"
+      BOX_PUSH_GOAL_X: "2.35"
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"

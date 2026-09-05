@@ -10,16 +10,16 @@ class PushScript:
     """Push the nearby aligned box in one continuous two-palm motion."""
 
     prompt: str
-    box_position: tuple[float, float, float] = (1.40, 0.0, 0.50)
-    box_size: tuple[float, float, float] = (0.5, 0.9, 1.0)
-    goal_position: tuple[float, float] = (2.05, 0.0)
-    robot_position: tuple[float, float, float] = (0.75, 0.0, 0.76)
+    box_position: tuple[float, float, float] = (1.40, 0.0, 0.40)
+    box_size: tuple[float, float, float] = (0.8, 0.8, 0.8)
+    goal_position: tuple[float, float] = (2.35, 0.0)
+    robot_position: tuple[float, float, float] = (0.0, 0.0, 0.76)
     hand_spacing: float = 0.36
-    palm_contact_height: float = 0.8
+    palm_contact_height: float = 0.60
     # Bias the positional constraint just through the face.  ARDY can otherwise
     # stop its hands slightly short of a surface target; collision then resolves
     # this to palm contact without requesting a continuing push.
-    contact_depth: float = 0.04
+    contact_depth: float = 0.20
 
     def next_command(self, observation_id: int) -> AgentCommand | None:
         if observation_id != 0:
@@ -30,8 +30,10 @@ class PushScript:
         goal_x, goal_y = self.goal_position
         box_depth, _, _ = self.box_size
         half_spacing = self.hand_spacing / 2.0
-        push_distance = goal_x - box_x
-        final_near_face_x = goal_x - box_depth / 2.0 + self.contact_depth
+        # Keep the base behind the box: hands, not the torso, should close the
+        # final distance and establish the two-palm contact.
+        push_distance = 0.75
+        final_near_face_x = box_x - box_depth / 2.0 + self.contact_depth
         return AgentCommand(
             observation_id=observation_id,
             text=self.prompt,

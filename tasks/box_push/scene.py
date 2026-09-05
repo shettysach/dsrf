@@ -15,13 +15,13 @@ if TYPE_CHECKING:
 
 # A low-friction, ballasted box should slide under a two-palm push instead of
 # tipping around its leading edge.
-BOX_HALF_SIZE = (0.25, 0.45, 0.50)
+BOX_HALF_SIZE = (0.40, 0.40, 0.40)
 BOX_MASS = 3.0
 # Put the near face 0.40 m in front of the robot root. The hands make contact
 # early enough to keep pushing before the single ARDY window ends.
 BOX_START = (1.40, 0.0)
-DEFAULT_GOAL_X = 2.05
-GOAL_HALF_SIZE = (0.30, 0.50, 0.01)
+DEFAULT_GOAL_X = 2.35
+GOAL_HALF_SIZE = (0.45, 0.45, 0.01)
 
 
 def _goal_center() -> tuple[float, float]:
