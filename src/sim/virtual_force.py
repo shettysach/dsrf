@@ -91,7 +91,9 @@ class VirtualForce:
         """Precompute world-aligned hand direction and speed for a reference."""
 
         if qpos.ndim != 2 or qpos.shape[1] != 36:
-            raise ValueError(f"Expected reference qpos [T, 36], got {tuple(qpos.shape)}")
+            raise ValueError(
+                f"Expected reference qpos [T, 36], got {tuple(qpos.shape)}"
+            )
         if len(qpos) < 2:
             raise ValueError("Virtual force requires at least two reference frames")
 
@@ -148,7 +150,9 @@ class VirtualForce:
             if motion.speeds[motion_frame] < self.min_hand_speed:
                 continue
             ramp = min(age / self.ramp_frames, 1.0)
-            forces[object_name] += ramp * self.magnitude * motion.directions[motion_frame]
+            forces[object_name] += (
+                ramp * self.magnitude * motion.directions[motion_frame]
+            )
 
         self._contact_ages = next_ages
         for object_name, force in forces.items():
@@ -199,7 +203,7 @@ def _derive_hand_motion(
     speeds[nonzero_steps] = distance[nonzero_steps] / (steps[nonzero_steps] * dt)
     directions = torch.zeros_like(delta)
     nonzero_distance = distance > 0.0
-    directions[nonzero_distance] = (
-        delta[nonzero_distance] / distance[nonzero_distance].unsqueeze(-1)
-    )
+    directions[nonzero_distance] = delta[nonzero_distance] / distance[
+        nonzero_distance
+    ].unsqueeze(-1)
     return _HandMotion(directions=directions, speeds=speeds)

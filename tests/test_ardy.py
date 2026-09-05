@@ -155,7 +155,9 @@ def test_first_generation_uses_initial_pose_then_retains_continuation_window() -
         first_call.kwargs["init_first_heading_angle"], torch.tensor([0.0])
     )
     assert second_call.kwargs["num_frames"] == 56
-    torch.testing.assert_close(second_call.kwargs["init_history_sequence"], first_history)
+    torch.testing.assert_close(
+        second_call.kwargs["init_history_sequence"], first_history
+    )
     assert second_call.kwargs["cfg_weight"] == 2.0
     torch.testing.assert_close(generator.motion_history, second_motion[:, -4:])
 
@@ -216,9 +218,13 @@ def test_ee_generation_uses_reference_pass_and_commits_only_final_motion(
     assert reference_call.kwargs["observed_motion"] is None
     assert final_call.kwargs["motion_mask"] is final_mask
     assert final_call.kwargs["observed_motion"] is final_observed
-    assert reference_call.kwargs["cfg_weight"] == final_call.kwargs["cfg_weight"] == (
-        1.5,
-        2.5,
+    assert (
+        reference_call.kwargs["cfg_weight"]
+        == final_call.kwargs["cfg_weight"]
+        == (
+            1.5,
+            2.5,
+        )
     )
     assert received_reference["decoded"] is reference_decoded
     assert seeds == [123, 123]

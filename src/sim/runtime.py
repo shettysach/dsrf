@@ -96,9 +96,7 @@ class SimRuntime:
         timer = self._start_timeout_timer()
         try:
             if self.publish_observations:
-                render_ms, jpeg_size = self._publish_observation(
-                    completed_command=None
-                )
+                render_ms, jpeg_size = self._publish_observation(completed_command=None)
                 self.node.log(
                     "info",
                     f"[OBS 0] initial observation: render_ms={render_ms:.1f} "

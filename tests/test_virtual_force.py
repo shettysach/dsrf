@@ -49,9 +49,7 @@ def test_virtual_force_sums_hands_clamps_per_object_and_resets_on_separation() -
     clamped = virtual_force.compute(3, contacts)
     separated = virtual_force.compute(4, set())
 
-    assert torch.linalg.vector_norm(clamped.forces["box"]).item() == pytest.approx(
-        50.0
-    )
+    assert torch.linalg.vector_norm(clamped.forces["box"]).item() == pytest.approx(50.0)
     torch.testing.assert_close(separated.forces["box"], torch.zeros(3))
     assert separated.ended_contacts == (
         ("left_hand", "box"),

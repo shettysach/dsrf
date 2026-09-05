@@ -32,6 +32,7 @@ def _goal_center() -> tuple[float, float]:
         raise ValueError("BOX_PUSH_GOAL_X must be finite")
     return (goal_x, 0.0)
 
+
 _BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
 
 

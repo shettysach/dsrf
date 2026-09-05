@@ -113,7 +113,9 @@ class Ardy:
                 init_global_translation[:, 1] = 0.0
                 autoregressive_kwargs.update(
                     init_global_translation=init_global_translation,
-                    init_first_heading_angle=self.root_heading.reshape(1).to(self.device),
+                    init_first_heading_angle=self.root_heading.reshape(1).to(
+                        self.device
+                    ),
                 )
             else:
                 autoregressive_kwargs["init_history_sequence"] = self.motion_history

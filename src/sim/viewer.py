@@ -38,9 +38,7 @@ class NativeSimViewer(NativeMujocoViewer):
             enable_perturbations=False,
         )
         self._reference_ghost = (
-            ReferenceGhost(env, reference)
-            if reference is not None
-            else None
+            ReferenceGhost(env, reference) if reference is not None else None
         )
         self.setup()
         self.sync()
@@ -77,9 +75,7 @@ class ViserSimViewer(ViserPlayViewer):
             frame_rate=float(REFERENCE_HZ),
         )
         self._reference_ghost = (
-            ReferenceGhost(env, reference)
-            if reference is not None
-            else None
+            ReferenceGhost(env, reference) if reference is not None else None
         )
         self.setup()
         self.sync()

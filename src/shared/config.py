@@ -264,7 +264,9 @@ def _parse_env_value(name: str, value: str, value_type: object) -> object:
     if value_type is Path:
         return Path(value)
     if get_origin(value_type) is not None and type(None) in get_args(value_type):
-        non_none_types = tuple(arg for arg in get_args(value_type) if arg is not type(None))
+        non_none_types = tuple(
+            arg for arg in get_args(value_type) if arg is not type(None)
+        )
         if len(non_none_types) == 1:
             return _parse_env_value(name, value, non_none_types[0])
     if get_origin(value_type) is Literal:

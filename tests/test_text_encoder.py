@@ -4,7 +4,9 @@ import motion_gen.ardy.text_encoder as encoder_module
 from motion_gen.ardy.text_encoder import TextEncoder
 
 
-def test_text_encoder_delegates_to_ardy_with_selected_device(monkeypatch, tmp_path) -> None:
+def test_text_encoder_delegates_to_ardy_with_selected_device(
+    monkeypatch, tmp_path
+) -> None:
     received: dict[str, object] = {}
 
     class FakeLLM2VecEncoder:

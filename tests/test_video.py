@@ -50,7 +50,9 @@ def test_video_can_hide_targets_after_the_decision_frame() -> None:
     assert tuple(rendered[320, 419]) != (35, 120, 255)
 
 
-def test_video_shows_targets_for_half_a_second_per_observation(monkeypatch, tmp_path) -> None:
+def test_video_shows_targets_for_half_a_second_per_observation(
+    monkeypatch, tmp_path
+) -> None:
     frames: list[np.ndarray] = []
 
     class Writer:
