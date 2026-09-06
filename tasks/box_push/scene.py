@@ -12,8 +12,8 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-# A low-friction, ballasted box should slide under a two-palm push instead of
-# tipping around its leading edge.
+# A lightweight planar cube keeps this scripted contact benchmark aligned with
+# the Sokoban object model: it translates on the floor but cannot tip or roll.
 DEFAULT_SETTINGS = BoxPushSettings()
 BOX_HALF_SIZE = DEFAULT_SETTINGS.half_size
 BOX_MASS = DEFAULT_SETTINGS.box_mass
@@ -61,7 +61,18 @@ def make_box_push_entity_cfg() -> EntityCfg:
 def _make_box_spec() -> "MjSpec":
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
     body = spec.worldbody.add_body(name="box")
-    body.add_freejoint(name="box_free_joint")
+    body.add_joint(
+        name="box_x",
+        type=mujoco.mjtJoint.mjJNT_SLIDE,  # ty: ignore[unresolved-attribute]
+        axis=(1.0, 0.0, 0.0),
+        damping=DEFAULT_SETTINGS.box_slide_damping,
+    )
+    body.add_joint(
+        name="box_y",
+        type=mujoco.mjtJoint.mjJNT_SLIDE,  # ty: ignore[unresolved-attribute]
+        axis=(0.0, 1.0, 0.0),
+        damping=DEFAULT_SETTINGS.box_slide_damping,
+    )
     body.add_geom(
         name="box_collision",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]

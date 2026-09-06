@@ -15,8 +15,9 @@ class BoxPushSettings:
     box_x: float = 3.0
     goal_x: float = 6.0
     half_size: tuple[float, float, float] = (0.5, 0.5, 0.5)
-    box_mass: float = 1.0
+    box_mass: float = 0.5
     box_friction: tuple[float, float, float] = (0.2, 0.01, 0.001)
+    box_slide_damping: float = 0.8
     goal_half_size: float = 0.65
 
     # Box-relative palm targets. ``hand_target_world_z`` is intentionally
@@ -86,6 +87,7 @@ class BoxPushSettings:
             *self.half_size,
             self.box_mass,
             *self.box_friction,
+            self.box_slide_damping,
             self.goal_half_size,
             self.hand_half_width,
             self.hand_target_world_z,
@@ -107,8 +109,12 @@ class BoxPushSettings:
             raise ValueError(
                 "Box must start ahead of the robot, with the goal beyond it"
             )
-        if any(size <= 0.0 for size in self.half_size) or self.box_mass <= 0.0:
-            raise ValueError("Box dimensions and mass must be positive")
+        if (
+            any(size <= 0.0 for size in self.half_size)
+            or self.box_mass <= 0.0
+            or self.box_slide_damping <= 0.0
+        ):
+            raise ValueError("Box dimensions, mass, and damping must be positive")
         if self.goal_half_size <= 0.0 or self.hand_half_width < 0.0:
             raise ValueError("Goal and hand-spacing settings are invalid")
         if not 0.0 <= self.hand_target_world_z <= self.box_top_z:

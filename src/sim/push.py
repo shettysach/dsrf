@@ -122,8 +122,6 @@ class PushController:
             )
         ):
             self.fail("Non-finite physical state")
-        elif state.body_rotation[2, 2] < 0.7:
-            self.fail("Box tipped")
         elif self.elapsed >= self.config.timeout:
             self.fail("Interaction time budget exhausted")
         if self.finished:

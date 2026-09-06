@@ -116,9 +116,9 @@ overrides are limited to:
 
 Logs report `push_window`, phase transitions, and a final `push_result`.
 Success requires the complete box footprint inside the goal, moving slower
-than 0.05 m/s for 0.5 seconds. Stalled progress, box tipping, or 90 seconds of
-simulated time terminate with failure. Window exhaustion alone never reports
-success. These pacing defaults require physical validation.
+than 0.05 m/s for 0.5 seconds. Stalled progress or 90 seconds of simulated
+time terminate with failure. Window exhaustion alone never reports success.
+These pacing defaults require physical validation.
 
 This implementation is intentionally limited to the scripted, aligned planar
 box push. The VLM tool interface and other one-window commands are unchanged.
