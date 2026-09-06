@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from shared.arrow import agent_command_to_arrow, observation_from_arrow
+from shared.arrow import (
+    agent_command_to_arrow,
+    observation_from_arrow,
+    pipeline_error_from_arrow,
+)
 from shared.messages import VisualObservation
 
 if TYPE_CHECKING:
@@ -40,7 +44,10 @@ class ScriptAgentLoop:
                     )
                 )
             elif event["id"] in {"planning_error", "sim_error"}:
-                raise RuntimeError("A scripted command failed in the pipeline")
+                error = pipeline_error_from_arrow(event["value"])
+                raise RuntimeError(
+                    f"Scripted command failed: {error.source}: {error.detail}"
+                )
 
     def _accept_observation(self, observation: VisualObservation) -> None:
         if self.observation is None:

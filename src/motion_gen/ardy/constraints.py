@@ -52,7 +52,10 @@ def build_timed_constraints(
     frames = torch.tensor(indices, device=device) + history_frames
     constraints = [
         _root_constraint(
-            motion_rep.skeleton, frames, root[[0, 2]] + _rotate_2d(local, heading)
+            motion_rep.skeleton,
+            frames,
+            root[[0, 2]] + _rotate_2d(local, heading),
+            heading.expand(len(samples)),
         )
     ]
     if reference_decoded is not None:
@@ -213,8 +216,18 @@ def _base_end_effector_name(name: str) -> str:
     }[name]
 
 
-def _root_constraint(skeleton, frame_indices: torch.Tensor, root_2d: torch.Tensor):
-    return Root2DConstraintSet(skeleton, frame_indices, root_2d)
+def _root_constraint(
+    skeleton,
+    frame_indices: torch.Tensor,
+    root_2d: torch.Tensor,
+    heading: torch.Tensor | None = None,
+):
+    return Root2DConstraintSet(
+        skeleton,
+        frame_indices,
+        root_2d,
+        global_root_heading=heading,
+    )
 
 
 def native_constraint_source() -> str:
