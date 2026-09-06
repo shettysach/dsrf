@@ -23,7 +23,7 @@ class BoxPushSettings:
     # Box-relative palm targets. ``hand_target_world_z`` is intentionally
     # world-space so it is easy to tune against the visible box height.
     hand_half_width: float = 0.30
-    hand_target_world_z: float = 0.70
+    hand_target_world_z: float = 0.75
     # Semantic robot-local direction (forward, left, up) for both palms.
     palm_normal: tuple[float, float, float] = (1.0, 0.0, 0.0)
 
@@ -34,7 +34,7 @@ class BoxPushSettings:
     settle_prompt: str = "stand"
     navigation_speed: float = 0.4
     push_speed: float = 0.15
-    standoff: float = 0.35
+    standoff: float = 0.50
     contact_windows: int = 2
     contact_dwell: float = 0.2
     contact_loss: float = 0.1
