@@ -36,7 +36,7 @@ class PushController:
         self.phase = "approach"
         self.elapsed = self.phase_elapsed = 0.0
         self.contact_age = self.loss_age = self.settle_age = 0.0
-        self.retries = 0
+        self.contact_retries = self.reacquisitions = 0
         self.reason = ""
         self.attached = False
         self._hand_start = state.hands
@@ -64,11 +64,10 @@ class PushController:
             for p in self.goal.points
         }
 
-    def begin_push(self, state: PushState, *, maintained_contact: bool) -> None:
-        if self.phase != "contact":
-            raise ValueError("Push may only begin after contact acquisition")
-        self.attached = maintained_contact
-        self._transition("push", state)
+    def mark_welded(self) -> None:
+        if self.phase != "push":
+            raise ValueError("A weld may only be attached when pushing")
+        self.attached = True
 
     def _direction(self, state: PushState) -> np.ndarray:
         delta = np.asarray(self.goal.target_xy) - state.body_position[:2]
@@ -122,26 +121,33 @@ class PushController:
         self.loss_age = 0.0 if touching else self.loss_age + dt
         if self.phase == "approach":
             if self._distance_for_phase(state) <= 0.10:
-                self._transition("contact", state)
-        elif self.phase == "contact":
-            if (
-                not self.goal.maintain_contact
-                and self.contact_age >= self.config.contact_dwell
-            ):
+                self._transition("reach", state)
+        elif self.phase == "reach":
+            if self.phase_elapsed >= self.config.reach_windows * self.window_seconds:
+                self._transition("hold", state)
+        elif self.phase == "hold":
+            if self.contact_age >= self.config.contact_dwell:
                 self._transition("push", state)
-            elif not self.goal.maintain_contact and (
-                self.phase_elapsed >= self.config.contact_windows * self.window_seconds
-            ):
-                self.fail("Contact not established within native contact windows")
+            elif self.phase_elapsed >= self.config.hold_windows * self.window_seconds:
+                if self.contact_retries >= self.config.contact_retries:
+                    self.fail("Both hands did not establish sustained contact")
+                else:
+                    self.contact_retries += 1
+                    self._transition("retry", state)
+        elif self.phase == "retry":
+            if self.contact_age >= self.config.contact_dwell:
+                self._transition("push", state)
+            elif self.phase_elapsed >= self.config.reach_windows * self.window_seconds:
+                self.fail("Both hands did not establish sustained contact")
         elif self.phase == "push":
             if self.remaining(state) <= 0.10:
                 self._transition("settle", state)
             elif not self.attached and self.loss_age >= self.config.contact_loss:
-                if self.retries >= self.config.reacquisitions:
+                if self.reacquisitions >= self.config.reacquisitions:
                     self.fail("Contact reacquisition budget exhausted")
                 else:
-                    self.retries += 1
-                    self._transition("contact", state)
+                    self.reacquisitions += 1
+                    self._transition("retry", state)
         elif self.phase == "settle":
             contained = bool(
                 np.all(
@@ -173,15 +179,6 @@ class PushController:
         c, s = np.cos(yaw), np.sin(yaw)
         world_to_local = np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
         contacts = self.contact_points(state)
-        palm_normals = {
-            point.name: (
-                None
-                if point.palm_normal is None
-                else state.body_rotation @ np.asarray(point.palm_normal)
-            )
-            for point in self.goal.points
-        }
-        direction = self._direction(state)
         samples = []
         indices = sorted(set(range(3, frames, 4)) | {frames - 1})
         for frame in indices:
@@ -194,19 +191,20 @@ class PushController:
                 base[:2] += delta * min(
                     1.0, self.config.navigation_speed * t / max(distance, 1e-8)
                 )
-            elif self.phase == "contact":
+            elif self.phase in {"reach", "retry"}:
                 fraction = min(
                     1.0,
                     (self.phase_elapsed + t)
-                    / (self.config.contact_windows * self.window_seconds),
+                    / (self.config.reach_windows * self.window_seconds),
                 )
                 for name, point in contacts.items():
-                    # Millimetric bias, not the previous 20 cm penetration request.
-                    target = point + np.r_[direction * 0.005, 0.0]
                     hands[name] = self._hand_start[name] + fraction * (
-                        target - self._hand_start[name]
+                        point - self._hand_start[name]
                     )
+            elif self.phase == "hold":
+                hands = contacts
             else:
+                direction = self._direction(state)
                 advance = (
                     min(self.config.push_speed * t, self.remaining(state))
                     if self.phase == "push"
@@ -225,15 +223,10 @@ class PushController:
                         EndEffectorTarget(
                             name,
                             tuple(world_to_local @ (p - root)),
-                            (
-                                None
-                                if palm_normals[name] is None
-                                else tuple(world_to_local @ palm_normals[name])
-                            ),
                         )
                         for name, p in hands.items()
                     ),
-                    root_upright=self.phase in {"contact", "push"},
+                    root_upright=self.phase in {"reach", "hold", "retry", "push"},
                 )
             )
         return tuple(samples)

@@ -20,22 +20,23 @@ class BoxPushSettings:
     box_slide_damping: float = 0.8
     goal_half_size: float = 0.65
 
-    # Box-relative palm targets. ``hand_target_world_z`` is intentionally
+    # Box-relative hand targets. ``hand_target_world_z`` is intentionally
     # world-space so it is easy to tune against the visible box height.
     hand_half_width: float = 0.22
     hand_target_world_z: float = 1.05
-    # Semantic robot-local direction (forward, left, up) for both palms.
-    palm_normal: tuple[float, float, float] = (1.0, 0.0, 0.0)
 
     # Per-phase ARDY priors and temporal pacing.
     approach_prompt: str = "walk forward"
-    contact_prompt: str = "stand and extend both arms forward, placing both palms against the box"
+    reach_prompt: str = "stand and extend both arms forward toward the box"
+    hold_prompt: str = "stand still with both hands held against the box"
     push_prompt: str = "walk forward with both hands held forward"
     settle_prompt: str = "stand"
     navigation_speed: float = 0.4
     push_speed: float = 0.15
     standoff: float = 0.38
-    contact_windows: int = 2
+    reach_windows: int = 1
+    hold_windows: int = 1
+    contact_retries: int = 1
     contact_dwell: float = 0.2
     contact_loss: float = 0.1
     reacquisitions: int = 2
@@ -60,7 +61,8 @@ class BoxPushSettings:
             ),
             push_speed=_float_env("PUSH_SPEED", defaults.push_speed),
             standoff=_float_env("PUSH_STANDOFF", defaults.standoff),
-            contact_windows=_int_env("PUSH_CONTACT_WINDOWS", defaults.contact_windows),
+            reach_windows=_int_env("PUSH_REACH_WINDOWS", defaults.reach_windows),
+            hold_windows=_int_env("PUSH_HOLD_WINDOWS", defaults.hold_windows),
             weld_enabled=_bool_env("PUSH_WELD", defaults.weld_enabled),
         )
 
@@ -77,7 +79,9 @@ class BoxPushSettings:
     def prompt_for_phase(self, phase: str) -> str:
         return {
             "approach": self.approach_prompt,
-            "contact": self.contact_prompt,
+            "reach": self.reach_prompt,
+            "retry": self.reach_prompt,
+            "hold": self.hold_prompt,
             "push": self.push_prompt,
             "settle": self.settle_prompt,
         }[phase]
@@ -93,7 +97,6 @@ class BoxPushSettings:
             self.goal_half_size,
             self.hand_half_width,
             self.hand_target_world_z,
-            *self.palm_normal,
             self.navigation_speed,
             self.push_speed,
             self.standoff,
@@ -122,8 +125,6 @@ class BoxPushSettings:
             raise ValueError("Goal and hand-spacing settings are invalid")
         if not 0.0 <= self.hand_target_world_z <= self.box_top_z:
             raise ValueError("Hand target must lie between the box floor and top")
-        if math.sqrt(sum(value * value for value in self.palm_normal)) <= 1e-6:
-            raise ValueError("Palm normal must be non-zero")
         if not all(
             value > 0.0
             for value in (
@@ -139,13 +140,19 @@ class BoxPushSettings:
             )
         ):
             raise ValueError("Box-push pacing settings must be positive")
-        if self.contact_windows < 1 or self.reacquisitions < 0:
+        if (
+            self.reach_windows < 1
+            or self.hold_windows < 1
+            or self.contact_retries < 0
+            or self.reacquisitions < 0
+        ):
             raise ValueError("Box-push window settings are invalid")
         if not all(
             prompt.strip()
             for prompt in (
                 self.approach_prompt,
-                self.contact_prompt,
+                self.reach_prompt,
+                self.hold_prompt,
                 self.push_prompt,
                 self.settle_prompt,
             )

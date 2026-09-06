@@ -34,7 +34,6 @@ class PushScript:
                             side * self.settings.hand_half_width,
                             self.settings.hand_target_local_z,
                         ),
-                        palm_normal=self.settings.palm_normal,
                     )
                     for name, side in (("left_hand", 1), ("right_hand", -1))
                 ),

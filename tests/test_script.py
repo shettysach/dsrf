@@ -51,7 +51,6 @@ def test_push_script_emits_one_continuous_contact_and_push_motion() -> None:
         "right_hand",
     ]
     left, right = command.contact_goal.points
-    assert left.palm_normal == right.palm_normal == (1.0, 0.0, 0.0)
     np.testing.assert_allclose(left.target_xyz, (-0.50, 0.22, 0.40))
     np.testing.assert_allclose(right.target_xyz, (-0.50, -0.22, 0.40))
     assert script.next_command(1) is None

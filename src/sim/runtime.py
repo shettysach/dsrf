@@ -350,28 +350,22 @@ class SimRuntime:
                 history.append(state.qpos.copy())
                 previous = controller.phase
                 interrupt = controller.update(state, self.simulation.step_dt)
-                if (
-                    controller.phase == "contact"
-                    and controller.phase_elapsed
-                    >= controller.config.contact_windows * controller.window_seconds
-                ):
+                if controller.phase == "push" and previous != "push":
                     if welds is not None:
                         with self.simulation.compute_context():
                             welds.attach()
-                        controller.begin_push(state, maintained_contact=True)
+                        controller.mark_welded()
                         self.node.log(
                             "info",
-                            "Attached hand-to-box welds after two reach windows",
+                            "Attached hand-to-box welds after sustained contact",
                             target="dsrf.sim.push",
                         )
                     else:
-                        controller.begin_push(state, maintained_contact=False)
                         self.node.log(
                             "info",
-                            "Continuing with physical contact only after two reach windows",
+                            "Pushing after sustained physical contact",
                             target="dsrf.sim.push",
                         )
-                    interrupt = False
                 if (
                     welds is not None
                     and previous == "push"
@@ -437,6 +431,7 @@ class SimRuntime:
                     qpos,
                     reference,
                     plan_ms=(time.perf_counter() - started) * 1000,
+                    prompt=motion,
                 )
                 self._execute(after_step=after_step)
 
@@ -577,18 +572,20 @@ class SimRuntime:
         qpos: torch.Tensor,
         *,
         plan_ms: float,
+        prompt: str | None = None,
     ) -> None:
         duration_s = len(qpos) / REFERENCE_HZ
+        motion_prompt = prompt or command.text
         self.node.log(
             "info",
             f"[OBS {command.observation_id}] motion generated: "
-            f"command={command.text!r} frames={len(qpos)} "
+            f"command={motion_prompt!r} frames={len(qpos)} "
             f"duration_s={duration_s:.2f} plan_ms={plan_ms:.1f}",
             target="dsrf.motion_gen",
             fields={
                 "event": "motion_generated",
                 "observation_id": str(command.observation_id),
-                "command": command.text,
+                "command": motion_prompt,
                 "plan_ms": f"{plan_ms:.1f}",
                 "source_frames": str(len(source_qpos)),
                 "output_frames": str(len(qpos)),
