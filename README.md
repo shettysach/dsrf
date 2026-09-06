@@ -94,17 +94,20 @@ Timed intermediate root/hand targets set the pace instead of demanding that
 the final goal be reached in 2.08 seconds. Simulation pauses during generation.
 ARDY receives only concise phase prompts such as `walk forward`, `reach forward
 with both hands`, or `stand`. Hand targets follow the box's measured pose. The
-script spends two native windows reaching, then captures the current relative
-hand-to-box poses in two predeclared, initially inactive MuJoCo welds and
-enables them for the push. The welds detach before free-box settling and always
-detach on cleanup. There is no virtual-force assistance.
+script spends two native windows reaching. By default, contact-gated virtual
+force assists the box only while a palm physically touches it. Setting
+`PUSH_WELD=true` instead captures current hand-to-box poses in two predeclared,
+initially inactive MuJoCo welds and enables them for the push; welds and virtual
+force are intentionally mutually exclusive. The welds detach before free-box
+settling and always detach on cleanup.
 
 Optional environment overrides:
 
 - `BOX_PUSH_START_X` / `BOX_PUSH_GOAL_X`: box and goal positions (3 / 6 m).
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
 - `PUSH_STANDOFF`: base-to-contact staging distance (0.40 m).
-- `PUSH_WELD`: enable the scripted hand-to-box welds (`true` by default).
+- `PUSH_WELD`: enable scripted hand-to-box welds (`false` by default). It cannot
+  be combined with the task's virtual-force assistance.
 - `ARDY_SEED`: diffusion seed (0); `REFERENCE_GHOST`: reference overlay (true).
 - `DEMO_VIDEO_PATH`: optional recording path.
 

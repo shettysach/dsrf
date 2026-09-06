@@ -25,6 +25,9 @@ TASK = TaskSpec(
     objective="Push the box onto the green goal.",
     make_scene=_make_scene,
     make_entities=_make_entities,
+    # Contact-gated assistance follows the generated palm motion. It reduces
+    # the box resistance only while a palm is physically touching it.
+    virtual_force_objects=("box",),
     # The robot starts at the world origin and walks into the contact pose.
     robot_initial_pos=(0.0, 0.0, 0.76),
     observation_camera=ObservationCameraSpec(

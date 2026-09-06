@@ -314,11 +314,14 @@ class SimRuntime:
 
         goal = command.contact_goal
         assert goal is not None
+        weld_enabled = goal.maintain_contact and _environment_boolean(
+            "PUSH_WELD", default=False
+        )
         if not isinstance(self.generator, ArdyMotionGenerator):
             self._report_error("Scripted contact requires ARDY", source="execution")
             self._stop_requested = True
             return
-        if self.virtual_force is not None:
+        if self.virtual_force is not None and weld_enabled:
             self._report_error(
                 "Scripted weld contact cannot be combined with virtual-force assistance",
                 source="execution",
@@ -328,9 +331,6 @@ class SimRuntime:
         generator = self.generator
         windows = 0
         welds: HandBoxWelds | None = None
-        weld_enabled = goal.maintain_contact and _environment_boolean(
-            "PUSH_WELD", default=True
-        )
         try:
             with self.simulation.compute_context():
                 state = self.simulation.push_state(goal.body)
@@ -422,6 +422,10 @@ class SimRuntime:
                     self.tracker.load_motion(
                         reference, self.simulation.robot_state(), world_aligned=True
                     )
+                    if self.virtual_force is not None:
+                        self.virtual_force.load_motion(
+                            reference, self.simulation.robot_state()
+                        )
                 self._projection_cache = None
                 windows += 1
                 self.node.log(

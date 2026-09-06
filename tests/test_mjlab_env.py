@@ -46,10 +46,10 @@ def test_box_push_box_starts_entirely_before_the_goal() -> None:
     assert GOAL_HALF_SIZE[1] >= BOX_HALF_SIZE[1]
 
 
-def test_box_push_uses_a_world_overview_without_assistance() -> None:
+def test_box_push_uses_a_world_overview_with_box_assistance() -> None:
     camera = make_sim_env_cfg(task=BOX_PUSH_TASK).scene.sensors[0]
 
-    assert BOX_PUSH_TASK.virtual_force_objects == ()
+    assert BOX_PUSH_TASK.virtual_force_objects == ("box",)
     assert camera.parent_body is None
     assert camera.pos == pytest.approx((0.0, -6.0, 5.0))
     assert camera.fovy == 65.0

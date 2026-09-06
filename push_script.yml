@@ -1,4 +1,4 @@
-# One logical, feedback-controlled approach/contact/push. No VLM or assistance.
+# One logical, feedback-controlled approach/contact/push. No VLM.
 nodes:
   - id: agent
     path: uv
@@ -44,7 +44,7 @@ nodes:
       PUSH_NAVIGATION_SPEED: "${PUSH_NAVIGATION_SPEED:-0.4}"
       PUSH_SPEED: "${PUSH_SPEED:-0.15}"
       PUSH_STANDOFF: "${PUSH_STANDOFF:-0.40}"
-      PUSH_WELD: "${PUSH_WELD:-true}"
+      PUSH_WELD: "${PUSH_WELD:-false}"
     inputs:
       command: agent/command
     outputs:

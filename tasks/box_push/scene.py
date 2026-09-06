@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 # A low-friction, ballasted box should slide under a two-palm push instead of
 # tipping around its leading edge.
 BOX_HALF_SIZE = BoxPushSettings().half_size
-BOX_MASS = 3.0
+BOX_MASS = 1.0
 BOX_START = (3.0, 0.0)
 DEFAULT_GOAL_X = 6.0
 GOAL_HALF_SIZE = (0.65, 0.65, 0.01)
