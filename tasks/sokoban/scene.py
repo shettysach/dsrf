@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import mujoco
+import numpy as np
 
 from tasks.spec import SceneSpecFn
 
@@ -30,6 +31,7 @@ WALL_HALF_HEIGHT = 0.6
 WALL_HALF_SIZE = TILE_SIZE * 0.5
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
+COMPLETED_BOX_RGBA = (0.05, 0.35, 0.12, 1.0)
 _GOAL_RGBA = (0.15, 0.8, 0.3, 0.55)
 _WALL_RGBA = (0.35, 0.4, 0.45, 1.0)
 
@@ -225,6 +227,55 @@ class LevelPositions:
     goals: tuple[Position, ...]
     boxes: tuple[Position, ...]
     player: Position
+
+
+class SokobanCompletionVisualizer:
+    """Colors a box dark green only when it is fully inside a goal tile."""
+
+    def __init__(self, model: Any) -> None:
+        self._model = model
+        self._box_ids = _named_geom_ids(model, "sokoban_box_", "_collision")
+        goal_ids = _named_geom_ids(model, "sokoban_goal_", "")
+        self._goal_centers = np.asarray(model.geom_pos[goal_ids, :2], dtype=float)
+
+    def update(self, data: Any) -> None:
+        geom_positions = _as_numpy(data.geom_xpos)
+        if geom_positions.ndim == 3:
+            geom_positions = geom_positions[0]
+        box_centers = geom_positions[list(self._box_ids), :2]
+        # A cube is fully within a goal only if its centre is at most this far
+        # from the goal centre in both tile axes.
+        clearance = GOAL_HALF_SIZE - BOX_HALF_SIZE
+        completed = np.any(
+            np.all(
+                np.abs(box_centers[:, None, :] - self._goal_centers[None, :, :])
+                <= clearance,
+                axis=2,
+            ),
+            axis=1,
+        )
+        for geom_id, is_completed in zip(self._box_ids, completed, strict=True):
+            self._model.geom_rgba[geom_id] = (
+                COMPLETED_BOX_RGBA if is_completed else _BOX_RGBA
+            )
+
+
+def _named_geom_ids(model: Any, prefix: str, suffix: str) -> tuple[int, ...]:
+    ids: list[int] = []
+    index = 1
+    while True:
+        name = f"{prefix}{index}{suffix}"
+        try:
+            ids.append(model.geom(name).id)
+        except KeyError:
+            return tuple(ids)
+        index += 1
+
+
+def _as_numpy(value: Any) -> np.ndarray:
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    return np.asarray(value)
 
 
 def level_positions(level: SokobanLevel) -> LevelPositions:

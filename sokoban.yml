@@ -11,6 +11,7 @@ nodes:
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       MOTION_GENERATOR: kinematic_planner
+      DEMO_MAX_COMMANDS: "${DEMO_MAX_COMMANDS:-}"
     inputs:
       observation: sim/observation
       grounding_result: sim/grounding_result
@@ -32,8 +33,13 @@ nodes:
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
-      VIEWER: native
+      VIEWER: "${VIEWER:-native}"
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
+      SOKOBAN_LEVEL: "${SOKOBAN_LEVEL:-1}"
+      DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-}"
+      STOP_ON_STAND: "${STOP_ON_STAND:-false}"
+      DEMO_MAX_COMMANDS: "${DEMO_MAX_COMMANDS:-}"
+      DEMO_TIMEOUT_SECONDS: "${DEMO_TIMEOUT_SECONDS:-}"
     inputs:
       command: agent/command
       grounding_request: agent/grounding_request

@@ -69,6 +69,13 @@ class MjlabEnv:
             self._env.sim,
             camera,
         )
+        self._sokoban_visualizer = None
+        if task is not None and task.name == "sokoban":
+            from tasks.sokoban.scene import SokobanCompletionVisualizer
+
+            self._sokoban_visualizer = SokobanCompletionVisualizer(
+                self._env.sim.mj_model
+            )
         self.cuda_stream = (
             connect_torch_to_mjlab(self._env.sim, torch_device)
             if torch_device.type == "cuda"
@@ -77,6 +84,7 @@ class MjlabEnv:
 
         with self.compute_context():
             self._env.reset()
+            self.update_task_visuals()
 
     @property
     def mjlab_env(self) -> ManagerBasedRlEnv:
@@ -174,7 +182,14 @@ class MjlabEnv:
     ) -> VecEnvStepReturn:
         with self.compute_context():
             self._write_external_forces(external_forces or {})
-            return self._env.step(action)
+            result = self._env.step(action)
+            self.update_task_visuals()
+            return result
+
+    def update_task_visuals(self) -> None:
+        """Refresh dynamic task-only rendering state after simulation changes."""
+        if self._sokoban_visualizer is not None:
+            self._sokoban_visualizer.update(self._env.sim.data)
 
     def capture_rgbd(self) -> tuple[torch.Tensor, ProjectionContext]:
         with self.compute_context():

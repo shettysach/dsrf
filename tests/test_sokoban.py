@@ -4,9 +4,11 @@ import pytest
 from tasks import TASKS, get_task
 from tasks.sokoban.scene import (
     BOX_MASS,
+    COMPLETED_BOX_RGBA,
     GRID_HEIGHT,
     GRID_WIDTH,
     MJ_JOINT_SLIDE,
+    SokobanCompletionVisualizer,
     get_level,
     grid_to_world,
     level_positions,
@@ -74,3 +76,27 @@ def test_sokoban_box_moves_under_a_small_planar_force() -> None:
         mujoco.mj_step(model, data)  # ty: ignore[unresolved-attribute]
 
     assert data.qpos[qpos_address] > 0.001
+
+
+def test_sokoban_box_is_dark_green_only_when_fully_inside_a_goal() -> None:
+    spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
+    make_sokoban_spec_fn(level=1)(spec)
+    model = spec.compile()
+    data = mujoco.MjData(model)  # ty: ignore[unresolved-attribute]
+    visualizer = SokobanCompletionVisualizer(model)
+    box = model.geom("sokoban_box_1_collision")
+    goal = model.geom("sokoban_goal_1")
+
+    visualizer.update(data)
+    assert tuple(model.geom_rgba[box.id]) != COMPLETED_BOX_RGBA
+
+    for axis, coordinate in (("x", 0), ("y", 1)):
+        joint = model.joint(f"sokoban_box_1_{axis}")
+        data.qpos[model.jnt_qposadr[joint.id]] = (
+            model.geom_pos[goal.id, coordinate]
+            - model.body_pos[model.geom_bodyid[box.id], coordinate]
+        )
+    mujoco.mj_forward(model, data)  # ty: ignore[unresolved-attribute]
+    visualizer.update(data)
+
+    np.testing.assert_allclose(model.geom_rgba[box.id], COMPLETED_BOX_RGBA)

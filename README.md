@@ -49,6 +49,25 @@ dora run stairs.yml
 - Set `DEMO_VIDEO_PATH: /tmp/demo.mp4` to record the observation-camera view.
   The MP4 overlays the VLM's reasoning and a formatted ARDY command.
 
+### Sokoban recordings
+
+Use one video for one full rollout: it preserves the complete sequence of VLM
+decisions and makes failures directly comparable. The batch launcher records
+each selected level separately, with the same maximum number of VLM commands.
+
+```bash
+# All ten levels, one rollout each; headless; 20 VLM commands maximum per rollout.
+./run_sokoban_videos.sh
+
+# Three independent attempts on levels 1 and 5, with a 30-command budget.
+SOKOBAN_LEVELS="1 5" RUN_COUNT=3 MAX_COMMANDS=30 ./run_sokoban_videos.sh /tmp/sokoban-videos
+```
+
+Each clip stops as soon as the VLM issues `stand`; otherwise its final command
+is marked terminal at `MAX_COMMANDS`. `RUN_TIMEOUT_SECONDS` (600 by default) is
+only a safety stop. For a single interactive run, use
+`SOKOBAN_LEVEL=4 DEMO_VIDEO_PATH=/tmp/sokoban.mp4 STOP_ON_STAND=true DEMO_MAX_COMMANDS=20 dora run sokoban.yml`.
+
 ## ARDY closed loop
 
 The ARDY motion generator encodes each command's `motion` field with a local
