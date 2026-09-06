@@ -36,6 +36,9 @@ def test_sokoban_uses_elevated_observation_framing() -> None:
 
     assert cfg.scene.spec_fn is not None
     assert cfg.scene.sensors[0].data_types == ("rgb", "depth")
+    assert cfg.scene.entities["robot"].init_state.rot == pytest.approx(
+        get_task("sokoban").robot_initial_rot
+    )
 
 
 @pytest.mark.parametrize("level", range(1, 11))
