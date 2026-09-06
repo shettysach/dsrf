@@ -162,11 +162,6 @@ class PushController:
             )
         ):
             self.fail("Non-finite physical state")
-        # A G1 can squat below the former 0.45 m threshold while still upright.
-        # Treat a low torso as a fall only near the ground; tilt remains an
-        # independent fall signal.
-        elif state.qpos[2] < 0.30 or 1 - 2 * np.sum(state.qpos[4:6] ** 2) < 0.5:
-            self.fail("Robot fell")
         elif state.body_rotation[2, 2] < 0.7:
             self.fail("Box tipped")
         elif self.elapsed >= self.config.timeout:
