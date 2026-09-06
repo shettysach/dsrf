@@ -16,6 +16,7 @@ class PushConfig:
     standoff: float = 0.40
     contact_windows: int = 3
     contact_dwell: float = 0.2
+    weld_acquisition_distance: float = 0.10
     contact_loss: float = 0.1
     reacquisitions: int = 2
     timeout: float = 90.0
@@ -28,6 +29,9 @@ class PushConfig:
             navigation_speed=float(os.environ.get("PUSH_NAVIGATION_SPEED", "0.4")),
             push_speed=float(os.environ.get("PUSH_SPEED", "0.15")),
             standoff=float(os.environ.get("PUSH_STANDOFF", "0.40")),
+            weld_acquisition_distance=float(
+                os.environ.get("WELD_ACQUISITION_DISTANCE", "0.10")
+            ),
         )
 
     def __post_init__(self) -> None:
@@ -39,6 +43,7 @@ class PushConfig:
                     self.push_speed,
                     self.standoff,
                     self.contact_dwell,
+                    self.weld_acquisition_distance,
                     self.contact_loss,
                     self.timeout,
                     self.stall_seconds,
@@ -80,6 +85,7 @@ class PushController:
         self.contact_age = self.loss_age = self.settle_age = 0.0
         self.retries = 0
         self.reason = ""
+        self.attached = False
         self._hand_start = state.hands
         self._root_offset = state.qpos[:2] - state.body_position[:2]
         self._progress_time = 0.0
@@ -110,6 +116,21 @@ class PushController:
             p.name: state.body_position + state.body_rotation @ np.asarray(p.target_xyz)
             for p in self.goal.points
         }
+
+    def ready_to_attach(self, state: PushState) -> bool:
+        """Both collision geoms must be near their selected surface points."""
+        targets = self.contact_points(state)
+        return all(
+            np.linalg.norm(state.hands[name] - target)
+            <= self.config.weld_acquisition_distance
+            for name, target in targets.items()
+        )
+
+    def attach(self, state: PushState) -> None:
+        if self.phase != "contact":
+            raise ValueError("Welds may only attach during contact acquisition")
+        self.attached = True
+        self._transition("push", state)
 
     def _direction(self, state: PushState) -> np.ndarray:
         delta = np.asarray(self.goal.target_xy) - state.body_position[:2]
@@ -176,16 +197,23 @@ class PushController:
             if self._distance_for_phase(state) <= 0.10:
                 self._transition("contact", state)
         elif self.phase == "contact":
-            if self.contact_age >= self.config.contact_dwell:
+            if (
+                not self.goal.maintain_contact
+                and self.contact_age >= self.config.contact_dwell
+            ):
                 self._transition("push", state)
             elif (
                 self.phase_elapsed >= self.config.contact_windows * self.window_seconds
             ):
-                self.fail("Contact not established within three native windows")
+                self.fail(
+                    "Weld acquisition not reached within three native windows"
+                    if self.goal.maintain_contact
+                    else "Contact not established within three native windows"
+                )
         elif self.phase == "push":
             if self.remaining(state) <= 0.10:
                 self._transition("settle", state)
-            elif self.loss_age >= self.config.contact_loss:
+            elif not self.attached and self.loss_age >= self.config.contact_loss:
                 if self.retries >= self.config.reacquisitions:
                     self.fail("Contact reacquisition budget exhausted")
                 else:

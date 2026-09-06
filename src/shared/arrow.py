@@ -66,6 +66,7 @@ def _contact_goal(metadata: dict[str, Any]) -> ContactGoal | None:
             for p in value["points"]
         ),
         goal_half_size=value["goal_half_size"],
+        maintain_contact=bool(value.get("maintain_contact", False)),
     )
 
 

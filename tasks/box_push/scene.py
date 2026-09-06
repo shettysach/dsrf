@@ -28,6 +28,8 @@ def _goal_center() -> tuple[float, float]:
 
 
 _BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
+_WELD_SOLREF = (0.1, 1.0)
+_WELD_DATA = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)
 
 
 def make_box_push_spec_fn() -> SceneSpecFn:
@@ -35,6 +37,7 @@ def make_box_push_spec_fn() -> SceneSpecFn:
 
     def add_box_push(spec: MjSpec) -> None:
         _add_goal(spec)
+        _add_inactive_hand_welds(spec)
 
     return add_box_push
 
@@ -79,3 +82,21 @@ def _add_goal(spec: "MjSpec") -> None:
         conaffinity=0,
         mass=0.0,
     )
+
+
+def _add_inactive_hand_welds(spec: "MjSpec") -> None:
+    """Predeclare topology; runtime captures the actual attachment pose."""
+    for hand, body in (
+        ("left_hand", "robot/left_wrist_yaw_link"),
+        ("right_hand", "robot/right_wrist_yaw_link"),
+    ):
+        spec.add_equality(
+            name=f"{hand}_box_weld",
+            type=mujoco.mjtEq.mjEQ_WELD,  # ty: ignore[unresolved-attribute]
+            objtype=mujoco.mjtObj.mjOBJ_BODY,  # ty: ignore[unresolved-attribute]
+            name1=body,
+            name2="box/box",
+            active=0,
+            data=_WELD_DATA,
+            solref=_WELD_SOLREF,
+        )

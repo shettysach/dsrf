@@ -44,6 +44,7 @@ nodes:
       PUSH_NAVIGATION_SPEED: "${PUSH_NAVIGATION_SPEED:-0.4}"
       PUSH_SPEED: "${PUSH_SPEED:-0.15}"
       PUSH_STANDOFF: "${PUSH_STANDOFF:-0.40}"
+      WELD_ACQUISITION_DISTANCE: "${WELD_ACQUISITION_DISTANCE:-0.10}"
     inputs:
       command: agent/command
     outputs:

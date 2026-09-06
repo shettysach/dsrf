@@ -31,5 +31,6 @@ class PushScript:
                     for name, side in (("left_hand", 1), ("right_hand", -1))
                 ),
                 goal_half_size=self.settings.goal_half_size,
+                maintain_contact=True,
             ),
         )

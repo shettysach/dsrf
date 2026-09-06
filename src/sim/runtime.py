@@ -39,6 +39,7 @@ from sim.renderer import SimRenderer
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
 from sim.virtual_force import VirtualForce, VirtualForceResult
+from sim.weld import HandBoxWelds
 from tracker.sonic import SonicTracker
 
 
@@ -310,12 +311,14 @@ class SimRuntime:
             return
         if self.virtual_force is not None:
             self._report_error(
-                "Scripted contact requires unassisted physics", source="execution"
+                "Scripted weld contact cannot be combined with virtual-force assistance",
+                source="execution",
             )
             self._stop_requested = True
             return
         generator = self.generator
         windows = 0
+        welds: HandBoxWelds | None = None
         try:
             with self.simulation.compute_context():
                 state = self.simulation.push_state(goal.body)
@@ -325,6 +328,12 @@ class SimRuntime:
                 window_seconds=generator.window_frames / generator.fps,
                 config=PushConfig.from_env(),
             )
+            if goal.maintain_contact:
+                welds = HandBoxWelds(
+                    self.simulation,
+                    goal.body,
+                    tuple(point.name for point in goal.points),
+                )
             history = deque([state.qpos.copy() for _ in range(9)], maxlen=9)
             if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
                 raise ValueError(
@@ -337,7 +346,32 @@ class SimRuntime:
                     state = self.simulation.push_state(goal.body)
                 history.append(state.qpos.copy())
                 previous = controller.phase
+                if (
+                    welds is not None
+                    and controller.phase == "contact"
+                    and controller.ready_to_attach(state)
+                ):
+                    with self.simulation.compute_context():
+                        welds.attach()
+                    controller.attach(state)
+                    self.node.log(
+                        "info",
+                        "Attached hand-to-box welds",
+                        target="dsrf.sim.push",
+                    )
                 interrupt = controller.update(state, self.simulation.step_dt)
+                if (
+                    welds is not None
+                    and previous == "push"
+                    and controller.phase == "settle"
+                ):
+                    with self.simulation.compute_context():
+                        welds.detach()
+                    self.node.log(
+                        "info",
+                        "Detached hand-to-box welds for settling",
+                        target="dsrf.sim.push",
+                    )
                 if controller.phase != previous:
                     self.node.log(
                         "info",
@@ -414,6 +448,9 @@ class SimRuntime:
         except (ValueError, KeyError) as exc:
             self._report_error(str(exc), source="execution")
         finally:
+            if welds is not None:
+                with self.simulation.compute_context():
+                    welds.detach()
             # This is the single-interaction script path, not a VLM protocol.
             self._stop_requested = True
 

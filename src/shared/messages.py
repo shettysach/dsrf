@@ -46,6 +46,7 @@ class ContactGoal:
     target_xy: tuple[float, float]
     points: tuple[EndEffectorTarget, ...]
     goal_half_size: float = 0.65
+    maintain_contact: bool = False
 
     def __post_init__(self) -> None:
         if not self.body or len(self.target_xy) != 2:
