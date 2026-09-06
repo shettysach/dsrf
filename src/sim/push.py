@@ -14,9 +14,8 @@ class PushConfig:
     navigation_speed: float = 0.4
     push_speed: float = 0.15
     standoff: float = 0.40
-    contact_windows: int = 3
+    contact_windows: int = 2
     contact_dwell: float = 0.2
-    weld_acquisition_distance: float = 0.10
     contact_loss: float = 0.1
     reacquisitions: int = 2
     timeout: float = 90.0
@@ -29,9 +28,6 @@ class PushConfig:
             navigation_speed=float(os.environ.get("PUSH_NAVIGATION_SPEED", "0.4")),
             push_speed=float(os.environ.get("PUSH_SPEED", "0.15")),
             standoff=float(os.environ.get("PUSH_STANDOFF", "0.40")),
-            weld_acquisition_distance=float(
-                os.environ.get("WELD_ACQUISITION_DISTANCE", "0.10")
-            ),
         )
 
     def __post_init__(self) -> None:
@@ -43,7 +39,6 @@ class PushConfig:
                     self.push_speed,
                     self.standoff,
                     self.contact_dwell,
-                    self.weld_acquisition_distance,
                     self.contact_loss,
                     self.timeout,
                     self.stall_seconds,
@@ -116,15 +111,6 @@ class PushController:
             p.name: state.body_position + state.body_rotation @ np.asarray(p.target_xyz)
             for p in self.goal.points
         }
-
-    def ready_to_attach(self, state: PushState) -> bool:
-        """Both collision geoms must be near their selected surface points."""
-        targets = self.contact_points(state)
-        return all(
-            np.linalg.norm(state.hands[name] - target)
-            <= self.config.weld_acquisition_distance
-            for name, target in targets.items()
-        )
 
     def attach(self, state: PushState) -> None:
         if self.phase != "contact":
@@ -202,14 +188,10 @@ class PushController:
                 and self.contact_age >= self.config.contact_dwell
             ):
                 self._transition("push", state)
-            elif (
+            elif not self.goal.maintain_contact and (
                 self.phase_elapsed >= self.config.contact_windows * self.window_seconds
             ):
-                self.fail(
-                    "Weld acquisition not reached within three native windows"
-                    if self.goal.maintain_contact
-                    else "Contact not established within three native windows"
-                )
+                self.fail("Contact not established within native contact windows")
         elif self.phase == "push":
             if self.remaining(state) <= 0.10:
                 self._transition("settle", state)

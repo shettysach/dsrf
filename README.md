@@ -86,25 +86,23 @@ interaction. Each window uses four actual-state history frames at 25 FPS;
 Timed intermediate root/hand targets set the pace instead of demanding that
 the final goal be reached in 2.08 seconds. Simulation pauses during generation.
 ARDY receives only concise phase prompts such as `walk forward`, `reach forward
-with both hands`, or `stand`. Hand targets follow the box's measured pose. Once
-both palms are within the acquisition distance, the script captures that exact
-relative pose in two predeclared, initially inactive MuJoCo welds and enables
-them for the push. The welds detach before free-box settling and always detach
-on cleanup. There is no virtual-force assistance.
+with both hands`, or `stand`. Hand targets follow the box's measured pose. The
+script spends two native windows reaching, then captures the current relative
+hand-to-box poses in two predeclared, initially inactive MuJoCo welds and
+enables them for the push. The welds detach before free-box settling and always
+detach on cleanup. There is no virtual-force assistance.
 
 Optional environment overrides:
 
 - `BOX_PUSH_START_X` / `BOX_PUSH_GOAL_X`: box and goal positions (3 / 6 m).
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
 - `PUSH_STANDOFF`: base-to-contact staging distance (0.40 m).
-- `WELD_ACQUISITION_DISTANCE`: maximum palm-to-target distance to attach (0.10 m).
 - `ARDY_SEED`: diffusion seed (0); `REFERENCE_GHOST`: reference overlay (true).
 - `DEMO_VIDEO_PATH`: optional recording path.
 
 Logs report `push_window`, phase transitions, and a final `push_result`.
 Success requires the complete box footprint inside the goal, moving slower
-than 0.05 m/s for 0.5 seconds. Failure to reach the deterministic weld
-acquisition condition, stalled progress, box tipping, or 90 seconds of
+than 0.05 m/s for 0.5 seconds. Stalled progress, box tipping, or 90 seconds of
 simulated time terminate with failure. Window exhaustion alone never reports
 success. These pacing defaults require physical validation.
 

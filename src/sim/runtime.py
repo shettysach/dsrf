@@ -346,20 +346,22 @@ class SimRuntime:
                     state = self.simulation.push_state(goal.body)
                 history.append(state.qpos.copy())
                 previous = controller.phase
+                interrupt = controller.update(state, self.simulation.step_dt)
                 if (
                     welds is not None
                     and controller.phase == "contact"
-                    and controller.ready_to_attach(state)
+                    and controller.phase_elapsed
+                    >= controller.config.contact_windows * controller.window_seconds
                 ):
                     with self.simulation.compute_context():
                         welds.attach()
                     controller.attach(state)
                     self.node.log(
                         "info",
-                        "Attached hand-to-box welds",
+                        "Attached hand-to-box welds after two reach windows",
                         target="dsrf.sim.push",
                     )
-                interrupt = controller.update(state, self.simulation.step_dt)
+                    interrupt = False
                 if (
                     welds is not None
                     and previous == "push"
