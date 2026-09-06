@@ -33,15 +33,15 @@ def test_box_push_starts_g1_directly_behind_the_box() -> None:
 def test_box_push_box_has_a_wide_stable_footprint() -> None:
     box = make_box_push_entity_cfg()
 
-    assert BOX_HALF_SIZE == pytest.approx((0.50, 0.50, 0.50))
-    assert box.init_state.pos == pytest.approx((3.0, 0.0, 0.50))
+    assert BOX_HALF_SIZE == pytest.approx((0.50, 0.50, 0.65))
+    assert box.init_state.pos == pytest.approx((3.0, 0.0, 0.65))
 
 
 def test_box_push_box_starts_entirely_before_the_goal() -> None:
     initial_box_front = BOX_START[0] + BOX_HALF_SIZE[0]
     goal_back = DEFAULT_GOAL_X - GOAL_HALF_SIZE[0]
 
-    assert goal_back - initial_box_front == pytest.approx(1.95)
+    assert goal_back - initial_box_front == pytest.approx(1.85)
     assert GOAL_HALF_SIZE[0] >= BOX_HALF_SIZE[0]
     assert GOAL_HALF_SIZE[1] >= BOX_HALF_SIZE[1]
 

@@ -14,7 +14,7 @@ class BoxPushSettings:
     # Scene geometry.
     box_x: float = 3.0
     goal_x: float = 6.0
-    half_size: tuple[float, float, float] = (0.5, 0.5, 0.5)
+    half_size: tuple[float, float, float] = (0.5, 0.5, 0.65)
     box_mass: float = 0.5
     box_friction: tuple[float, float, float] = (0.2, 0.01, 0.001)
     box_slide_damping: float = 0.8
@@ -23,7 +23,7 @@ class BoxPushSettings:
     # Box-relative palm targets. ``hand_target_world_z`` is intentionally
     # world-space so it is easy to tune against the visible box height.
     hand_half_width: float = 0.30
-    hand_target_world_z: float = 0.75
+    hand_target_world_z: float = 1.05
     # Semantic robot-local direction (forward, left, up) for both palms.
     palm_normal: tuple[float, float, float] = (1.0, 0.0, 0.0)
 
