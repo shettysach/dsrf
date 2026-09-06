@@ -14,7 +14,7 @@ class BoxPushSettings:
     # Scene geometry.
     box_x: float = 3.0
     goal_x: float = 6.0
-    half_size: tuple[float, float, float] = (0.4, 0.4, 0.4)
+    half_size: tuple[float, float, float] = (0.5, 0.5, 0.5)
     box_mass: float = 1.0
     box_friction: tuple[float, float, float] = (0.2, 0.01, 0.001)
     goal_half_size: float = 0.65
@@ -31,7 +31,7 @@ class BoxPushSettings:
     settle_prompt: str = "stand"
     navigation_speed: float = 0.4
     push_speed: float = 0.15
-    standoff: float = 0.40
+    standoff: float = 0.35
     contact_windows: int = 2
     contact_dwell: float = 0.2
     contact_loss: float = 0.1

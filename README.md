@@ -107,7 +107,7 @@ overrides are limited to:
 
 - `BOX_PUSH_START_X` / `BOX_PUSH_GOAL_X`: box and goal positions (3 / 6 m).
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
-- `PUSH_STANDOFF`: base-to-contact staging distance (0.40 m).
+- `PUSH_STANDOFF`: base-to-contact staging distance (0.35 m).
 - `PUSH_CONTACT_WINDOWS`: number of native reach windows (2).
 - `PUSH_WELD`: enable scripted hand-to-box welds (`false` by default). It cannot
   be combined with the task's virtual-force assistance.
