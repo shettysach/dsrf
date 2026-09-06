@@ -14,11 +14,16 @@ if TYPE_CHECKING:
 
 # A low-friction, ballasted box should slide under a two-palm push instead of
 # tipping around its leading edge.
-BOX_HALF_SIZE = BoxPushSettings().half_size
-BOX_MASS = 1.0
-BOX_START = (3.0, 0.0)
-DEFAULT_GOAL_X = 6.0
-GOAL_HALF_SIZE = (0.65, 0.65, 0.01)
+DEFAULT_SETTINGS = BoxPushSettings()
+BOX_HALF_SIZE = DEFAULT_SETTINGS.half_size
+BOX_MASS = DEFAULT_SETTINGS.box_mass
+BOX_START = (DEFAULT_SETTINGS.box_x, 0.0)
+DEFAULT_GOAL_X = DEFAULT_SETTINGS.goal_x
+GOAL_HALF_SIZE = (
+    DEFAULT_SETTINGS.goal_half_size,
+    DEFAULT_SETTINGS.goal_half_size,
+    0.01,
+)
 
 
 def _goal_center() -> tuple[float, float]:
@@ -28,7 +33,7 @@ def _goal_center() -> tuple[float, float]:
 
 
 _BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
-_WELD_SOLREF = (0.1, 1.0)
+_WELD_SOLREF = DEFAULT_SETTINGS.weld_solref
 _WELD_DATA = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)
 
 
@@ -62,7 +67,7 @@ def _make_box_spec() -> "MjSpec":
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
         size=BOX_HALF_SIZE,
         mass=BOX_MASS,
-        friction=(0.2, 0.01, 0.001),
+        friction=DEFAULT_SETTINGS.box_friction,
         rgba=_BOX_RGBA,
         contype=1,
         conaffinity=1,

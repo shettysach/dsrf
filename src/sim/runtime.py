@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import yaml
 from dora import Node
+from tasks.box_push.settings import BoxPushSettings
 
 from motion_gen.generator import MotionGenerator
 from motion_gen.resample import resample_qpos
@@ -34,7 +35,7 @@ from shared.messages import (
 from sim.camera import ProjectionContext
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
-from sim.push import PushConfig, PushController
+from sim.push import PushController
 from sim.renderer import SimRenderer
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
@@ -48,15 +49,6 @@ class ExecutionStats:
     frames: int
     elapsed_ms: float
     overrun_steps: int
-
-
-def _environment_boolean(name: str, *, default: bool) -> bool:
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    if value not in {"false", "true"}:
-        raise ValueError(f"{name} must be 'false' or 'true'")
-    return value == "true"
 
 
 class SimRuntime:
@@ -314,9 +306,8 @@ class SimRuntime:
 
         goal = command.contact_goal
         assert goal is not None
-        weld_enabled = goal.maintain_contact and _environment_boolean(
-            "PUSH_WELD", default=False
-        )
+        settings = BoxPushSettings.from_env()
+        weld_enabled = goal.maintain_contact and settings.weld_enabled
         if not isinstance(self.generator, ArdyMotionGenerator):
             self._report_error("Scripted contact requires ARDY", source="execution")
             self._stop_requested = True
@@ -338,7 +329,7 @@ class SimRuntime:
                 goal,
                 state,
                 window_seconds=generator.window_frames / generator.fps,
-                config=PushConfig.from_env(),
+                config=settings,
             )
             if weld_enabled:
                 welds = HandBoxWelds(

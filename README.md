@@ -87,8 +87,8 @@ disabled:
 PUSH_WELD=false dora run push_script.yml
 ```
 
-The robot approaches a box at x=3 m, attempts two-palm contact for up to three
-native windows, and pushes toward x=6 m. One script request owns the entire
+The robot approaches a box at x=3 m, reaches for two native windows, and pushes
+toward x=6 m. One script request owns the entire
 interaction. Each window uses four actual-state history frames at 25 FPS;
 Timed intermediate root/hand targets set the pace instead of demanding that
 the final goal be reached in 2.08 seconds. Simulation pauses during generation.
@@ -101,11 +101,14 @@ initially inactive MuJoCo welds and enables them for the push; welds and virtual
 force are intentionally mutually exclusive. The welds detach before free-box
 settling and always detach on cleanup.
 
-Optional environment overrides:
+All box-push defaults—including geometry, palm targets, phase prompts, pacing,
+and assistance—live in `tasks/box_push/settings.py`. Optional environment
+overrides are limited to:
 
 - `BOX_PUSH_START_X` / `BOX_PUSH_GOAL_X`: box and goal positions (3 / 6 m).
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
 - `PUSH_STANDOFF`: base-to-contact staging distance (0.40 m).
+- `PUSH_CONTACT_WINDOWS`: number of native reach windows (2).
 - `PUSH_WELD`: enable scripted hand-to-box welds (`false` by default). It cannot
   be combined with the task's virtual-force assistance.
 - `ARDY_SEED`: diffusion seed (0); `REFERENCE_GHOST`: reference overlay (true).

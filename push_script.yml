@@ -9,8 +9,6 @@ nodes:
       SCRIPT_TASK: box_push
       SCRIPT_PROMPT: walk forward
       SCRIPT_START_IMMEDIATELY: "false"
-      BOX_PUSH_START_X: "${BOX_PUSH_START_X:-3.0}"
-      BOX_PUSH_GOAL_X: "${BOX_PUSH_GOAL_X:-6.0}"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
@@ -30,8 +28,6 @@ nodes:
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: box_push
-      BOX_PUSH_START_X: "${BOX_PUSH_START_X:-3.0}"
-      BOX_PUSH_GOAL_X: "${BOX_PUSH_GOAL_X:-6.0}"
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
@@ -41,10 +37,6 @@ nodes:
       DEMO_MAX_COMMANDS: "1"
       DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-}"
       ARDY_SEED: "${ARDY_SEED:-0}"
-      PUSH_NAVIGATION_SPEED: "${PUSH_NAVIGATION_SPEED:-0.4}"
-      PUSH_SPEED: "${PUSH_SPEED:-0.15}"
-      PUSH_STANDOFF: "${PUSH_STANDOFF:-0.40}"
-      PUSH_WELD: "${PUSH_WELD:-false}"
     inputs:
       command: agent/command
     outputs:

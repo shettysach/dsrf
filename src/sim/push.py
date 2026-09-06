@@ -1,54 +1,12 @@
 """Small feedback controller for the scripted planar push, independent of ARDY."""
 
-import os
 from dataclasses import dataclass
 
 import numpy as np
+from tasks.box_push.settings import BoxPushSettings
 
 from motion_gen.targets import TimedTargets
 from shared.messages import ContactGoal, EndEffectorTarget
-
-
-@dataclass(frozen=True)
-class PushConfig:
-    navigation_speed: float = 0.4
-    push_speed: float = 0.15
-    standoff: float = 0.40
-    contact_windows: int = 2
-    contact_dwell: float = 0.2
-    contact_loss: float = 0.1
-    reacquisitions: int = 2
-    timeout: float = 90.0
-    stall_seconds: float = 4.0
-    progress_distance: float = 0.02
-
-    @classmethod
-    def from_env(cls) -> "PushConfig":
-        return cls(
-            navigation_speed=float(os.environ.get("PUSH_NAVIGATION_SPEED", "0.4")),
-            push_speed=float(os.environ.get("PUSH_SPEED", "0.15")),
-            standoff=float(os.environ.get("PUSH_STANDOFF", "0.40")),
-        )
-
-    def __post_init__(self) -> None:
-        if (
-            not all(
-                np.isfinite(v) and v > 0
-                for v in (
-                    self.navigation_speed,
-                    self.push_speed,
-                    self.standoff,
-                    self.contact_dwell,
-                    self.contact_loss,
-                    self.timeout,
-                    self.stall_seconds,
-                    self.progress_distance,
-                )
-            )
-            or self.contact_windows < 1
-            or self.reacquisitions < 0
-        ):
-            raise ValueError("Invalid push controller settings")
 
 
 @dataclass(frozen=True)
@@ -71,9 +29,9 @@ class PushController:
         state: PushState,
         *,
         window_seconds: float,
-        config: PushConfig | None = None,
+        config: BoxPushSettings | None = None,
     ) -> None:
-        self.goal, self.config = goal, config or PushConfig()
+        self.goal, self.config = goal, config or BoxPushSettings.from_env()
         self.window_seconds = window_seconds
         self.phase = "approach"
         self.elapsed = self.phase_elapsed = 0.0
@@ -94,12 +52,7 @@ class PushController:
     @property
     def motion_prompt(self) -> str:
         """A minimal ARDY prior; spatial constraints supply the task detail."""
-        return {
-            "approach": "walk forward",
-            "contact": "reach forward with both hands",
-            "push": "walk forward with both hands held forward",
-            "settle": "stand",
-        }[self.phase]
+        return self.config.prompt_for_phase(self.phase)
 
     def remaining(self, state: PushState) -> float:
         return float(

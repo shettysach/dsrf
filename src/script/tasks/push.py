@@ -17,7 +17,7 @@ class PushScript:
     def next_command(self, observation_id: int) -> AgentCommand | None:
         if observation_id != 0:
             return None
-        depth, _, height = self.settings.half_size
+        depth, _, _ = self.settings.half_size
         return AgentCommand(
             observation_id=observation_id,
             text=self.prompt,
@@ -27,7 +27,14 @@ class PushScript:
                 body="box",
                 target_xy=(self.settings.goal_x, 0.0),
                 points=tuple(
-                    EndEffectorTarget(name, (-depth, side * 0.18, 0.60 - height))
+                    EndEffectorTarget(
+                        name,
+                        (
+                            -depth,
+                            side * self.settings.hand_half_width,
+                            self.settings.hand_target_local_z,
+                        ),
+                    )
                     for name, side in (("left_hand", 1), ("right_hand", -1))
                 ),
                 goal_half_size=self.settings.goal_half_size,
