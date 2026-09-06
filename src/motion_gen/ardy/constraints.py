@@ -57,44 +57,53 @@ def build_timed_constraints(
         dtype=root.dtype,
         device=device,
     )
+    root_targets_2d = root[[0, 2]] + _rotate_2d(local, heading)
     frames = torch.tensor(indices, device=device) + history_frames
     constraints = [
         _root_constraint(
             motion_rep.skeleton,
             frames,
-            root[[0, 2]] + _rotate_2d(local, heading),
+            root_targets_2d,
             heading.expand(len(samples)),
         )
     ]
     if reference_decoded is not None:
-        for sample, frame in zip(samples, frames, strict=True):
+        for sample, frame, root_target_2d in zip(
+            samples, frames, root_targets_2d, strict=True
+        ):
             if not sample.end_effectors:
                 continue
             positions = reference_decoded["posed_joints"][:, sample.frame].to(device)
             rotations = reference_decoded["global_rot_mats"][:, sample.frame].to(device)
+            root_pose = root.clone()
+            root_pose[[0, 2]] = root_target_2d
             targets = global_end_effector_targets(
                 root, heading, sample.end_effectors, device=device
             )
             _validate_end_effector_reach(
                 sample.end_effectors,
                 targets,
-                positions[0, motion_rep.skeleton.root_idx],
+                root_pose,
             )
+            if sample.torso_upright:
+                constraints.append(
+                    _joint_rotation_constraint(
+                        motion_rep.skeleton,
+                        "waist_pitch_skel",
+                        frame.reshape(1),
+                        _upright_rotation(heading, rotations).reshape(1, 3, 3),
+                    )
+                )
             for target, xyz in zip(sample.end_effectors, targets, strict=True):
-                edited = positions.clone()
-                joint = motion_rep.skeleton.bone_order_names.index(
-                    _JOINT_NAMES[target.name]
-                )
-                _, names = motion_rep.skeleton.expand_joint_names(
-                    [_base_end_effector_name(target.name)]
-                )
-                chain = [motion_rep.skeleton.bone_order_names.index(n) for n in names]
-                edited[0, chain] += xyz - edited[0, joint]
-                edited_rotations = _with_palm_normal(
+                edited, edited_rotations = _edit_end_effector_pose(
+                    positions,
                     rotations,
                     motion_rep.skeleton,
                     target,
+                    xyz,
                     heading,
+                    root_position=root_pose if sample.torso_upright else None,
+                    upright_root=sample.torso_upright,
                 )
                 constraints.append(
                     _end_effector_constraint(
@@ -167,27 +176,20 @@ def build_constraints(
             current_root, heading, end_effectors, device=device
         )
         positions, rotations = _reference_final_pose(reference_decoded, device)
-        final_root = positions[0, motion_rep.skeleton.root_idx]
+        final_root = current_root.clone()
+        if target_xys:
+            final_root[[0, 2]] = root_2d[-1]
         _validate_end_effector_reach(end_effectors, target_positions, final_root)
         frame = torch.tensor([generated_frames + history_frames - 1], device=device)
         for target, target_position in zip(
             end_effectors, target_positions, strict=True
         ):
-            edited_positions = positions.clone()
-            hand_index = motion_rep.skeleton.bone_order_names.index(
-                _JOINT_NAMES[target.name]
-            )
-            delta = target_position - edited_positions[0, hand_index]
-            base_name = _base_end_effector_name(target.name)
-            _, chain_names = motion_rep.skeleton.expand_joint_names([base_name])
-            chain_indices = [
-                motion_rep.skeleton.bone_order_names.index(name) for name in chain_names
-            ]
-            edited_positions[0, chain_indices] += delta
-            edited_rotations = _with_palm_normal(
+            edited_positions, edited_rotations = _edit_end_effector_pose(
+                positions,
                 rotations,
                 motion_rep.skeleton,
                 target,
+                target_position,
                 heading,
             )
             constraints.append(
@@ -277,6 +279,100 @@ def _end_effector_constraint(
     )
 
 
+class _JointRotationConstraint:
+    def __init__(
+        self,
+        frame_indices: torch.Tensor,
+        joint_index: int,
+        rotations: torch.Tensor,
+    ) -> None:
+        self.frame_indices = frame_indices
+        self.joint_index = joint_index
+        self.rotations = rotations
+
+    def update_constraints(
+        self,
+        data: dict[str, list[torch.Tensor]],
+        indices: dict[str, list[torch.Tensor]],
+    ) -> None:
+        joint_indices = torch.full_like(self.frame_indices, self.joint_index)
+        indices["global_joints_rots"].append(
+            torch.stack((self.frame_indices, joint_indices), dim=-1)
+        )
+        data["global_joints_rots"].append(self.rotations)
+
+
+def _joint_rotation_constraint(
+    skeleton,
+    joint_name: str,
+    frame_indices: torch.Tensor,
+    rotations: torch.Tensor,
+) -> _JointRotationConstraint:
+    return _JointRotationConstraint(
+        frame_indices,
+        skeleton.bone_order_names.index(joint_name),
+        rotations,
+    )
+
+
+def _edit_end_effector_pose(
+    positions: torch.Tensor,
+    rotations: torch.Tensor,
+    skeleton,
+    target: EndEffectorTarget,
+    target_position: torch.Tensor,
+    heading: torch.Tensor,
+    *,
+    root_position: torch.Tensor | None = None,
+    upright_root: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build an FK-consistent hand chain around the requested endpoint."""
+    edited_rotations = rotations.clone()
+    root_index = skeleton.root_idx
+    if upright_root:
+        edited_rotations[0, root_index] = _upright_rotation(heading, rotations)
+    edited_rotations = _with_palm_normal(
+        edited_rotations,
+        skeleton,
+        target,
+        heading,
+    )
+
+    endpoint = skeleton.bone_order_names.index(_JOINT_NAMES[target.name])
+    _, chain_names = skeleton.expand_joint_names([_base_end_effector_name(target.name)])
+    chain = [skeleton.bone_order_names.index(name) for name in chain_names]
+    base = chain[0]
+    source_rotation = rotations[0, base]
+    target_rotation = edited_rotations[0, base]
+    endpoint_offsets = positions[0, chain] - positions[0, endpoint]
+    local_offsets = endpoint_offsets @ source_rotation
+
+    edited_positions = positions.clone()
+    edited_positions[0, chain] = target_position + local_offsets @ target_rotation.T
+    if root_position is not None:
+        edited_positions[0, root_index] = root_position
+    return edited_positions, edited_rotations
+
+
+def _upright_rotation(
+    heading: torch.Tensor, reference_rotations: torch.Tensor
+) -> torch.Tensor:
+    """Construct an upright ARDY global rotation at the current heading."""
+    heading = heading.to(
+        device=reference_rotations.device,
+        dtype=reference_rotations.dtype,
+    )
+    cosine, sine = torch.cos(heading), torch.sin(heading)
+    zero, one = torch.zeros_like(cosine), torch.ones_like(cosine)
+    return torch.stack(
+        (
+            torch.stack((cosine, zero, sine)),
+            torch.stack((zero, one, zero)),
+            torch.stack((-sine, zero, cosine)),
+        )
+    )
+
+
 def _with_palm_normal(
     rotations: torch.Tensor,
     skeleton,
@@ -291,22 +387,17 @@ def _with_palm_normal(
     except KeyError:
         return rotations
 
-    local = torch.tensor(
-        [[target.palm_normal[1], target.palm_normal[0]]],
+    local_axis = torch.tensor(
+        (target.palm_normal[1], target.palm_normal[2], target.palm_normal[0]),
         dtype=rotations.dtype,
         device=rotations.device,
     )
-    horizontal = _rotate_2d(local, heading.to(device=rotations.device)).squeeze(0)
-    desired_axis = torch.stack(
-        (
-            horizontal[0],
-            torch.as_tensor(
-                target.palm_normal[2], device=rotations.device, dtype=rotations.dtype
-            ),
-            horizontal[1],
-        )
+    desired_axis = _upright_rotation(
+        heading, rotations
+    ) @ torch.nn.functional.normalize(
+        local_axis,
+        dim=0,
     )
-    desired_axis = torch.nn.functional.normalize(desired_axis, dim=0)
     joint = skeleton.bone_order_names.index(joint_name)
     current_rotation = rotations[0, joint]
     source_axis = current_rotation @ _PALM_FORWARD_AXIS_ARDY.to(

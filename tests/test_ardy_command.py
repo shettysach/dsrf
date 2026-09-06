@@ -9,10 +9,13 @@ from ardy.motion_rep.reps.ardy_motionrep import ArdyMotionRep
 from ardy.skeleton import G1Skeleton34
 
 from motion_gen.ardy.constraints import (
+    _edit_end_effector_pose,
     _end_effector_constraint,
     _with_palm_normal,
     build_constraints,
+    build_timed_constraints,
 )
+from motion_gen.targets import TimedTargets
 from shared.messages import EndEffectorTarget
 
 
@@ -28,6 +31,7 @@ def _conditions():
         "right_hand_roll_skel",
         "left_toe_base",
         "right_toe_base",
+        "waist_pitch_skel",
     ]
     skeleton = SimpleNamespace(
         root_idx=0,
@@ -217,12 +221,77 @@ def test_palm_normal_aligns_ardy_palm_forward_axis() -> None:
     )
 
     wrist = motion_rep.skeleton.bone_order_names.index("right_wrist_yaw_skel")
-    # At +90 degrees, ARDY's local forward points along world -X.
+    # At +90 degrees, ARDY's local forward points along world +X.
     torch.testing.assert_close(
         aligned[0, wrist] @ torch.tensor([0.0, 0.0, 1.0]),
-        torch.tensor([-1.0, 0.0, 0.0]),
+        torch.tensor([1.0, 0.0, 0.0]),
         atol=1e-6,
         rtol=1e-6,
+    )
+
+
+def test_oriented_hand_positions_form_one_rigid_pose() -> None:
+    motion_rep, _ = _conditions()
+    reference = _reference(motion_rep)
+    positions = reference["posed_joints"][:, 0]
+    rotations = reference["global_rot_mats"][:, 0]
+    target_position = torch.tensor([1.5, 1.0, 2.5])
+    target = EndEffectorTarget(
+        "right_hand", (0.4, 0.0, 0.2), palm_normal=(0.0, 1.0, 0.0)
+    )
+
+    edited_positions, edited_rotations = _edit_end_effector_pose(
+        positions,
+        rotations,
+        motion_rep.skeleton,
+        target,
+        target_position,
+        torch.tensor(0.0),
+    )
+
+    wrist = motion_rep.skeleton.bone_order_names.index("right_wrist_yaw_skel")
+    endpoint = motion_rep.skeleton.bone_order_names.index("right_hand_roll_skel")
+    torch.testing.assert_close(edited_positions[0, endpoint], target_position)
+    expected_segment = edited_rotations[0, wrist] @ torch.tensor([0.0, 0.0, 0.1])
+    torch.testing.assert_close(
+        edited_positions[0, endpoint] - edited_positions[0, wrist],
+        expected_segment,
+        atol=1e-6,
+        rtol=1e-6,
+    )
+
+
+def test_timed_upright_target_replaces_speculative_root_pose() -> None:
+    motion_rep, received = _conditions()
+    reference = _reference(motion_rep, root=(1.0, 0.6, 2.0))
+    sample = TimedTargets(
+        0,
+        (0.0, 0.0),
+        (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
+        torso_upright=True,
+    )
+
+    build_timed_constraints(
+        motion_rep,
+        torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]]),
+        torch.tensor(0.0),
+        (sample,),
+        reference,
+        generated_frames=52,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+    waist = motion_rep.skeleton.bone_order_names.index("waist_pitch_skel")
+    assert received["index"]["global_joints_rots"][0].tolist() == [[4, waist]]
+    torch.testing.assert_close(
+        received["data"]["global_joints_rots"][0], torch.eye(3).reshape(1, 3, 3)
+    )
+    # The root position included by ARDY's native hand constraint stays at the
+    # observed standing height, rather than the crouched reference height.
+    torch.testing.assert_close(
+        received["data"]["global_joints_positions"][0][-1, 1],
+        torch.tensor(0.8),
     )
 
 
