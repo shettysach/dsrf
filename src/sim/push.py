@@ -43,7 +43,6 @@ class PushController:
         self._root_offset = state.qpos[:2] - state.body_position[:2]
         self._progress_time = 0.0
         self._progress_distance = self.remaining(state)
-        self._validate_direction(state)
 
     @property
     def finished(self) -> bool:
@@ -74,15 +73,6 @@ class PushController:
     def _direction(self, state: PushState) -> np.ndarray:
         delta = np.asarray(self.goal.target_xy) - state.body_position[:2]
         return delta / max(float(np.linalg.norm(delta)), 1e-8)
-
-    def _validate_direction(self, state: PushState) -> None:
-        # This scripted capability uses the box's local -X face, not arbitrary grasps.
-        normal = -state.body_rotation[:2, 0]
-        if (
-            self.remaining(state) > 0.15
-            and float(normal @ self._direction(state)) > -0.8
-        ):
-            self.fail("Selected face no longer supports the push direction")
 
     def staging_point(self, state: PushState) -> np.ndarray:
         center = np.mean(list(self.contact_points(state).values()), axis=0)
@@ -152,8 +142,6 @@ class PushController:
                 else:
                     self.retries += 1
                     self._transition("contact", state)
-            else:
-                self._validate_direction(state)
         elif self.phase == "settle":
             contained = bool(
                 np.all(
