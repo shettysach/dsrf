@@ -110,6 +110,18 @@ def test_sokoban_box_is_dark_green_only_when_fully_inside_a_goal() -> None:
             - model.body_pos[model.geom_bodyid[box.id], coordinate]
         )
     mujoco.mj_forward(model, data)  # ty: ignore[unresolved-attribute]
-    visualizer.update(data)
+    assert not visualizer.update(data)
 
     np.testing.assert_allclose(model.geom_rgba[box.id], COMPLETED_BOX_RGBA)
+
+    box_2 = model.geom("sokoban_box_2_collision")
+    goal_2 = model.geom("sokoban_goal_2")
+    for axis, coordinate in (("x", 0), ("y", 1)):
+        joint = model.joint(f"sokoban_box_2_{axis}")
+        data.qpos[model.jnt_qposadr[joint.id]] = (
+            model.geom_pos[goal_2.id, coordinate]
+            - model.body_pos[model.geom_bodyid[box_2.id], coordinate]
+        )
+    mujoco.mj_forward(model, data)  # ty: ignore[unresolved-attribute]
+
+    assert visualizer.update(data)

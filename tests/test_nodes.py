@@ -88,6 +88,7 @@ class _Simulation:
 
     def __init__(self) -> None:
         self.steps = 0
+        self.task_completed = False
 
     def compute_context(self):
         return nullcontext()
@@ -278,6 +279,18 @@ def test_sim_stops_after_completed_motion_limit(monkeypatch) -> None:
     assert any(
         "Completed-motion limit reached: 1" in message for _, message, _ in node.logs
     )
+
+
+def test_sim_stops_when_task_completion_is_detected(monkeypatch) -> None:
+    node = _Node([_command_event(0, "walk forward"), {"type": "STOP"}])
+    simulation = _Simulation()
+    simulation.task_completed = True
+    monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
+
+    _runtime(node, simulation, _Generator(), _Tracker(), _Renderer(simulation)).run()
+
+    assert [output_id for output_id, _, _ in node.outputs] == ["observation"]
+    assert any("task completion detected" in message for _, message, _ in node.logs)
 
 
 def test_sim_reports_generator_value_errors() -> None:

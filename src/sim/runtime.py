@@ -241,6 +241,18 @@ class SimRuntime:
         stats = self._execute()
         completed_observation_id = self.observation_id
         self.completed_commands += 1
+        if getattr(self.simulation, "task_completed", False):
+            self._stop_requested = True
+            self.node.log(
+                "info",
+                f"[OBS {completed_observation_id}] task completion detected",
+                target="dsrf.sim",
+                fields={
+                    "event": "task_completed",
+                    "observation_id": str(completed_observation_id),
+                },
+            )
+            return
         if self.stop_on_stand and command.terminal:
             # Do not publish a fresh observation after the terminal command: that
             # would make the agent issue one more VLM request into a closing node.

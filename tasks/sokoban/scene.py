@@ -239,7 +239,7 @@ class SokobanCompletionVisualizer:
         goal_ids = _named_geom_ids(model, "sokoban_goal_", "")
         self._goal_centers = np.asarray(model.geom_pos[goal_ids, :2], dtype=float)
 
-    def update(self, data: Any) -> None:
+    def update(self, data: Any) -> bool:
         geom_positions = _as_numpy(data.geom_xpos)
         if geom_positions.ndim == 3:
             geom_positions = geom_positions[0]
@@ -259,6 +259,7 @@ class SokobanCompletionVisualizer:
             self._model.geom_rgba[geom_id] = (
                 COMPLETED_BOX_RGBA if is_completed else _BOX_RGBA
             )
+        return bool(completed.all())
 
 
 def _named_geom_ids(model: Any, prefix: str, suffix: str) -> tuple[int, ...]:

@@ -70,6 +70,7 @@ class MjlabEnv:
             camera,
         )
         self._sokoban_visualizer = None
+        self._task_completed = False
         if task is not None and task.name == "sokoban":
             from tasks.sokoban.scene import SokobanCompletionVisualizer
 
@@ -98,6 +99,11 @@ class MjlabEnv:
     @property
     def task(self) -> TaskSpec | None:
         return self._task
+
+    @property
+    def task_completed(self) -> bool:
+        """Whether the task's optional physical completion check has passed."""
+        return self._task_completed
 
     def compute_context(self) -> AbstractContextManager[None]:
         return stream_context(self.cuda_stream)
@@ -189,7 +195,7 @@ class MjlabEnv:
     def update_task_visuals(self) -> None:
         """Refresh dynamic task-only rendering state after simulation changes."""
         if self._sokoban_visualizer is not None:
-            self._sokoban_visualizer.update(self._env.sim.data)
+            self._task_completed = self._sokoban_visualizer.update(self._env.sim.data)
 
     def capture_rgbd(self) -> tuple[torch.Tensor, ProjectionContext]:
         with self.compute_context():
