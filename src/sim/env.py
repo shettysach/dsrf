@@ -9,7 +9,6 @@ import torch
 from mjlab.entity import Entity
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
-from mjlab.utils.lab_api.math import matrix_from_quat
 from tasks import TaskSpec
 
 from sim.camera import OnDemandCameraCapture, ProjectionContext
@@ -56,8 +55,13 @@ class MjlabEnv:
             self._env.scene,
             task.virtual_force_objects if task is not None else (),
         )
-        self._virtual_force_entities = {
-            name: self._env.scene[name] for name in self._virtual_force_object_geom_ids
+        self._virtual_force_body_ids = {
+            name: _single_geom_body_id(
+                self._env.sim.mj_model,
+                geom_ids,
+                object_name=name,
+            )
+            for name, geom_ids in self._virtual_force_object_geom_ids.items()
         }
         camera = self._env.scene[OBSERVATION_CAMERA]
         assert isinstance(camera, CameraSensor)
@@ -129,20 +133,17 @@ class MjlabEnv:
         from sim.push import PushState
 
         entity = self._env.scene[body]
-        if not isinstance(entity, Entity) or entity.num_bodies != 1:
-            raise ValueError("Scripted push requires a single rigid body")
+        if not isinstance(entity, Entity):
+            raise ValueError("Scripted push requires an MJLab entity")
         geom_ids = sorted(self._object_geom_ids[body])
         model = self._env.sim.mj_model
         if len(geom_ids) != 1 or int(model.geom_type[geom_ids[0]]) != 6:
             raise ValueError("Scripted push currently requires one box geometry")
-        data = entity.data
         state = self.robot_state()
 
         def cpu(tensor):
             return tensor.detach().cpu().numpy().copy()
 
-        position = cpu(data.root_link_pos_w[0])
-        rotation = cpu(matrix_from_quat(data.root_link_quat_w[0]))
         half_size = np.asarray(model.geom_size[geom_ids[0]])
         corners = (
             np.array([(x, y, z) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)])
@@ -151,11 +152,12 @@ class MjlabEnv:
         sim_data = self._env.sim.data
         geom_rotation = cpu(sim_data.geom_xmat[0, geom_ids[0]]).reshape(3, 3)
         geom_position = cpu(sim_data.geom_xpos[0, geom_ids[0]])
+        geom_body_id = int(model.geom_bodyid[geom_ids[0]])
         return PushState(
             qpos=cpu(torch.cat((state.root_pos_w, state.root_quat_w, state.joint_pos))),
-            body_position=position,
-            body_rotation=rotation,
-            body_velocity=cpu(data.root_link_lin_vel_w[0]),
+            body_position=geom_position,
+            body_rotation=geom_rotation,
+            body_velocity=cpu(sim_data.cvel[0, geom_body_id, 3:6]),
             hands={
                 name: cpu(sim_data.geom_xpos[0, gid])
                 for name, gid in self._hand_geom_ids.items()
@@ -183,14 +185,10 @@ class MjlabEnv:
         self._env.close()
 
     def _write_external_forces(self, forces: Mapping[str, torch.Tensor]) -> None:
-        unknown = set(forces) - self._virtual_force_entities.keys()
+        unknown = set(forces) - self._virtual_force_body_ids.keys()
         if unknown:
             raise ValueError(f"Unknown virtual-force objects: {sorted(unknown)}")
-        for name, entity in self._virtual_force_entities.items():
-            if entity.num_bodies != 1:
-                raise ValueError(
-                    f"Virtual-force entity {name!r} must have exactly one body"
-                )
+        for name, body_id in self._virtual_force_body_ids.items():
             force = forces.get(name)
             if force is None:
                 force = torch.zeros(3, dtype=torch.float32, device=self._device)
@@ -200,8 +198,9 @@ class MjlabEnv:
                     f"{tuple(force.shape)}"
                 )
             force = force.to(device=self._device, dtype=torch.float32)
-            force = force.reshape(1, 1, 3)
-            entity.write_external_wrench_to_sim(force, torch.zeros_like(force))
+            data = self._env.sim.data
+            data.xfrc_applied[:, body_id, 0:3] = force.reshape(1, 3)
+            data.xfrc_applied[:, body_id, 3:6] = 0.0
 
 
 def _hand_geom_ids(robot: Entity) -> dict[str, int]:
@@ -227,6 +226,14 @@ def _object_geom_ids(
             raise ValueError(f"Virtual-force object {name!r} must be an MJLab Entity")
         object_geoms[name] = frozenset(entity.indexing.geom_ids.detach().cpu().tolist())
     return object_geoms
+
+
+def _single_geom_body_id(model, geom_ids: frozenset[int], *, object_name: str) -> int:
+    if len(geom_ids) != 1:
+        raise ValueError(
+            f"Virtual-force object {object_name!r} must have exactly one collision geom"
+        )
+    return int(model.geom_bodyid[next(iter(geom_ids))])
 
 
 def _hand_object_contacts_from_buffers(
