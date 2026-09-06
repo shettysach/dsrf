@@ -31,7 +31,6 @@ def _conditions():
         "right_hand_roll_skel",
         "left_toe_base",
         "right_toe_base",
-        "waist_pitch_skel",
     ]
     skeleton = SimpleNamespace(
         root_idx=0,
@@ -261,14 +260,14 @@ def test_oriented_hand_positions_form_one_rigid_pose() -> None:
     )
 
 
-def test_timed_upright_target_replaces_speculative_root_pose() -> None:
+def test_timed_root_upright_target_replaces_speculative_root_pose() -> None:
     motion_rep, received = _conditions()
     reference = _reference(motion_rep, root=(1.0, 0.6, 2.0))
     sample = TimedTargets(
         0,
         (0.0, 0.0),
         (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
-        torso_upright=True,
+        root_upright=True,
     )
 
     build_timed_constraints(
@@ -282,10 +281,10 @@ def test_timed_upright_target_replaces_speculative_root_pose() -> None:
         device=torch.device("cpu"),
     )
 
-    waist = motion_rep.skeleton.bone_order_names.index("waist_pitch_skel")
-    assert received["index"]["global_joints_rots"][0].tolist() == [[4, waist]]
+    root = motion_rep.skeleton.root_idx
+    assert received["index"]["global_joints_rots"][0].tolist() == [[4, 5], [4, root]]
     torch.testing.assert_close(
-        received["data"]["global_joints_rots"][0], torch.eye(3).reshape(1, 3, 3)
+        received["data"]["global_joints_rots"][0][1], torch.eye(3)
     )
     # The root position included by ARDY's native hand constraint stays at the
     # observed standing height, rather than the crouched reference height.

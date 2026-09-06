@@ -233,7 +233,7 @@ class PushController:
                         )
                         for name, p in hands.items()
                     ),
-                    torso_upright=self.phase in {"contact", "push"},
+                    root_upright=self.phase in {"contact", "push"},
                 )
             )
         return tuple(samples)

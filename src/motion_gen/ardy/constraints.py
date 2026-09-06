@@ -85,15 +85,6 @@ def build_timed_constraints(
                 targets,
                 root_pose,
             )
-            if sample.torso_upright:
-                constraints.append(
-                    _joint_rotation_constraint(
-                        motion_rep.skeleton,
-                        "waist_pitch_skel",
-                        frame.reshape(1),
-                        _upright_rotation(heading, rotations).reshape(1, 3, 3),
-                    )
-                )
             for target, xyz in zip(sample.end_effectors, targets, strict=True):
                 edited, edited_rotations = _edit_end_effector_pose(
                     positions,
@@ -102,8 +93,8 @@ def build_timed_constraints(
                     target,
                     xyz,
                     heading,
-                    root_position=root_pose if sample.torso_upright else None,
-                    upright_root=sample.torso_upright,
+                    root_position=root_pose if sample.root_upright else None,
+                    upright_root=sample.root_upright,
                 )
                 constraints.append(
                     _end_effector_constraint(
@@ -276,42 +267,6 @@ def _end_effector_constraint(
         global_joints_positions=positions,
         global_joints_rots=rotations,
         root_2d=None,
-    )
-
-
-class _JointRotationConstraint:
-    def __init__(
-        self,
-        frame_indices: torch.Tensor,
-        joint_index: int,
-        rotations: torch.Tensor,
-    ) -> None:
-        self.frame_indices = frame_indices
-        self.joint_index = joint_index
-        self.rotations = rotations
-
-    def update_constraints(
-        self,
-        data: dict[str, list[torch.Tensor]],
-        indices: dict[str, list[torch.Tensor]],
-    ) -> None:
-        joint_indices = torch.full_like(self.frame_indices, self.joint_index)
-        indices["global_joints_rots"].append(
-            torch.stack((self.frame_indices, joint_indices), dim=-1)
-        )
-        data["global_joints_rots"].append(self.rotations)
-
-
-def _joint_rotation_constraint(
-    skeleton,
-    joint_name: str,
-    frame_indices: torch.Tensor,
-    rotations: torch.Tensor,
-) -> _JointRotationConstraint:
-    return _JointRotationConstraint(
-        frame_indices,
-        skeleton.bone_order_names.index(joint_name),
-        rotations,
     )
 
 

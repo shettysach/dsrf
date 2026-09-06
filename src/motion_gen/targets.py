@@ -11,4 +11,4 @@ class TimedTargets:
     frame: int
     root_xy: tuple[float, float]
     end_effectors: tuple[EndEffectorTarget, ...] = ()
-    torso_upright: bool = False
+    root_upright: bool = False
