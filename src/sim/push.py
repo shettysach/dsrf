@@ -13,7 +13,7 @@ from shared.messages import ContactGoal, EndEffectorTarget
 class PushConfig:
     navigation_speed: float = 0.4
     push_speed: float = 0.15
-    standoff: float = 0.55
+    standoff: float = 0.40
     contact_windows: int = 3
     contact_dwell: float = 0.2
     contact_loss: float = 0.1
@@ -27,6 +27,7 @@ class PushConfig:
         return cls(
             navigation_speed=float(os.environ.get("PUSH_NAVIGATION_SPEED", "0.4")),
             push_speed=float(os.environ.get("PUSH_SPEED", "0.15")),
+            standoff=float(os.environ.get("PUSH_STANDOFF", "0.40")),
         )
 
     def __post_init__(self) -> None:
@@ -161,7 +162,10 @@ class PushController:
             )
         ):
             self.fail("Non-finite physical state")
-        elif state.qpos[2] < 0.45 or 1 - 2 * np.sum(state.qpos[4:6] ** 2) < 0.5:
+        # A G1 can squat below the former 0.45 m threshold while still upright.
+        # Treat a low torso as a fall only near the ground; tilt remains an
+        # independent fall signal.
+        elif state.qpos[2] < 0.30 or 1 - 2 * np.sum(state.qpos[4:6] ** 2) < 0.5:
             self.fail("Robot fell")
         elif state.body_rotation[2, 2] < 0.7:
             self.fail("Box tipped")

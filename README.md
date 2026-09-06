@@ -93,6 +93,7 @@ Optional environment overrides:
 
 - `BOX_PUSH_START_X` / `BOX_PUSH_GOAL_X`: box and goal positions (3 / 6 m).
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
+- `PUSH_STANDOFF`: base-to-contact staging distance (0.40 m).
 - `ARDY_SEED`: diffusion seed (0); `REFERENCE_GHOST`: reference overlay (true).
 - `DEMO_VIDEO_PATH`: optional recording path.
 
