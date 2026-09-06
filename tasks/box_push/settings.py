@@ -29,13 +29,13 @@ class BoxPushSettings:
 
     # Per-phase ARDY priors and temporal pacing.
     approach_prompt: str = "walk forward"
-    contact_prompt: str = "reach forward with both hands"
+    contact_prompt: str = "stand and extend both arms forward, placing both palms against the box"
     push_prompt: str = "walk forward with both hands held forward"
     settle_prompt: str = "stand"
     navigation_speed: float = 0.4
     push_speed: float = 0.15
     standoff: float = 0.50
-    contact_windows: int = 1
+    contact_windows: int = 2
     contact_dwell: float = 0.2
     contact_loss: float = 0.1
     reacquisitions: int = 2
