@@ -89,6 +89,16 @@ class PushController:
     def finished(self) -> bool:
         return self.phase in {"done", "failed"}
 
+    @property
+    def motion_prompt(self) -> str:
+        """A minimal ARDY prior; spatial constraints supply the task detail."""
+        return {
+            "approach": "walk forward",
+            "contact": "reach forward with both hands",
+            "push": "walk forward with both hands held forward",
+            "settle": "stand",
+        }[self.phase]
+
     def remaining(self, state: PushState) -> float:
         return float(
             np.linalg.norm(np.asarray(self.goal.target_xy) - state.body_position[:2])

@@ -7,7 +7,7 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: box_push
-      SCRIPT_PROMPT: Push the box forward with both open palms while walking behind it.
+      SCRIPT_PROMPT: walk forward
       SCRIPT_START_IMMEDIATELY: "false"
       BOX_PUSH_START_X: "${BOX_PUSH_START_X:-3.0}"
       BOX_PUSH_GOAL_X: "${BOX_PUSH_GOAL_X:-6.0}"

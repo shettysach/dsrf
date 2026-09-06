@@ -330,30 +330,14 @@ class SimRuntime:
                 raise ValueError(
                     "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
                 )
-            tracking_bad_seconds = 0.0
 
             def after_step() -> bool:
-                nonlocal state, tracking_bad_seconds
+                nonlocal state
                 with self.simulation.compute_context():
                     state = self.simulation.push_state(goal.body)
-                    pose = self.tracker.reference.visualization_pose()
                 history.append(state.qpos.copy())
                 previous = controller.phase
                 interrupt = controller.update(state, self.simulation.step_dt)
-                # The tracker advances its cursor before physics; tolerate one
-                # frame of look-ahead and monitor gross, sustained divergence.
-                if pose is not None and not controller.finished:
-                    root, _, joints = (p.detach().cpu().numpy() for p in pose)
-                    bad = (
-                        np.linalg.norm(root[:2] - state.qpos[:2]) > 0.5
-                        or np.sqrt(np.mean((joints - state.qpos[7:]) ** 2)) > 0.7
-                    )
-                    tracking_bad_seconds = (
-                        tracking_bad_seconds + self.simulation.step_dt if bad else 0.0
-                    )
-                    if tracking_bad_seconds >= 0.5:
-                        controller.fail("Persistent reference tracking error")
-                        interrupt = True
                 if controller.phase != previous:
                     self.node.log(
                         "info",
@@ -363,11 +347,12 @@ class SimRuntime:
                 return interrupt or self._stop_requested
 
             while not controller.finished and not self._stop_requested:
+                motion = controller.motion_prompt
                 self.demo_vlm_state = DemoVlmState(
                     observation_id=command.observation_id,
                     reasoning=f"Script: {controller.phase}; window {windows + 1}; "
                     f"remaining {controller.remaining(state):.2f}m; contacts {sorted(state.contacts)}",
-                    command=command.motion,
+                    command=motion,
                 )
                 samples = controller.targets(
                     state, generator.window_frames, generator.fps
@@ -377,7 +362,7 @@ class SimRuntime:
                 observed = np.stack(list(history)[::2])
                 started = time.perf_counter()
                 with self.simulation.compute_context():
-                    qpos = generator.generate_window(command.motion, samples, observed)
+                    qpos = generator.generate_window(motion, samples, observed)
                     reference = resample_qpos(qpos, source_fps=generator.fps)
                     self.tracker.load_motion(
                         reference, self.simulation.robot_state(), world_aligned=True

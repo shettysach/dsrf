@@ -83,9 +83,10 @@ dora run push_script.yml
 The robot approaches a box at x=3 m, attempts two-palm contact for up to three
 native windows, and pushes toward x=6 m. One script request owns the entire
 interaction. Each window uses four actual-state history frames at 25 FPS;
-timed intermediate root/hand targets set the pace instead of demanding that
+Timed intermediate root/hand targets set the pace instead of demanding that
 the final goal be reached in 2.08 seconds. Simulation pauses during generation.
-Hand targets follow the box's measured pose, but remain motion constraints,
+ARDY receives only concise phase prompts such as `walk forward`, `reach forward
+with both hands`, or `stand`. Hand targets follow the box's measured pose, but remain motion constraints,
 not guaranteed physical contact. There are no welds or virtual-force assistance.
 
 Optional environment overrides:
