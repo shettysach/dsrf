@@ -5,6 +5,9 @@ import os
 from tasks.spec import ObservationCameraSpec, SceneSpecFn, TaskSpec
 
 _LEVEL = int(os.environ.get("SOKOBAN_LEVEL", "1"))
+# The default G1 faces +X (screen-right in the overhead board view).  A +90°
+# yaw makes it face +Y, into the board away from the south-side camera.
+_FACING_BOARD_QUAT = (0.7071067811865476, 0.0, 0.0, 0.7071067811865475)
 
 
 def _make_scene() -> SceneSpecFn:
@@ -24,8 +27,9 @@ TASK = TaskSpec(
     objective="Push every yellow box onto a separate green goal region.",
     make_scene=_make_scene,
     robot_initial_pos=_robot_start(),
+    robot_initial_rot=_FACING_BOARD_QUAT,
     observation_camera=ObservationCameraSpec(
-        world_position=(0.0, -7.8, 8.6),
+        world_position=(0.0, -6.8, 7.4),
         world_lookat=(0.0, 0.0, 0.0),
         fovy=58.0,
     ),

@@ -48,6 +48,7 @@ class TaskSpec:
     virtual_force_max: float = 30.0
     observation_camera: ObservationCameraSpec = ObservationCameraSpec()
     robot_initial_pos: tuple[float, float, float] | None = None
+    robot_initial_rot: tuple[float, float, float, float] | None = None
 
     def __post_init__(self) -> None:
         if not self.name or self.name != self.name.strip():
@@ -64,3 +65,5 @@ class TaskSpec:
             raise ValueError("Virtual-force maximum must be non-negative")
         if self.robot_initial_pos is not None and len(self.robot_initial_pos) != 3:
             raise ValueError("Robot initial position must contain exactly three values")
+        if self.robot_initial_rot is not None and len(self.robot_initial_rot) != 4:
+            raise ValueError("Robot initial rotation must contain exactly four values")

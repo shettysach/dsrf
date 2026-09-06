@@ -29,6 +29,7 @@ BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.46
 WALL_HALF_HEIGHT = 0.6
 WALL_HALF_SIZE = TILE_SIZE * 0.5
+OUTER_WALL_HALF_THICKNESS = 0.1
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
 COMPLETED_BOX_RGBA = (0.05, 0.35, 0.12, 1.0)
@@ -305,14 +306,57 @@ def make_sokoban_spec_fn(level: int = 1) -> SceneSpecFn:
     positions = level_positions(get_level(level))
 
     def add_sokoban(spec: MjSpec) -> None:
+        _add_outer_walls(spec)
         for index, cell in enumerate(positions.walls, 1):
-            _add_wall(spec, index=index, center=grid_to_world(cell))
+            if not _is_outer_cell(cell):
+                _add_wall(spec, index=index, center=grid_to_world(cell))
         for index, cell in enumerate(positions.goals, 1):
             _add_goal(spec, index=index, center=grid_to_world(cell))
         for index, cell in enumerate(positions.boxes, 1):
             _add_box(spec, index=index, center=grid_to_world(cell))
 
     return add_sokoban
+
+
+def _is_outer_cell(cell: Position) -> bool:
+    column, row = cell
+    return column in {0, GRID_WIDTH - 1} or row in {0, GRID_HEIGHT - 1}
+
+
+def _add_outer_walls(spec: "MjSpec") -> None:
+    board_half_extent = GRID_WIDTH * TILE_SIZE * 0.5
+    for name, pos, size in (
+        (
+            "sokoban_outer_north_wall",
+            (0.0, board_half_extent - OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+            (board_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+        ),
+        (
+            "sokoban_outer_south_wall",
+            (0.0, -board_half_extent + OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+            (board_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+        ),
+        (
+            "sokoban_outer_east_wall",
+            (board_half_extent - OUTER_WALL_HALF_THICKNESS, 0.0, WALL_HALF_HEIGHT),
+            (OUTER_WALL_HALF_THICKNESS, board_half_extent, WALL_HALF_HEIGHT),
+        ),
+        (
+            "sokoban_outer_west_wall",
+            (-board_half_extent + OUTER_WALL_HALF_THICKNESS, 0.0, WALL_HALF_HEIGHT),
+            (OUTER_WALL_HALF_THICKNESS, board_half_extent, WALL_HALF_HEIGHT),
+        ),
+    ):
+        body = spec.worldbody.add_body(name=name)
+        body.pos = pos
+        body.add_geom(
+            name=f"{name}_collision",
+            type=MJGEOM_BOX,
+            size=size,
+            rgba=_WALL_RGBA,
+            contype=1,
+            conaffinity=1,
+        )
 
 
 def _add_wall(spec: "MjSpec", *, index: int, center: tuple[float, float]) -> None:

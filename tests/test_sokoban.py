@@ -8,6 +8,7 @@ from tasks.sokoban.scene import (
     GRID_HEIGHT,
     GRID_WIDTH,
     MJ_JOINT_SLIDE,
+    OUTER_WALL_HALF_THICKNESS,
     SokobanCompletionVisualizer,
     get_level,
     grid_to_world,
@@ -24,7 +25,10 @@ def test_catalog_contains_sokoban() -> None:
     assert task is TASKS["sokoban"]
     assert task.objective == "Push every yellow box onto a separate green goal region."
     assert task.robot_initial_pos == (*grid_to_world((4, 3)), 0.76)
-    assert task.observation_camera.world_position == (0.0, -7.8, 8.6)
+    assert task.robot_initial_rot == pytest.approx(
+        (0.7071067811865476, 0.0, 0.0, 0.7071067811865475)
+    )
+    assert task.observation_camera.world_position == (0.0, -6.8, 7.4)
 
 
 def test_sokoban_uses_elevated_observation_framing() -> None:
@@ -45,6 +49,8 @@ def test_every_eval_preset_is_a_tile_for_tile_physical_scene(level: int) -> None
     assert (GRID_WIDTH, GRID_HEIGHT) == (8, 8)
     assert len(positions.boxes) == len(positions.goals) in (2, 3)
     assert len(positions.walls) == sum(row.count("#") for row in board.rows)
+    outer_wall = model.geom("sokoban_outer_north_wall_collision")
+    assert model.geom_size[outer_wall.id, 1] == pytest.approx(OUTER_WALL_HALF_THICKNESS)
     assert [
         model.body_mass[model.body(f"sokoban_box_{index}").id]
         for index in range(1, len(positions.boxes) + 1)
