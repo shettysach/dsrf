@@ -32,17 +32,21 @@ class OAIChatClient:
         system_prompt: str,
         user_prompt: str,
         tool: dict[str, Any],
+        recent_turns: int = 3,
     ) -> None:
         if not system_prompt.strip():
             raise ValueError("System prompt must not be empty")
         if not user_prompt.strip():
             raise ValueError("User prompt must not be empty")
+        if recent_turns < 0:
+            raise ValueError("recent_turns must be non-negative")
         self.endpoint = f"{base_url.rstrip('/')}/v1/chat/completions"
         self.timeout = timeout
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.tool = tool
         self.tool_name = _tool_name(tool)
+        self.recent_turns = recent_turns
         self._history: list[_ConversationTurn] = []
 
     def complete(
@@ -54,17 +58,17 @@ class OAIChatClient:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system_prompt}
         ]
-        for turn in self._history:
-            messages.append(_user_message(turn.observation, self.user_prompt))
-            messages.append(turn.completion.assistant_message)
-            if turn.completion.tool_call_id is not None:
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": turn.completion.tool_call_id,
-                        "content": "Motion completed.",
-                    }
-                )
+        if self._history:
+            # Keep the first multimodal turn forever. It is a large, immutable
+            # prefix after the first request, so vLLM can reuse its KV cache.
+            _append_turn(
+                messages, self._history[0], user_prompt=self.user_prompt, image=True
+            )
+            # Recent turns retain action context but omit obsolete images. A
+            # sliding suffix limits context without invalidating the anchor.
+            start = max(1, len(self._history) - self.recent_turns)
+            for turn in self._history[start:]:
+                _append_turn(messages, turn, user_prompt=self.user_prompt, image=False)
         messages.append(
             _user_message(
                 observation,
@@ -110,6 +114,28 @@ class OAIChatClient:
         completion: CommandCompletion,
     ) -> None:
         self._history.append(_ConversationTurn(observation, completion))
+
+
+def _append_turn(
+    messages: list[dict[str, Any]],
+    turn: _ConversationTurn,
+    *,
+    user_prompt: str,
+    image: bool,
+) -> None:
+    if image:
+        messages.append(_user_message(turn.observation, user_prompt))
+    else:
+        messages.append(_history_user_message(turn.observation, user_prompt))
+    messages.append(turn.completion.assistant_message)
+    if turn.completion.tool_call_id is not None:
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": turn.completion.tool_call_id,
+                "content": "Motion completed.",
+            }
+        )
 
 
 def _tool_completion(message: dict[str, Any], tool_name: str) -> CommandCompletion:
@@ -167,4 +193,15 @@ def _user_message(
             {"type": "text", "text": text},
             {"type": "image_url", "image_url": {"url": image_url}},
         ],
+    }
+
+
+def _history_user_message(
+    observation: VisualObservation, user_prompt: str
+) -> dict[str, Any]:
+    """Preserve an old turn's command context without its stale image."""
+    completed = observation.completed_command or "none (initial observation)"
+    return {
+        "role": "user",
+        "content": f"Completed command: {completed}\n\n{user_prompt}",
     }

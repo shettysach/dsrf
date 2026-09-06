@@ -42,6 +42,10 @@ Use the provided kinematic-planner tool for every response. Choose one safe,
 deliberate command from the current image; do not describe an action in ordinary
 text.
 
+The final user image in the conversation is the current board state. An earlier
+initial-board image may be retained in the conversation only as context; do not
+use it to infer the current positions of the robot or boxes.
+
 - Use `walk` with one relative direction (`forward`, `backward`, `left`, or
   `right`) for a short, controlled reposition or push.
 - Use `walk` with image waypoints only when a precise free-floor destination is

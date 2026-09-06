@@ -80,6 +80,7 @@ def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
 
     assert set(nodes) == {"agent", "sim"}
     assert nodes["agent"]["env"]["VLM_SYSTEM_PROMPT"] == "tasks/sokoban/TASK.md"
+    assert nodes["agent"]["env"]["VLM_RECENT_TURNS"] == "${VLM_RECENT_TURNS:-3}"
     assert nodes["agent"]["env"]["MOTION_GENERATOR"] == "kinematic_planner"
     assert nodes["agent"]["env"]["DEMO_MAX_COMMANDS"] == "${DEMO_MAX_COMMANDS:-}"
     assert nodes["sim"]["env"]["TASK"] == "sokoban"

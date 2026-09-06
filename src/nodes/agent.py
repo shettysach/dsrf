@@ -393,6 +393,7 @@ def main() -> None:
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
         tool=(KINEMATIC_PLANNER_TOOL if cfg.command_mode == "direction" else ARDY_TOOL),
+        recent_turns=cfg.vlm_recent_turns,
     )
     AgentLoop(
         node,

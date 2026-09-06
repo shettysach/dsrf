@@ -115,6 +115,9 @@ class AgentConfig:
     user_prompt: Path = dataclass_field(metadata={"env": "VLM_USER_PROMPT"})
     command_mode: Literal["waypoint", "direction"]
     max_vlm_turns: int | None = None
+    vlm_recent_turns: int = dataclass_field(
+        default=3, metadata={"env": "VLM_RECENT_TURNS"}
+    )
     agent: Literal["vlm", "script"] = "vlm"
     script_task: str | None = None
     script_prompt: str | None = None
@@ -166,6 +169,8 @@ class AgentConfig:
             if not math.isfinite(self.vlm_timeout) or self.vlm_timeout <= 0.0:
                 raise ValueError("VLM_TIMEOUT must be positive")
             object.__setattr__(self, "vlm_url", url)
+        if self.vlm_recent_turns < 0:
+            raise ValueError("VLM_RECENT_TURNS must be non-negative")
 
 
 def _optional_name(name: str) -> str | None:

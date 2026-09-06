@@ -54,6 +54,10 @@ def test_every_eval_preset_is_a_tile_for_tile_physical_scene(level: int) -> None
     assert len(positions.walls) == sum(row.count("#") for row in board.rows)
     outer_wall = model.geom("sokoban_outer_north_wall_collision")
     assert model.geom_size[outer_wall.id, 1] == pytest.approx(OUTER_WALL_HALF_THICKNESS)
+    outer_wall_body = model.body("sokoban_outer_north_wall")
+    assert model.body_pos[outer_wall_body.id, 1] - model.geom_size[
+        outer_wall.id, 1
+    ] == pytest.approx(3.0)
     assert [
         model.body_mass[model.body(f"sokoban_box_{index}").id]
         for index in range(1, len(positions.boxes) + 1)

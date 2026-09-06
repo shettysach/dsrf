@@ -325,25 +325,30 @@ def _is_outer_cell(cell: Position) -> bool:
 
 def _add_outer_walls(spec: "MjSpec") -> None:
     board_half_extent = GRID_WIDTH * TILE_SIZE * 0.5
+    # The discrete outer cells are walls. Put the thin physical boundary at
+    # their inner edge, flush with the playable cells, rather than at the
+    # board's outer edge where it would leave a one-cell visual gap.
+    playable_half_extent = board_half_extent - TILE_SIZE
+    boundary_center = playable_half_extent + OUTER_WALL_HALF_THICKNESS
     for name, pos, size in (
         (
             "sokoban_outer_north_wall",
-            (0.0, board_half_extent - OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+            (0.0, boundary_center, WALL_HALF_HEIGHT),
             (board_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
         ),
         (
             "sokoban_outer_south_wall",
-            (0.0, -board_half_extent + OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+            (0.0, -boundary_center, WALL_HALF_HEIGHT),
             (board_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
         ),
         (
             "sokoban_outer_east_wall",
-            (board_half_extent - OUTER_WALL_HALF_THICKNESS, 0.0, WALL_HALF_HEIGHT),
+            (boundary_center, 0.0, WALL_HALF_HEIGHT),
             (OUTER_WALL_HALF_THICKNESS, board_half_extent, WALL_HALF_HEIGHT),
         ),
         (
             "sokoban_outer_west_wall",
-            (-board_half_extent + OUTER_WALL_HALF_THICKNESS, 0.0, WALL_HALF_HEIGHT),
+            (-boundary_center, 0.0, WALL_HALF_HEIGHT),
             (OUTER_WALL_HALF_THICKNESS, board_half_extent, WALL_HALF_HEIGHT),
         ),
     ):

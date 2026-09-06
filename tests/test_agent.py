@@ -153,6 +153,67 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
     assert posted[0]["tool_choice"]["function"]["name"] == "kinematic_planner_command"
 
 
+def test_llama_client_uses_an_initial_image_anchor_and_bounded_text_history(
+    monkeypatch,
+) -> None:
+    posted: list[dict[str, Any]] = []
+    responses = iter(
+        {
+            "tool_calls": [
+                {
+                    "id": f"call_{index}",
+                    "type": "function",
+                    "function": {
+                        "name": "ardy_command",
+                        "arguments": f'{{"motion":"walk","step":{index}}}',
+                    },
+                }
+            ]
+        }
+        for index in range(6)
+    )
+
+    def urlopen(request, timeout):
+        posted.append(json.loads(request.data))
+        return _Response(next(responses))
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="system",
+        user_prompt="user",
+        tool=ARDY_TOOL,
+        recent_turns=2,
+    )
+    for index in range(5):
+        observation = VisualObservation(
+            index,
+            None if index == 0 else f"command-{index - 1}",
+            f"image-{index}".encode(),
+        )
+        client.commit(observation, client.complete(observation))
+    client.complete(VisualObservation(5, "command-4", b"image-5"))
+
+    messages = posted[-1]["messages"]
+    image_messages = [
+        message
+        for message in messages
+        if isinstance(message.get("content"), list)
+        and any(item["type"] == "image_url" for item in message["content"])
+    ]
+    assert len(image_messages) == 2  # immutable initial anchor + current image
+    assert "aW1hZ2UtMA==" in image_messages[0]["content"][1]["image_url"]["url"]
+    text_history = [
+        message["content"]
+        for message in messages
+        if isinstance(message.get("content"), str)
+    ]
+    assert any("command-2" in content for content in text_history)
+    assert any("command-3" in content for content in text_history)
+    assert all("command-1" not in content for content in text_history)
+
+
 class _Node:
     def __init__(self, events: list[dict[str, object]]) -> None:
         self.events = iter(events)

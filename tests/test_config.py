@@ -159,6 +159,16 @@ def test_agent_config_from_env(monkeypatch) -> None:
     )
 
 
+def test_agent_config_reads_recent_vlm_turn_limit(monkeypatch) -> None:
+    monkeypatch.setenv("VLM_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("VLM_TIMEOUT", "12.5")
+    monkeypatch.setenv("VLM_SYSTEM_PROMPT", "/prompts/system.md")
+    monkeypatch.setenv("VLM_USER_PROMPT", "/prompts/user.md")
+    monkeypatch.setenv("VLM_RECENT_TURNS", "5")
+
+    assert AgentConfig.from_env().vlm_recent_turns == 5
+
+
 def test_agent_config_selects_script(monkeypatch) -> None:
     monkeypatch.setenv("AGENT", "script")
     monkeypatch.setenv("SCRIPT_TASK", "box_push")
