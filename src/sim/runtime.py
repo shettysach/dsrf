@@ -50,6 +50,15 @@ class ExecutionStats:
     overrun_steps: int
 
 
+def _environment_boolean(name: str, *, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    if value not in {"false", "true"}:
+        raise ValueError(f"{name} must be 'false' or 'true'")
+    return value == "true"
+
+
 class SimRuntime:
     def __init__(
         self,
@@ -319,6 +328,9 @@ class SimRuntime:
         generator = self.generator
         windows = 0
         welds: HandBoxWelds | None = None
+        weld_enabled = goal.maintain_contact and _environment_boolean(
+            "PUSH_WELD", default=True
+        )
         try:
             with self.simulation.compute_context():
                 state = self.simulation.push_state(goal.body)
@@ -328,7 +340,7 @@ class SimRuntime:
                 window_seconds=generator.window_frames / generator.fps,
                 config=PushConfig.from_env(),
             )
-            if goal.maintain_contact:
+            if weld_enabled:
                 welds = HandBoxWelds(
                     self.simulation,
                     goal.body,
@@ -348,19 +360,26 @@ class SimRuntime:
                 previous = controller.phase
                 interrupt = controller.update(state, self.simulation.step_dt)
                 if (
-                    welds is not None
-                    and controller.phase == "contact"
+                    controller.phase == "contact"
                     and controller.phase_elapsed
                     >= controller.config.contact_windows * controller.window_seconds
                 ):
-                    with self.simulation.compute_context():
-                        welds.attach()
-                    controller.attach(state)
-                    self.node.log(
-                        "info",
-                        "Attached hand-to-box welds after two reach windows",
-                        target="dsrf.sim.push",
-                    )
+                    if welds is not None:
+                        with self.simulation.compute_context():
+                            welds.attach()
+                        controller.begin_push(state, maintained_contact=True)
+                        self.node.log(
+                            "info",
+                            "Attached hand-to-box welds after two reach windows",
+                            target="dsrf.sim.push",
+                        )
+                    else:
+                        controller.begin_push(state, maintained_contact=False)
+                        self.node.log(
+                            "info",
+                            "Continuing with physical contact only after two reach windows",
+                            target="dsrf.sim.push",
+                        )
                     interrupt = False
                 if (
                     welds is not None

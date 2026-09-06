@@ -112,10 +112,10 @@ class PushController:
             for p in self.goal.points
         }
 
-    def attach(self, state: PushState) -> None:
+    def begin_push(self, state: PushState, *, maintained_contact: bool) -> None:
         if self.phase != "contact":
-            raise ValueError("Welds may only attach during contact acquisition")
-        self.attached = True
+            raise ValueError("Push may only begin after contact acquisition")
+        self.attached = maintained_contact
         self._transition("push", state)
 
     def _direction(self, state: PushState) -> np.ndarray:

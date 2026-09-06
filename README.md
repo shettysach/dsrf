@@ -80,6 +80,13 @@ DEMO_VIDEO_PATH=/tmp/scripted_push.mp4 \
 dora run push_script.yml
 ```
 
+For the direct physical-contact baseline, run the same script with its welds
+disabled:
+
+```bash
+PUSH_WELD=false dora run push_script.yml
+```
+
 The robot approaches a box at x=3 m, attempts two-palm contact for up to three
 native windows, and pushes toward x=6 m. One script request owns the entire
 interaction. Each window uses four actual-state history frames at 25 FPS;
@@ -97,6 +104,7 @@ Optional environment overrides:
 - `BOX_PUSH_START_X` / `BOX_PUSH_GOAL_X`: box and goal positions (3 / 6 m).
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
 - `PUSH_STANDOFF`: base-to-contact staging distance (0.40 m).
+- `PUSH_WELD`: enable the scripted hand-to-box welds (`true` by default).
 - `ARDY_SEED`: diffusion seed (0); `REFERENCE_GHOST`: reference overlay (true).
 - `DEMO_VIDEO_PATH`: optional recording path.
 
