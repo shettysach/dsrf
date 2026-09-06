@@ -52,7 +52,10 @@ class EndEffectorTarget:
 
 @dataclass(frozen=True)
 class ContactGoal:
-    """Script-grounded maintained contact: body-local points, world XY goal."""
+    """Script-grounded maintained contact: body-local points, world XY goal.
+
+    Point ``palm_normal`` values use the same body-local basis as their positions.
+    """
 
     body: str
     target_xy: tuple[float, float]

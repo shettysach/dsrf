@@ -35,7 +35,7 @@ class BoxPushSettings:
     navigation_speed: float = 0.4
     push_speed: float = 0.15
     standoff: float = 0.50
-    contact_windows: int = 2
+    contact_windows: int = 1
     contact_dwell: float = 0.2
     contact_loss: float = 0.1
     reacquisitions: int = 2
