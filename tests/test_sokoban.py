@@ -4,9 +4,12 @@ import pytest
 from tasks import TASKS, get_task
 from tasks.sokoban.scene import (
     BOX_MASS,
-    BOX_STARTS,
-    GOAL_CENTERS,
+    GRID_HEIGHT,
+    GRID_WIDTH,
     MJ_JOINT_SLIDE,
+    get_level,
+    grid_to_world,
+    level_positions,
     make_sokoban_spec_fn,
 )
 
@@ -17,9 +20,9 @@ def test_catalog_contains_sokoban() -> None:
     task = get_task("sokoban")
 
     assert task is TASKS["sokoban"]
-    assert task.objective == "Push both boxes onto the two marked goal regions."
-    assert task.observation_camera.distance == 5.0
-    assert task.observation_camera.elevation == -50.0
+    assert task.objective == "Push every yellow box onto a separate green goal region."
+    assert task.robot_initial_pos == (*grid_to_world((4, 3)), 0.76)
+    assert task.observation_camera.world_position == (0.0, -7.8, 8.6)
 
 
 def test_sokoban_uses_elevated_observation_framing() -> None:
@@ -29,35 +32,37 @@ def test_sokoban_uses_elevated_observation_framing() -> None:
     assert cfg.scene.sensors[0].data_types == ("rgb", "depth")
 
 
-def test_sokoban_scene_has_two_pushable_boxes_and_two_goals() -> None:
+@pytest.mark.parametrize("level", range(1, 11))
+def test_every_eval_preset_is_a_tile_for_tile_physical_scene(level: int) -> None:
+    board = get_level(level)
+    positions = level_positions(board)
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
-    make_sokoban_spec_fn()(spec)
+    make_sokoban_spec_fn(level)(spec)
     model = spec.compile()
 
-    box_bodies = [model.body(name) for name in ("sokoban_box_1", "sokoban_box_2")]
-    goal_geoms = [model.geom(name) for name in ("sokoban_goal_1", "sokoban_goal_2")]
-
-    assert len(BOX_STARTS) == 2
-    assert len(GOAL_CENTERS) == 2
-    assert [model.body_mass[body.id] for body in box_bodies] == pytest.approx(
-        [BOX_MASS, BOX_MASS]
-    )
-    assert all(model.geom_contype[goal.id] == 0 for goal in goal_geoms)
-    assert all(model.geom_conaffinity[goal.id] == 0 for goal in goal_geoms)
-    assert model.ncam == 0
-
-    for box_index in (1, 2):
-        x_joint = model.joint(f"sokoban_box_{box_index}_x")
-        y_joint = model.joint(f"sokoban_box_{box_index}_y")
-        assert model.jnt_type[x_joint.id] == MJ_JOINT_SLIDE
-        assert model.jnt_type[y_joint.id] == MJ_JOINT_SLIDE
-        np.testing.assert_array_equal(model.jnt_axis[x_joint.id], (1.0, 0.0, 0.0))
-        np.testing.assert_array_equal(model.jnt_axis[y_joint.id], (0.0, 1.0, 0.0))
+    assert (GRID_WIDTH, GRID_HEIGHT) == (8, 8)
+    assert len(positions.boxes) == len(positions.goals) in (2, 3)
+    assert len(positions.walls) == sum(row.count("#") for row in board.rows)
+    assert [
+        model.body_mass[model.body(f"sokoban_box_{index}").id]
+        for index in range(1, len(positions.boxes) + 1)
+    ] == pytest.approx([BOX_MASS] * len(positions.boxes))
+    for index, cell in enumerate(positions.boxes, 1):
+        body = model.body(f"sokoban_box_{index}")
+        np.testing.assert_array_equal(model.body_pos[body.id][:2], grid_to_world(cell))
+        for axis in ("x", "y"):
+            joint = model.joint(f"sokoban_box_{index}_{axis}")
+            assert model.jnt_type[joint.id] == MJ_JOINT_SLIDE
+    for index, cell in enumerate(positions.goals, 1):
+        goal = model.geom(f"sokoban_goal_{index}")
+        np.testing.assert_array_equal(model.geom_pos[goal.id][:2], grid_to_world(cell))
+        assert model.geom_contype[goal.id] == 0
+        assert model.geom_conaffinity[goal.id] == 0
 
 
 def test_sokoban_box_moves_under_a_small_planar_force() -> None:
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
-    make_sokoban_spec_fn()(spec)
+    make_sokoban_spec_fn(level=1)(spec)
     model = spec.compile()
     data = mujoco.MjData(model)  # ty: ignore[unresolved-attribute]
     joint = model.joint("sokoban_box_1_x")
