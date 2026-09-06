@@ -30,12 +30,24 @@ class EndEffectorSelection:
 class EndEffectorTarget:
     name: str
     target_xyz: tuple[float, float, float]
+    # Robot-local (forward, left, up) direction in which a hand palm faces.
+    # ``None`` retains the orientation proposed by ARDY's reference motion.
+    palm_normal: tuple[float, float, float] | None = None
 
     def __post_init__(self) -> None:
         if self.name not in END_EFFECTOR_NAMES:
             raise ValueError(f"Unsupported end effector: {self.name}")
         if not all(np.isfinite(value) for value in self.target_xyz):
             raise ValueError("End-effector target must be finite")
+        if self.palm_normal is not None:
+            if self.name not in {"left_hand", "right_hand"}:
+                raise ValueError("Only hand targets may specify a palm normal")
+            if (
+                len(self.palm_normal) != 3
+                or not all(np.isfinite(value) for value in self.palm_normal)
+                or not np.linalg.norm(self.palm_normal) > 1e-6
+            ):
+                raise ValueError("Palm normal must be a finite, non-zero 3D vector")
 
 
 @dataclass(frozen=True)

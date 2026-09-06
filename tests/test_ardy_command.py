@@ -8,7 +8,11 @@ from ardy.constraints import RightHandConstraintSet, Root2DConstraintSet
 from ardy.motion_rep.reps.ardy_motionrep import ArdyMotionRep
 from ardy.skeleton import G1Skeleton34
 
-from motion_gen.ardy.constraints import _end_effector_constraint, build_constraints
+from motion_gen.ardy.constraints import (
+    _end_effector_constraint,
+    _with_palm_normal,
+    build_constraints,
+)
 from shared.messages import EndEffectorTarget
 
 
@@ -197,6 +201,29 @@ def test_native_ee_translates_wrist_and_hand_and_preserves_root() -> None:
     )
     assert received["index"]["root_y_pos"][0].tolist() == [128]
     assert received["index"]["global_root_heading"][0].tolist() == [128]
+
+
+def test_palm_normal_aligns_ardy_palm_forward_axis() -> None:
+    motion_rep, _ = _conditions()
+    rotations = (
+        torch.eye(3).expand(1, len(motion_rep.skeleton.bone_order_names), 3, 3).clone()
+    )
+    target = EndEffectorTarget(
+        "right_hand", (0.4, 0.0, 0.2), palm_normal=(1.0, 0.0, 0.0)
+    )
+
+    aligned = _with_palm_normal(
+        rotations, motion_rep.skeleton, target, torch.tensor(math.pi / 2.0)
+    )
+
+    wrist = motion_rep.skeleton.bone_order_names.index("right_wrist_yaw_skel")
+    # At +90 degrees, ARDY's local forward points along world -X.
+    torch.testing.assert_close(
+        aligned[0, wrist] @ torch.tensor([0.0, 0.0, 1.0]),
+        torch.tensor([-1.0, 0.0, 0.0]),
+        atol=1e-6,
+        rtol=1e-6,
+    )
 
 
 def test_waypoint_and_native_ee_share_final_frame() -> None:

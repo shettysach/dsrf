@@ -24,6 +24,8 @@ class BoxPushSettings:
     # world-space so it is easy to tune against the visible box height.
     hand_half_width: float = 0.30
     hand_target_world_z: float = 0.70
+    # Semantic robot-local direction (forward, left, up) for both palms.
+    palm_normal: tuple[float, float, float] = (1.0, 0.0, 0.0)
 
     # Per-phase ARDY priors and temporal pacing.
     approach_prompt: str = "walk forward"
@@ -91,6 +93,7 @@ class BoxPushSettings:
             self.goal_half_size,
             self.hand_half_width,
             self.hand_target_world_z,
+            *self.palm_normal,
             self.navigation_speed,
             self.push_speed,
             self.standoff,
@@ -119,6 +122,8 @@ class BoxPushSettings:
             raise ValueError("Goal and hand-spacing settings are invalid")
         if not 0.0 <= self.hand_target_world_z <= self.box_top_z:
             raise ValueError("Hand target must lie between the box floor and top")
+        if math.sqrt(sum(value * value for value in self.palm_normal)) <= 1e-6:
+            raise ValueError("Palm normal must be non-zero")
         if not all(
             value > 0.0
             for value in (

@@ -25,7 +25,11 @@ def test_agent_command_arrow_round_trip() -> None:
         "reach",
         "reach with the right hand",
         (),
-        end_effectors=(EndEffectorTarget("right_hand", (0.4, -0.2, 0.8)),),
+        end_effectors=(
+            EndEffectorTarget(
+                "right_hand", (0.4, -0.2, 0.8), palm_normal=(1.0, 0.0, 0.0)
+            ),
+        ),
         reasoning="The red cube is within reach.",
         terminal=True,
     )

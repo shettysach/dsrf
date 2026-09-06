@@ -62,7 +62,11 @@ def _contact_goal(metadata: dict[str, Any]) -> ContactGoal | None:
         body=value["body"],
         target_xy=tuple(value["target_xy"]),
         points=tuple(
-            EndEffectorTarget(p["name"], tuple(p["target_xyz"]))
+            EndEffectorTarget(
+                p["name"],
+                tuple(p["target_xyz"]),
+                tuple(p["palm_normal"]) if p.get("palm_normal") is not None else None,
+            )
             for p in value["points"]
         ),
         goal_half_size=value["goal_half_size"],
@@ -165,6 +169,10 @@ def grounding_result_to_arrow(
         "end_effectors": json.dumps(
             [target.name for target in result.end_effectors], separators=(",", ":")
         ),
+        "palm_normals": json.dumps(
+            [target.palm_normal for target in result.end_effectors],
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -174,6 +182,7 @@ def grounding_result_from_arrow(
     target = value.to_pylist()
     waypoint_count = _waypoint_count(metadata)
     end_effector_names = _end_effector_names(metadata)
+    palm_normals = _palm_normals(metadata, len(end_effector_names))
     end_effector_start = waypoint_count * 2
     if len(target) != end_effector_start + len(end_effector_names) * 3:
         raise ValueError("Grounding result payload has the wrong number of coordinates")
@@ -191,9 +200,11 @@ def grounding_result_from_arrow(
                     float(target[index + 1]),
                     float(target[index + 2]),
                 ),
+                palm_normal,
             )
-            for name, index in zip(
+            for name, palm_normal, index in zip(
                 end_effector_names,
+                palm_normals,
                 range(end_effector_start, len(target), 3),
                 strict=True,
             )
@@ -268,10 +279,29 @@ def _end_effector_names(metadata: dict[str, Any]) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _palm_normals(
+    metadata: dict[str, Any], expected_count: int
+) -> tuple[tuple[float, float, float] | None, ...]:
+    """Read optional normals while accepting messages produced before this field."""
+    if "palm_normals" not in metadata:
+        return (None,) * expected_count
+    values = json.loads(str(metadata["palm_normals"]))
+    if not isinstance(values, list) or len(values) != expected_count:
+        raise ValueError("palm_normals metadata must match end_effectors")
+    try:
+        return tuple(None if value is None else _target_xyz(value) for value in values)
+    except (IndexError, TypeError) as exc:
+        raise ValueError("palm_normals metadata is invalid") from exc
+
+
 def _end_effectors_json(end_effectors: tuple[EndEffectorTarget, ...]) -> str:
     return json.dumps(
         [
-            {"name": target.name, "target_xyz": target.target_xyz}
+            {
+                "name": target.name,
+                "target_xyz": target.target_xyz,
+                "palm_normal": target.palm_normal,
+            }
             for target in end_effectors
         ],
         separators=(",", ":"),
@@ -289,6 +319,11 @@ def _end_effectors(metadata: dict[str, Any]) -> tuple[EndEffectorTarget, ...]:
             EndEffectorTarget(
                 str(value["name"]),
                 _target_xyz(value["target_xyz"]),
+                (
+                    _target_xyz(value["palm_normal"])
+                    if value.get("palm_normal") is not None
+                    else None
+                ),
             )
             for value in values
         )

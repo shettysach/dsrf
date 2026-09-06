@@ -17,6 +17,14 @@ _JOINT_NAMES = {
     "left_foot": "left_toe_base",
     "right_foot": "right_toe_base",
 }
+# ARDY's G1 converter maps MuJoCo's +X (the palm collision capsule's long
+# axis) into ARDY's +Z.  Hand targets use semantic local coordinates
+# (forward, left, up), so this is the axis that must point into a surface.
+_PALM_FORWARD_AXIS_ARDY = torch.tensor((0.0, 0.0, 1.0))
+_WRIST_ROTATION_JOINTS = {
+    "left_hand": "left_wrist_yaw_skel",
+    "right_hand": "right_wrist_yaw_skel",
+}
 _MAX_END_EFFECTOR_REACH_M = {
     "left_hand": 1.25,
     "right_hand": 1.25,
@@ -82,13 +90,19 @@ def build_timed_constraints(
                 )
                 chain = [motion_rep.skeleton.bone_order_names.index(n) for n in names]
                 edited[0, chain] += xyz - edited[0, joint]
+                edited_rotations = _with_palm_normal(
+                    rotations,
+                    motion_rep.skeleton,
+                    target,
+                    heading,
+                )
                 constraints.append(
                     _end_effector_constraint(
                         motion_rep.skeleton,
                         target.name,
                         frame.reshape(1),
                         edited,
-                        rotations,
+                        edited_rotations,
                     )
                 )
     observed, mask = motion_rep.create_conditions_from_constraints(
@@ -170,13 +184,19 @@ def build_constraints(
                 motion_rep.skeleton.bone_order_names.index(name) for name in chain_names
             ]
             edited_positions[0, chain_indices] += delta
+            edited_rotations = _with_palm_normal(
+                rotations,
+                motion_rep.skeleton,
+                target,
+                heading,
+            )
             constraints.append(
                 _end_effector_constraint(
                     motion_rep.skeleton,
                     target.name,
                     frame,
                     edited_positions,
-                    rotations,
+                    edited_rotations,
                 )
             )
 
@@ -255,6 +275,74 @@ def _end_effector_constraint(
         global_joints_rots=rotations,
         root_2d=None,
     )
+
+
+def _with_palm_normal(
+    rotations: torch.Tensor,
+    skeleton,
+    target: EndEffectorTarget,
+    heading: torch.Tensor,
+) -> torch.Tensor:
+    """Align a hand's palm-forward axis, retaining ARDY's reference twist."""
+    if target.palm_normal is None:
+        return rotations
+    try:
+        joint_name = _WRIST_ROTATION_JOINTS[target.name]
+    except KeyError:
+        return rotations
+
+    local = torch.tensor(
+        [[target.palm_normal[1], target.palm_normal[0]]],
+        dtype=rotations.dtype,
+        device=rotations.device,
+    )
+    horizontal = _rotate_2d(local, heading.to(device=rotations.device)).squeeze(0)
+    desired_axis = torch.stack(
+        (
+            horizontal[0],
+            torch.as_tensor(
+                target.palm_normal[2], device=rotations.device, dtype=rotations.dtype
+            ),
+            horizontal[1],
+        )
+    )
+    desired_axis = torch.nn.functional.normalize(desired_axis, dim=0)
+    joint = skeleton.bone_order_names.index(joint_name)
+    current_rotation = rotations[0, joint]
+    source_axis = current_rotation @ _PALM_FORWARD_AXIS_ARDY.to(
+        device=rotations.device, dtype=rotations.dtype
+    )
+    alignment = _rotation_between_unit_vectors(source_axis, desired_axis)
+    edited = rotations.clone()
+    edited[0, joint] = alignment @ current_rotation
+    return edited
+
+
+def _rotation_between_unit_vectors(
+    source: torch.Tensor, target: torch.Tensor
+) -> torch.Tensor:
+    """Return the shortest proper rotation from ``source`` to ``target``."""
+    source = torch.nn.functional.normalize(source, dim=0)
+    target = torch.nn.functional.normalize(target, dim=0)
+    cosine = torch.clamp(torch.dot(source, target), -1.0, 1.0)
+    cross = torch.linalg.cross(source, target)
+    sine = torch.linalg.vector_norm(cross)
+    identity = torch.eye(3, dtype=source.dtype, device=source.device)
+    if float(sine) < 1e-6:
+        if float(cosine) > 0.0:
+            return identity
+        basis = torch.tensor((1.0, 0.0, 0.0), dtype=source.dtype, device=source.device)
+        if abs(float(source[0])) > 0.9:
+            basis = torch.tensor(
+                (0.0, 1.0, 0.0), dtype=source.dtype, device=source.device
+            )
+        axis = torch.nn.functional.normalize(torch.linalg.cross(source, basis), dim=0)
+        return 2.0 * torch.outer(axis, axis) - identity
+    skew = torch.zeros((3, 3), dtype=source.dtype, device=source.device)
+    skew[0, 1], skew[0, 2] = -cross[2], cross[1]
+    skew[1, 0], skew[1, 2] = cross[2], -cross[0]
+    skew[2, 0], skew[2, 1] = -cross[1], cross[0]
+    return identity + skew + skew @ skew * ((1.0 - cosine) / (sine * sine))
 
 
 def global_end_effector_targets(
