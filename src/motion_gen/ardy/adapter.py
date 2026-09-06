@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 
+from motion_gen.targets import TimedTargets
 from shared.messages import AgentCommand
 
 if TYPE_CHECKING:
@@ -20,6 +22,21 @@ class ArdyMotionGenerator:
         self._generator = generator
         self._text_encoder = text_encoder
         self.fps: float = float(generator.fps)
+        # All released G1 checkpoints used here generate 52 frames. Keeping a
+        # fallback also preserves the lightweight backend doubles used by the
+        # common motion-generator contract tests.
+        self.window_frames = int(
+            getattr(getattr(generator, "model", None), "gen_horizon_len", 52)
+        )
+        self._embeddings: dict[str, torch.Tensor] = {}
+
+    def generate_window(
+        self, motion: str, samples: tuple[TimedTargets, ...], history: np.ndarray
+    ) -> torch.Tensor:
+        self._generator.observe(history)
+        if motion not in self._embeddings:
+            self._embeddings[motion] = self._text_encoder.encode(motion)
+        return self._generator.generate(self._embeddings[motion], (), samples=samples)
 
     def generate(self, command: AgentCommand) -> torch.Tensor:
         if command.direction is not None:

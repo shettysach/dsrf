@@ -39,6 +39,27 @@ class EndEffectorTarget:
 
 
 @dataclass(frozen=True)
+class ContactGoal:
+    """Script-grounded maintained contact: body-local points, world XY goal."""
+
+    body: str
+    target_xy: tuple[float, float]
+    points: tuple[EndEffectorTarget, ...]
+    goal_half_size: float = 0.65
+
+    def __post_init__(self) -> None:
+        if not self.body or len(self.target_xy) != 2:
+            raise ValueError("Contact goal requires a body and world XY destination")
+        if not all(np.isfinite(v) for v in (*self.target_xy, self.goal_half_size)):
+            raise ValueError("Contact goal must be finite")
+        if self.goal_half_size <= 0 or not self.points:
+            raise ValueError("Contact goal requires points and a positive goal size")
+        _validate_end_effectors(self.points)
+        if any(p.name not in {"left_hand", "right_hand"} for p in self.points):
+            raise ValueError("Maintained contact currently supports hands only")
+
+
+@dataclass(frozen=True)
 class AgentCommand:
     observation_id: int
     text: str
@@ -48,6 +69,7 @@ class AgentCommand:
     end_effectors: tuple[EndEffectorTarget, ...] = ()
     reasoning: str | None = None
     terminal: bool = False
+    contact_goal: ContactGoal | None = None
 
     def __post_init__(self) -> None:
         normalized = self.text.strip()

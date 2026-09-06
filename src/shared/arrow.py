@@ -8,6 +8,7 @@ import pyarrow as pa
 
 from shared.messages import (
     AgentCommand,
+    ContactGoal,
     EndEffectorSelection,
     EndEffectorTarget,
     GroundingRequest,
@@ -34,6 +35,8 @@ def agent_command_to_arrow(
         metadata["reasoning"] = command.reasoning
     if command.terminal:
         metadata["terminal"] = "true"
+    if command.contact_goal is not None:
+        metadata["contact_goal"] = json.dumps(asdict(command.contact_goal))
     return pa.array([command.text], type=pa.string()), metadata
 
 
@@ -47,6 +50,22 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         end_effectors=_end_effectors(metadata),
         reasoning=(str(metadata["reasoning"]) if "reasoning" in metadata else None),
         terminal=metadata.get("terminal") == "true",
+        contact_goal=_contact_goal(metadata),
+    )
+
+
+def _contact_goal(metadata: dict[str, Any]) -> ContactGoal | None:
+    if "contact_goal" not in metadata:
+        return None
+    value = json.loads(metadata["contact_goal"])
+    return ContactGoal(
+        body=value["body"],
+        target_xy=tuple(value["target_xy"]),
+        points=tuple(
+            EndEffectorTarget(p["name"], tuple(p["target_xyz"]))
+            for p in value["points"]
+        ),
+        goal_half_size=value["goal_half_size"],
     )
 
 

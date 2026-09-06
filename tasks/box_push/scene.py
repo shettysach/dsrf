@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import math
-import os
 from typing import TYPE_CHECKING
 
 import mujoco
 from mjlab.entity import EntityCfg
 
+from tasks.box_push.settings import BoxPushSettings
 from tasks.spec import SceneSpecFn
 
 if TYPE_CHECKING:
@@ -15,22 +14,17 @@ if TYPE_CHECKING:
 
 # A low-friction, ballasted box should slide under a two-palm push instead of
 # tipping around its leading edge.
-BOX_HALF_SIZE = (0.40, 0.40, 0.40)
+BOX_HALF_SIZE = BoxPushSettings().half_size
 BOX_MASS = 3.0
-# Put the near face 0.40 m in front of the robot root. The hands make contact
-# early enough to keep pushing before the single ARDY window ends.
-BOX_START = (1.40, 0.0)
-DEFAULT_GOAL_X = 2.35
-GOAL_HALF_SIZE = (0.45, 0.45, 0.01)
+BOX_START = (3.0, 0.0)
+DEFAULT_GOAL_X = 6.0
+GOAL_HALF_SIZE = (0.65, 0.65, 0.01)
 
 
 def _goal_center() -> tuple[float, float]:
     """Read the optional per-workflow goal position."""
 
-    goal_x = float(os.environ.get("BOX_PUSH_GOAL_X", str(DEFAULT_GOAL_X)))
-    if not math.isfinite(goal_x):
-        raise ValueError("BOX_PUSH_GOAL_X must be finite")
-    return (goal_x, 0.0)
+    return (BoxPushSettings.from_env().goal_x, 0.0)
 
 
 _BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
@@ -50,7 +44,9 @@ def make_box_push_entity_cfg() -> EntityCfg:
 
     return EntityCfg(
         spec_fn=_make_box_spec,
-        init_state=EntityCfg.InitialStateCfg(pos=(*BOX_START, BOX_HALF_SIZE[2])),
+        init_state=EntityCfg.InitialStateCfg(
+            pos=(BoxPushSettings.from_env().box_x, 0.0, BOX_HALF_SIZE[2])
+        ),
     )
 
 
@@ -76,8 +72,7 @@ def _add_goal(spec: "MjSpec") -> None:
         name="box_goal",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
         pos=(*_goal_center(), 0.01),
-        # Slightly larger than the box footprint. At the initial pose there is
-        # a visible 0.10 m gap between the box and this marker.
+        # Clearance around the complete box footprint.
         size=GOAL_HALF_SIZE,
         rgba=(0.1, 0.8, 0.2, 0.5),
         contype=0,

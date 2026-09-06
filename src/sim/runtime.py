@@ -4,6 +4,8 @@ import os
 import subprocess
 import threading
 import time
+from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,6 +34,7 @@ from shared.messages import (
 from sim.camera import ProjectionContext
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
+from sim.push import PushConfig, PushController
 from sim.renderer import SimRenderer
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
@@ -198,6 +201,10 @@ class SimRuntime:
         if self.recorder is not None and self._demo_observation_rgb is not None:
             self.recorder.write_frame(self._demo_observation_rgb, self.demo_vlm_state)
 
+        if command.contact_goal is not None:
+            self._execute_push(command)
+            return
+
         generation_started_at = time.perf_counter()
         try:
             with self.simulation.compute_context():
@@ -291,7 +298,143 @@ class SimRuntime:
             },
         )
 
-    def _execute(self) -> ExecutionStats:
+    def _execute_push(self, command: AgentCommand) -> None:
+        """Execute a scripted contact goal without publishing intermediate observations."""
+        from motion_gen.ardy.adapter import ArdyMotionGenerator
+
+        goal = command.contact_goal
+        assert goal is not None
+        if not isinstance(self.generator, ArdyMotionGenerator):
+            self._report_error("Scripted contact requires ARDY", source="execution")
+            self._stop_requested = True
+            return
+        if self.virtual_force is not None:
+            self._report_error(
+                "Scripted contact requires unassisted physics", source="execution"
+            )
+            self._stop_requested = True
+            return
+        generator = self.generator
+        windows = 0
+        try:
+            with self.simulation.compute_context():
+                state = self.simulation.push_state(goal.body)
+            controller = PushController(
+                goal,
+                state,
+                window_seconds=generator.window_frames / generator.fps,
+                config=PushConfig.from_env(),
+            )
+            history = deque([state.qpos.copy() for _ in range(9)], maxlen=9)
+            if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
+                raise ValueError(
+                    "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
+                )
+            tracking_bad_seconds = 0.0
+
+            def after_step() -> bool:
+                nonlocal state, tracking_bad_seconds
+                with self.simulation.compute_context():
+                    state = self.simulation.push_state(goal.body)
+                    pose = self.tracker.reference.visualization_pose()
+                history.append(state.qpos.copy())
+                previous = controller.phase
+                interrupt = controller.update(state, self.simulation.step_dt)
+                # The tracker advances its cursor before physics; tolerate one
+                # frame of look-ahead and monitor gross, sustained divergence.
+                if pose is not None and not controller.finished:
+                    root, _, joints = (p.detach().cpu().numpy() for p in pose)
+                    bad = (
+                        np.linalg.norm(root[:2] - state.qpos[:2]) > 0.5
+                        or np.sqrt(np.mean((joints - state.qpos[7:]) ** 2)) > 0.7
+                    )
+                    tracking_bad_seconds = (
+                        tracking_bad_seconds + self.simulation.step_dt if bad else 0.0
+                    )
+                    if tracking_bad_seconds >= 0.5:
+                        controller.fail("Persistent reference tracking error")
+                        interrupt = True
+                if controller.phase != previous:
+                    self.node.log(
+                        "info",
+                        f"Push phase: {previous} -> {controller.phase}",
+                        target="dsrf.sim.push",
+                    )
+                return interrupt or self._stop_requested
+
+            while not controller.finished and not self._stop_requested:
+                self.demo_vlm_state = DemoVlmState(
+                    observation_id=command.observation_id,
+                    reasoning=f"Script: {controller.phase}; window {windows + 1}; "
+                    f"remaining {controller.remaining(state):.2f}m; contacts {sorted(state.contacts)}",
+                    command=command.motion,
+                )
+                samples = controller.targets(
+                    state, generator.window_frames, generator.fps
+                )
+                # Keep an extra observed frame for velocity encoding, then crop
+                # the encoded sequence to four frames inside ARDY.observe().
+                observed = np.stack(list(history)[::2])
+                started = time.perf_counter()
+                with self.simulation.compute_context():
+                    qpos = generator.generate_window(command.motion, samples, observed)
+                    reference = resample_qpos(qpos, source_fps=generator.fps)
+                    self.tracker.load_motion(
+                        reference, self.simulation.robot_state(), world_aligned=True
+                    )
+                self._projection_cache = None
+                windows += 1
+                self.node.log(
+                    "info",
+                    f"Push window {windows}: phase={controller.phase} "
+                    f"remaining={controller.remaining(state):.3f}m "
+                    f"contacts={sorted(state.contacts)}",
+                    target="dsrf.sim.push",
+                    fields={
+                        "event": "push_window",
+                        "window": str(windows),
+                        "phase": controller.phase,
+                        "remaining_m": str(controller.remaining(state)),
+                    },
+                )
+                self._log_motion_generated(
+                    command,
+                    qpos,
+                    reference,
+                    plan_ms=(time.perf_counter() - started) * 1000,
+                )
+                self._execute(after_step=after_step)
+
+            success = controller.phase == "done"
+            self.node.log(
+                "info" if success else "error",
+                f"Scripted push {'succeeded' if success else 'failed'}: "
+                f"{controller.reason or 'Stopped externally'}; windows={windows}, "
+                f"sim_seconds={controller.elapsed:.2f}, remaining={controller.remaining(state):.3f}m",
+                target="dsrf.sim.push",
+                fields={
+                    "event": "push_result",
+                    "success": str(success).lower(),
+                    "reason": controller.reason,
+                    "windows": str(windows),
+                    "sim_seconds": str(controller.elapsed),
+                },
+            )
+            if success:
+                self.completed_commands += 1
+            else:
+                self._report_error(
+                    controller.reason or "Stopped externally", source="execution"
+                )
+        except (ValueError, KeyError) as exc:
+            self._report_error(str(exc), source="execution")
+        finally:
+            # This is the single-interaction script path, not a VLM protocol.
+            self._stop_requested = True
+
+    def _execute(
+        self, *, after_step: Callable[[], bool] | None = None
+    ) -> ExecutionStats:
         started_at = time.perf_counter()
         next_step = time.perf_counter()
         frames = 0
@@ -334,9 +477,11 @@ class SimRuntime:
                     )
                 frames += 1
 
+                interrupted = after_step() if after_step is not None else False
+
                 # Completion is detected while producing the last reference
                 # action. Capture only after that action's physics step.
-                if completed:
+                if completed or interrupted or self._stop_requested:
                     return ExecutionStats(
                         frames=frames,
                         elapsed_ms=(time.perf_counter() - started_at) * 1000.0,

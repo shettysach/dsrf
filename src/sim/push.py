@@ -1,0 +1,264 @@
+"""Small feedback controller for the scripted planar push, independent of ARDY."""
+
+import os
+from dataclasses import dataclass
+
+import numpy as np
+
+from motion_gen.targets import TimedTargets
+from shared.messages import ContactGoal, EndEffectorTarget
+
+
+@dataclass(frozen=True)
+class PushConfig:
+    navigation_speed: float = 0.4
+    push_speed: float = 0.15
+    standoff: float = 0.55
+    contact_windows: int = 3
+    contact_dwell: float = 0.2
+    contact_loss: float = 0.1
+    reacquisitions: int = 2
+    timeout: float = 90.0
+    stall_seconds: float = 4.0
+    progress_distance: float = 0.02
+
+    @classmethod
+    def from_env(cls) -> "PushConfig":
+        return cls(
+            navigation_speed=float(os.environ.get("PUSH_NAVIGATION_SPEED", "0.4")),
+            push_speed=float(os.environ.get("PUSH_SPEED", "0.15")),
+        )
+
+    def __post_init__(self) -> None:
+        if (
+            not all(
+                np.isfinite(v) and v > 0
+                for v in (
+                    self.navigation_speed,
+                    self.push_speed,
+                    self.standoff,
+                    self.contact_dwell,
+                    self.contact_loss,
+                    self.timeout,
+                    self.stall_seconds,
+                    self.progress_distance,
+                )
+            )
+            or self.contact_windows < 1
+            or self.reacquisitions < 0
+        ):
+            raise ValueError("Invalid push controller settings")
+
+
+@dataclass(frozen=True)
+class PushState:
+    qpos: np.ndarray
+    body_position: np.ndarray
+    body_rotation: np.ndarray
+    body_velocity: np.ndarray
+    hands: dict[str, np.ndarray]
+    contacts: frozenset[str]
+    footprint: np.ndarray
+
+
+class PushController:
+    """Own task progress; window exhaustion never implies physical success."""
+
+    def __init__(
+        self,
+        goal: ContactGoal,
+        state: PushState,
+        *,
+        window_seconds: float,
+        config: PushConfig | None = None,
+    ) -> None:
+        self.goal, self.config = goal, config or PushConfig()
+        self.window_seconds = window_seconds
+        self.phase = "approach"
+        self.elapsed = self.phase_elapsed = 0.0
+        self.contact_age = self.loss_age = self.settle_age = 0.0
+        self.retries = 0
+        self.reason = ""
+        self._hand_start = state.hands
+        self._root_offset = state.qpos[:2] - state.body_position[:2]
+        self._progress_time = 0.0
+        self._progress_distance = self.remaining(state)
+        self._validate_direction(state)
+
+    @property
+    def finished(self) -> bool:
+        return self.phase in {"done", "failed"}
+
+    def remaining(self, state: PushState) -> float:
+        return float(
+            np.linalg.norm(np.asarray(self.goal.target_xy) - state.body_position[:2])
+        )
+
+    def contact_points(self, state: PushState) -> dict[str, np.ndarray]:
+        return {
+            p.name: state.body_position + state.body_rotation @ np.asarray(p.target_xyz)
+            for p in self.goal.points
+        }
+
+    def _direction(self, state: PushState) -> np.ndarray:
+        delta = np.asarray(self.goal.target_xy) - state.body_position[:2]
+        return delta / max(float(np.linalg.norm(delta)), 1e-8)
+
+    def _validate_direction(self, state: PushState) -> None:
+        # This scripted capability uses the box's local -X face, not arbitrary grasps.
+        normal = -state.body_rotation[:2, 0]
+        if (
+            self.remaining(state) > 0.15
+            and float(normal @ self._direction(state)) > -0.8
+        ):
+            self.fail("Selected face no longer supports the push direction")
+
+    def staging_point(self, state: PushState) -> np.ndarray:
+        center = np.mean(list(self.contact_points(state).values()), axis=0)
+        return center[:2] - self.config.standoff * self._direction(state)
+
+    def fail(self, reason: str) -> None:
+        self.phase, self.reason = "failed", reason
+
+    def _transition(self, phase: str, state: PushState) -> None:
+        self.phase = phase
+        self.phase_elapsed = self.contact_age = self.loss_age = self.settle_age = 0.0
+        self._hand_start = {n: p.copy() for n, p in state.hands.items()}
+        self._progress_time = self.elapsed
+        self._progress_distance = self._distance_for_phase(state)
+        if phase == "push":
+            self._root_offset = state.qpos[:2] - state.body_position[:2]
+
+    def _distance_for_phase(self, state: PushState) -> float:
+        if self.phase == "approach":
+            return float(np.linalg.norm(self.staging_point(state) - state.qpos[:2]))
+        return self.remaining(state)
+
+    def update(self, state: PushState, dt: float) -> bool:
+        """Called after every physics control step; True interrupts the reference."""
+        previous = self.phase
+        if self.finished:
+            return True
+        self.elapsed += dt
+        self.phase_elapsed += dt
+        if not all(
+            np.isfinite(a).all()
+            for a in (
+                state.qpos,
+                state.body_position,
+                state.body_rotation,
+                state.body_velocity,
+            )
+        ):
+            self.fail("Non-finite physical state")
+        elif state.qpos[2] < 0.45 or 1 - 2 * np.sum(state.qpos[4:6] ** 2) < 0.5:
+            self.fail("Robot fell")
+        elif state.body_rotation[2, 2] < 0.7:
+            self.fail("Box tipped")
+        elif self.elapsed >= self.config.timeout:
+            self.fail("Interaction time budget exhausted")
+        if self.finished:
+            return True
+
+        touching = all(p.name in state.contacts for p in self.goal.points)
+        self.contact_age = self.contact_age + dt if touching else 0.0
+        self.loss_age = 0.0 if touching else self.loss_age + dt
+        if self.phase == "approach":
+            if self._distance_for_phase(state) <= 0.10:
+                self._transition("contact", state)
+        elif self.phase == "contact":
+            if self.contact_age >= self.config.contact_dwell:
+                self._transition("push", state)
+            elif (
+                self.phase_elapsed >= self.config.contact_windows * self.window_seconds
+            ):
+                self.fail("Contact not established within three native windows")
+        elif self.phase == "push":
+            if self.remaining(state) <= 0.10:
+                self._transition("settle", state)
+            elif self.loss_age >= self.config.contact_loss:
+                if self.retries >= self.config.reacquisitions:
+                    self.fail("Contact reacquisition budget exhausted")
+                else:
+                    self.retries += 1
+                    self._transition("contact", state)
+            else:
+                self._validate_direction(state)
+        elif self.phase == "settle":
+            contained = bool(
+                np.all(
+                    np.abs(state.footprint - np.asarray(self.goal.target_xy))
+                    <= self.goal.goal_half_size
+                )
+            )
+            settled = contained and np.linalg.norm(state.body_velocity) < 0.05
+            self.settle_age = self.settle_age + dt if settled else 0.0
+            if self.settle_age >= 0.5:
+                self.phase, self.reason = "done", "Box footprint settled inside goal"
+            elif self.phase_elapsed >= 3 * self.window_seconds:
+                self.fail("Box did not settle inside goal")
+
+        if self.phase in {"approach", "push"}:
+            distance = self._distance_for_phase(state)
+            if self._progress_distance - distance >= self.config.progress_distance:
+                self._progress_time, self._progress_distance = self.elapsed, distance
+            elif self.elapsed - self._progress_time >= self.config.stall_seconds:
+                self.fail("No meaningful physical progress")
+        return self.phase != previous
+
+    def targets(
+        self, state: PushState, frames: int, fps: float
+    ) -> tuple[TimedTargets, ...]:
+        root = state.qpos[:3]
+        w, x, y, z = state.qpos[3:7]
+        yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+        c, s = np.cos(yaw), np.sin(yaw)
+        world_to_local = np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
+        contacts = self.contact_points(state)
+        direction = self._direction(state)
+        samples = []
+        indices = sorted(set(range(3, frames, 4)) | {frames - 1})
+        for frame in indices:
+            t = (frame + 1) / fps
+            base = root.copy()
+            hands: dict[str, np.ndarray] = {}
+            if self.phase == "approach":
+                delta = self.staging_point(state) - root[:2]
+                distance = float(np.linalg.norm(delta))
+                base[:2] += delta * min(
+                    1.0, self.config.navigation_speed * t / max(distance, 1e-8)
+                )
+            elif self.phase == "contact":
+                fraction = min(
+                    1.0,
+                    (self.phase_elapsed + t)
+                    / (self.config.contact_windows * self.window_seconds),
+                )
+                for name, point in contacts.items():
+                    # Millimetric bias, not the previous 20 cm penetration request.
+                    target = point + np.r_[direction * 0.005, 0.0]
+                    hands[name] = self._hand_start[name] + fraction * (
+                        target - self._hand_start[name]
+                    )
+            else:
+                advance = (
+                    min(self.config.push_speed * t, self.remaining(state))
+                    if self.phase == "push"
+                    else 0.0
+                )
+                delta = np.r_[direction * advance, 0.0]
+                if self.phase == "push":
+                    base[:2] = state.body_position[:2] + self._root_offset + delta[:2]
+                hands = {name: point + delta for name, point in contacts.items()}
+            local_root = world_to_local @ (base - root)
+            samples.append(
+                TimedTargets(
+                    frame,
+                    (float(local_root[0]), float(local_root[1])),
+                    tuple(
+                        EndEffectorTarget(name, tuple(world_to_local @ (p - root)))
+                        for name, p in hands.items()
+                    ),
+                )
+            )
+        return tuple(samples)

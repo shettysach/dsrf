@@ -4,10 +4,12 @@ from collections.abc import Mapping
 from contextlib import AbstractContextManager, nullcontext
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 from mjlab.entity import Entity
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.sensor import CameraSensor
+from mjlab.utils.lab_api.math import matrix_from_quat
 from tasks import TaskSpec
 
 from sim.camera import OnDemandCameraCapture, ProjectionContext
@@ -42,6 +44,14 @@ class MjlabEnv:
         )
         self._robot = self._env.scene["robot"]
         self._hand_geom_ids = _hand_geom_ids(self._robot)
+        self._object_geom_ids = _object_geom_ids(
+            self._env.scene,
+            tuple(
+                name
+                for name in self._env.scene.entities
+                if name not in {"robot", "terrain"}
+            ),
+        )
         self._virtual_force_object_geom_ids = _object_geom_ids(
             self._env.scene,
             task.virtual_force_objects if task is not None else (),
@@ -102,18 +112,56 @@ class MjlabEnv:
         """Return only left/right-hand contacts with named task entities."""
 
         requested = set(object_names)
-        unknown = requested - self._virtual_force_object_geom_ids.keys()
+        unknown = requested - self._object_geom_ids.keys()
         if unknown:
-            raise ValueError(f"Unknown virtual-force objects: {sorted(unknown)}")
+            raise ValueError(f"Unknown contact objects: {sorted(unknown)}")
         data = self._env.sim.data
         return _hand_object_contacts_from_buffers(
             geom_pairs=data.contact.geom,
             world_ids=data.contact.worldid,
             contact_count=data.nacon[0],
             hand_geom_ids=self._hand_geom_ids,
-            object_geom_ids={
-                name: self._virtual_force_object_geom_ids[name] for name in requested
+            object_geom_ids={name: self._object_geom_ids[name] for name in requested},
+        )
+
+    def push_state(self, body: str):
+        """Snapshot physical state for the scripted single-box controller."""
+        from sim.push import PushState
+
+        entity = self._env.scene[body]
+        if not isinstance(entity, Entity) or entity.num_bodies != 1:
+            raise ValueError("Scripted push requires a single rigid body")
+        geom_ids = sorted(self._object_geom_ids[body])
+        model = self._env.sim.mj_model
+        if len(geom_ids) != 1 or int(model.geom_type[geom_ids[0]]) != 6:
+            raise ValueError("Scripted push currently requires one box geometry")
+        data = entity.data
+        state = self.robot_state()
+
+        def cpu(tensor):
+            return tensor.detach().cpu().numpy().copy()
+
+        position = cpu(data.root_link_pos_w[0])
+        rotation = cpu(matrix_from_quat(data.root_link_quat_w[0]))
+        half_size = np.asarray(model.geom_size[geom_ids[0]])
+        corners = (
+            np.array([(x, y, z) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)])
+            * half_size
+        )
+        sim_data = self._env.sim.data
+        geom_rotation = cpu(sim_data.geom_xmat[0, geom_ids[0]]).reshape(3, 3)
+        geom_position = cpu(sim_data.geom_xpos[0, geom_ids[0]])
+        return PushState(
+            qpos=cpu(torch.cat((state.root_pos_w, state.root_quat_w, state.joint_pos))),
+            body_position=position,
+            body_rotation=rotation,
+            body_velocity=cpu(data.root_link_lin_vel_w[0]),
+            hands={
+                name: cpu(sim_data.geom_xpos[0, gid])
+                for name, gid in self._hand_geom_ids.items()
             },
+            contacts=frozenset(hand for hand, _ in self.hand_object_contacts((body,))),
+            footprint=(corners @ geom_rotation.T + geom_position)[:, :2],
         )
 
     def step(

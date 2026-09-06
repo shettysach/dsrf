@@ -61,8 +61,12 @@ class SonicTracker:
         self.reference = MotionReference(self.device)
         self._last_action = torch.zeros(29, dtype=torch.float32, device=self.device)
 
-    def load_motion(self, qpos: torch.Tensor, state: RobotState) -> None:
-        self.reference.load(qpos, state.root_pos_w, state.root_quat_w)
+    def load_motion(
+        self, qpos: torch.Tensor, state: RobotState, *, world_aligned: bool = False
+    ) -> None:
+        self.reference.load(
+            qpos, state.root_pos_w, state.root_quat_w, world_aligned=world_aligned
+        )
 
     def act(self, state: RobotState) -> tuple[torch.Tensor, bool]:
         joint_position = (state.joint_pos - self._default_joint_pos).index_select(

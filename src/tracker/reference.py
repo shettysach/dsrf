@@ -30,6 +30,8 @@ class MotionReference:
         qpos: torch.Tensor,
         robot_pos_w: torch.Tensor,
         robot_quat_w: torch.Tensor,
+        *,
+        world_aligned: bool = False,
     ) -> None:
         qpos = qpos.to(dtype=torch.float32, device=self.device).contiguous()
         orientation_delta = quat_mul(robot_quat_w, quat_conjugate(qpos[0, 3:7]))
@@ -40,6 +42,9 @@ class MotionReference:
         self._root_quat_w = quat_mul(
             orientation_delta.expand(len(qpos), -1), qpos[:, 3:7]
         )
+        if world_aligned:
+            self._root_pos_w = qpos[:, :3].clone()
+            self._root_quat_w = qpos[:, 3:7].clone()
         self._joint_pos = qpos[:, 7:]
         self._joint_vel = _finite_difference(self._joint_pos)
         self._frame = 0

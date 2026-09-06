@@ -7,9 +7,10 @@ import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.model import load_model
 
-from motion_gen.ardy.constraints import build_constraints
+from motion_gen.ardy.constraints import build_constraints, build_timed_constraints
 from motion_gen.ardy.encoder import prepare_conditioning
-from motion_gen.ardy.history import qpos_to_ardy_inputs
+from motion_gen.ardy.history import build_initial_history, qpos_to_ardy_inputs
+from motion_gen.targets import TimedTargets
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
@@ -72,18 +73,31 @@ class Ardy:
         embedding: torch.Tensor,
         target_xys: tuple[tuple[float, float], ...],
         end_effectors: tuple[EndEffectorTarget, ...] = (),
+        *,
+        samples: tuple[TimedTargets, ...] = (),
     ) -> torch.Tensor:
         text_feat, text_pad_mask = prepare_conditioning(
             embedding,
             device=self.device,
         )
-        has_spatial_constraints = bool(target_xys or end_effectors)
+        has_hands = bool(end_effectors or any(s.end_effectors for s in samples))
+        has_spatial_constraints = bool(target_xys or end_effectors or samples)
         history_frames = (
             0 if self.motion_history is None else self.motion_history.shape[1]
         )
         generated_frames = int(self.model.gen_horizon_len)
         num_frames = history_frames + generated_frames
         root_motion_mask = root_observed_motion = None
+        if samples:
+            root_motion_mask, root_observed_motion = build_timed_constraints(
+                self.model.motion_rep,
+                self.root_history,
+                self.root_heading,
+                samples,
+                generated_frames=generated_frames,
+                history_frames=history_frames,
+                device=self.device,
+            )
         if target_xys:
             root_motion_mask, root_observed_motion = build_constraints(
                 self.model.motion_rep,
@@ -140,7 +154,7 @@ class Ardy:
                     **autoregressive_kwargs,
                 )
 
-            if end_effectors:
+            if has_hands:
                 reference_motion = generate_window(
                     root_motion_mask, root_observed_motion
                 )
@@ -149,17 +163,29 @@ class Ardy:
                     reference_generated,
                     is_normalized=True,
                 )
-                motion_mask, observed_motion = build_constraints(
-                    self.model.motion_rep,
-                    self.root_history,
-                    self.root_heading,
-                    target_xys,
-                    end_effectors,
-                    reference_decoded,
-                    generated_frames=generated_frames,
-                    history_frames=history_frames,
-                    device=self.device,
-                )
+                if samples:
+                    motion_mask, observed_motion = build_timed_constraints(
+                        self.model.motion_rep,
+                        self.root_history,
+                        self.root_heading,
+                        samples,
+                        reference_decoded,
+                        generated_frames=generated_frames,
+                        history_frames=history_frames,
+                        device=self.device,
+                    )
+                else:
+                    motion_mask, observed_motion = build_constraints(
+                        self.model.motion_rep,
+                        self.root_history,
+                        self.root_heading,
+                        target_xys,
+                        end_effectors,
+                        reference_decoded,
+                        generated_frames=generated_frames,
+                        history_frames=history_frames,
+                        device=self.device,
+                    )
                 motion = generate_window(motion_mask, observed_motion)
             else:
                 motion = generate_window(root_motion_mask, root_observed_motion)
@@ -200,3 +226,21 @@ class Ardy:
         self.root_history = next_root_history
         self.root_heading = next_root_heading
         return qpos
+
+    def observe(self, qpos: np.ndarray) -> None:
+        """Replace predicted history with the last observed tokenizer patch."""
+        with torch.inference_mode():
+            encoded = build_initial_history(
+                qpos, self.converter, self.model.motion_rep, device=self.device
+            )
+            if encoded.shape[1] < self.history_crop_frames:
+                raise ValueError("Insufficient actual-state history for ARDY")
+            self.motion_history = (
+                encoded[:, -self.history_crop_frames :].detach().clone()
+            )
+            decoded = self.model.motion_rep.inverse(
+                self.motion_history, is_normalized=True
+            )
+            self.root_history = decoded["root_positions"][0, -2:].detach().clone()
+            heading = decoded["global_root_heading"][0, -1]
+            self.root_heading = torch.atan2(heading[1], heading[0]).detach().clone()

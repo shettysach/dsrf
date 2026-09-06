@@ -8,6 +8,7 @@ from ardy.constraints import (
 )
 from ardy.motion_rep.tools import RotateFeatures
 
+from motion_gen.targets import TimedTargets
 from shared.messages import EndEffectorTarget
 
 _JOINT_NAMES = {
@@ -22,6 +23,75 @@ _MAX_END_EFFECTOR_REACH_M = {
     "left_foot": 1.5,
     "right_foot": 1.5,
 }
+
+
+def build_timed_constraints(
+    motion_rep,
+    root_history: torch.Tensor,
+    root_heading: torch.Tensor,
+    samples: tuple[TimedTargets, ...],
+    reference_decoded: dict[str, torch.Tensor] | None = None,
+    *,
+    generated_frames: int,
+    history_frames: int,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Condition each sample at its own timestamp, never retime the task goal."""
+    indices = [sample.frame for sample in samples]
+    if not indices or indices != sorted(set(indices)):
+        raise ValueError("Timed targets require unique, increasing frame indices")
+    if indices[0] < 0 or indices[-1] >= generated_frames:
+        raise ValueError("Timed target lies outside the generated window")
+    root = root_history[-1].to(device)
+    heading = root_heading.reshape(()).to(device)
+    local = torch.tensor(
+        [[s.root_xy[1], s.root_xy[0]] for s in samples],
+        dtype=root.dtype,
+        device=device,
+    )
+    frames = torch.tensor(indices, device=device) + history_frames
+    constraints = [
+        _root_constraint(
+            motion_rep.skeleton, frames, root[[0, 2]] + _rotate_2d(local, heading)
+        )
+    ]
+    if reference_decoded is not None:
+        for sample, frame in zip(samples, frames, strict=True):
+            if not sample.end_effectors:
+                continue
+            positions = reference_decoded["posed_joints"][:, sample.frame].to(device)
+            rotations = reference_decoded["global_rot_mats"][:, sample.frame].to(device)
+            targets = global_end_effector_targets(
+                root, heading, sample.end_effectors, device=device
+            )
+            _validate_end_effector_reach(
+                sample.end_effectors,
+                targets,
+                positions[0, motion_rep.skeleton.root_idx],
+            )
+            for target, xyz in zip(sample.end_effectors, targets, strict=True):
+                edited = positions.clone()
+                joint = motion_rep.skeleton.bone_order_names.index(
+                    _JOINT_NAMES[target.name]
+                )
+                _, names = motion_rep.skeleton.expand_joint_names(
+                    [_base_end_effector_name(target.name)]
+                )
+                chain = [motion_rep.skeleton.bone_order_names.index(n) for n in names]
+                edited[0, chain] += xyz - edited[0, joint]
+                constraints.append(
+                    _end_effector_constraint(
+                        motion_rep.skeleton,
+                        target.name,
+                        frame.reshape(1),
+                        edited,
+                        rotations,
+                    )
+                )
+    observed, mask = motion_rep.create_conditions_from_constraints(
+        constraints, history_frames + generated_frames, False, str(device)
+    )
+    return mask.unsqueeze(0), (motion_rep.normalize(observed) * mask).unsqueeze(0)
 
 
 def build_constraints(

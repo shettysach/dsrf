@@ -85,7 +85,9 @@ def make_sim_env_cfg(
         sensors=(
             CameraSensorCfg(
                 name=OBSERVATION_CAMERA,
-                parent_body="robot/torso_link",
+                parent_body=None
+                if camera_spec.world_position is not None
+                else "robot/torso_link",
                 pos=camera_pos,
                 quat=camera_quat,
                 width=image_width,
@@ -126,6 +128,18 @@ def _observation_camera_pose(
     robot's local +X axis.  The G1 model has no separate head body, so the
     camera remains attached to the torso while using the head's local offset.
     """
+    if spec.world_position is not None:
+        position = torch.tensor(spec.world_position, dtype=torch.float64)
+        forward = torch.nn.functional.normalize(
+            torch.tensor(spec.world_lookat, dtype=torch.float64) - position, dim=0
+        )
+        up_world = position.new_tensor((0.0, 0.0, 1.0))
+        right = torch.nn.functional.normalize(
+            torch.cross(forward, up_world, dim=0), dim=0
+        )
+        up = torch.cross(right, forward, dim=0)
+        quat = quat_from_matrix(torch.stack((right, up, -forward), dim=1))
+        return tuple(position.tolist()), tuple(quat.tolist())
     if spec.egocentric:
         position = torch.tensor((0.0, 0.0, 0.43), dtype=torch.float64)
         right = position.new_tensor((0.0, -1.0, 0.0))

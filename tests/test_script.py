@@ -37,22 +37,22 @@ def _observation_event(observation: VisualObservation) -> dict[str, object]:
 
 
 def test_push_script_emits_one_continuous_contact_and_push_motion() -> None:
-    script = PushScript(
-        prompt="reach and push with both palms", goal_position=(2.35, 0.0)
-    )
+    script = PushScript(prompt="reach and push with both palms")
 
     command = script.next_command(0)
 
     assert command is not None
     assert command.motion == "reach and push with both palms"
-    np.testing.assert_allclose(command.target_xys, ((0.75, 0.0),))
-    assert [target.name for target in command.end_effectors] == [
+    assert command.target_xys == ()
+    assert command.contact_goal is not None
+    assert command.contact_goal.target_xy == (6.0, 0.0)
+    assert [target.name for target in command.contact_goal.points] == [
         "left_hand",
         "right_hand",
     ]
-    left, right = command.end_effectors
-    np.testing.assert_allclose(left.target_xyz, (1.20, 0.18, -0.16))
-    np.testing.assert_allclose(right.target_xyz, (1.20, -0.18, -0.16))
+    left, right = command.contact_goal.points
+    np.testing.assert_allclose(left.target_xyz, (-0.40, 0.18, 0.20))
+    np.testing.assert_allclose(right.target_xyz, (-0.40, -0.18, 0.20))
     assert script.next_command(1) is None
 
 
