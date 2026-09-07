@@ -48,3 +48,4 @@ def test_push_motion_carries_palm_targets_with_the_base() -> None:
     assert samples[-1].root_xy == (0.312, 0.0)
     np.testing.assert_allclose(left.target_xyz, (0.892, 0.16, 0.40))
     assert left.palm_normal == (1.0, 0.0, 0.0)
+    assert not samples[-1].root_upright
