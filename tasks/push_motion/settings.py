@@ -12,11 +12,9 @@ class PushMotionSettings:
     approach_x: float = 2.0
     goal_x: float = 6.0
     navigation_speed: float = 0.4
-    push_speed: float = 0.15
+    push_speed: float = 0.4
     reach_windows: int = 2
     timeout: float = 90.0
-    stall_seconds: float = 4.0
-    progress_distance: float = 0.02
     approach_prompt: str = "Walking forward"
     reach_prompt: str = (
         "A person reaches out forwards, fully extending arms to push a box"
