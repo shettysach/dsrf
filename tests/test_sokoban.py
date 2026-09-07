@@ -29,9 +29,9 @@ def test_catalog_contains_sokoban() -> None:
     assert task.robot_initial_rot == pytest.approx(
         (0.7071067811865476, 0.0, 0.0, 0.7071067811865475)
     )
-    assert task.observation_camera.world_position is None
-    assert task.observation_camera.distance == pytest.approx(5.25)
-    assert task.observation_camera.elevation == pytest.approx(-65.0)
+    assert task.observation_camera.world_position == (0.5, -4.5, 4.2)
+    assert task.observation_camera.world_lookat == (0.5, 0.5, 0.0)
+    assert task.observation_camera.follow_robot_translation
 
 
 def test_sokoban_uses_elevated_observation_framing() -> None:
@@ -39,6 +39,7 @@ def test_sokoban_uses_elevated_observation_framing() -> None:
 
     assert cfg.scene.spec_fn is not None
     assert cfg.scene.sensors[0].data_types == ("rgb", "depth")
+    assert cfg.scene.sensors[0].parent_body is None
     assert cfg.scene.entities["robot"].init_state.rot == pytest.approx(
         get_task("sokoban").robot_initial_rot
     )

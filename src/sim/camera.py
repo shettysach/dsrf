@@ -36,9 +36,14 @@ class OnDemandCameraCapture:
         self,
         simulation: Simulation,
         camera: CameraSensor,
+        *,
+        follow_robot_translation: bool = False,
     ) -> None:
         self._simulation = simulation
         self._camera = camera
+        self._follow_robot_translation = follow_robot_translation
+        self._initial_root_pos: torch.Tensor | None = None
+        self._initial_camera_pos: torch.Tensor | None = None
         self._sense = simulation.sense
         simulation.sense = MethodType(_skip_sense, simulation)  # ty: ignore[invalid-assignment]
 
@@ -47,6 +52,7 @@ class OnDemandCameraCapture:
         state: RobotState,
     ) -> tuple[torch.Tensor, ProjectionContext]:
         camera_id = self._camera.camera_idx
+        self._update_tracking_camera(camera_id, state)
         self._sense()
 
         data = self._camera.data
@@ -70,6 +76,21 @@ class OnDemandCameraCapture:
 
     def close(self) -> None:
         self._simulation.sense = self._sense  # ty: ignore[invalid-assignment]
+
+    def _update_tracking_camera(self, camera_id: int, state: RobotState) -> None:
+        """Translate a world camera with the root without inheriting its yaw."""
+        if not self._follow_robot_translation:
+            return
+        if self._initial_root_pos is None:
+            self._initial_root_pos = state.root_pos_w.detach().cpu().clone()
+            self._initial_camera_pos = torch.as_tensor(
+                self._simulation.mj_model.cam_pos[camera_id], dtype=torch.float64
+            ).clone()
+        assert self._initial_camera_pos is not None
+        delta = state.root_pos_w.detach().cpu() - self._initial_root_pos
+        self._simulation.mj_model.cam_pos[camera_id] = (
+            self._initial_camera_pos + delta.to(dtype=torch.float64)
+        ).numpy()
 
 
 def _skip_sense(_simulation: Simulation) -> None:

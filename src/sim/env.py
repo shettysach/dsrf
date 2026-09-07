@@ -68,6 +68,10 @@ class MjlabEnv:
         self._camera_capture = OnDemandCameraCapture(
             self._env.sim,
             camera,
+            follow_robot_translation=(
+                task is not None
+                and task.observation_camera.follow_robot_translation
+            ),
         )
         self._sokoban_visualizer = None
         self._task_completed = False

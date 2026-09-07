@@ -6,10 +6,9 @@ on the level.
 
 ## Visual legend
 
-- **Humanoid robot:** the player. The elevated camera follows behind the robot,
-  so the robot stays near the centre of the image. Image-forward is the
-  robot's forward direction; image-left and image-right match its relative
-  walk directions.
+- **Humanoid robot:** the player. The elevated camera translates with the
+  robot, but its orientation is fixed to the board. Screen directions therefore
+  remain stable even when the robot turns.
 - **Yellow cube:** a movable box not yet on a goal. It is smaller than a grid
   cell, so use its centre rather than an edge as the alignment reference.
 - **Bright green floor square:** an unoccupied goal.

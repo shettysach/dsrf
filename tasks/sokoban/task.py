@@ -6,7 +6,7 @@ from tasks.spec import ObservationCameraSpec, SceneSpecFn, TaskSpec
 
 _LEVEL = int(os.environ.get("SOKOBAN_LEVEL", "1"))
 # The default G1 faces +X (screen-right in the overhead board view).  A +90°
-# yaw makes it face +Y, into the board away from its trailing camera.
+# yaw makes it face +Y, into the board away from the south-side camera.
 _FACING_BOARD_QUAT = (0.7071067811865476, 0.0, 0.0, 0.7071067811865475)
 
 
@@ -29,12 +29,12 @@ TASK = TaskSpec(
     robot_initial_pos=_robot_start(),
     robot_initial_rot=_FACING_BOARD_QUAT,
     observation_camera=ObservationCameraSpec(
-        # This is intentionally torso-relative rather than a world camera.
-        # Keeping the robot near the centre makes its local walk directions
-        # visible, and the tighter framing gives boxes and walls enough pixels
-        # to distinguish reliably.  The steep elevation retains board context.
-        distance=5.25,
-        elevation=-65.0,
+        # Translate with the robot while retaining this world orientation. This
+        # keeps the screen axes stable when the robot turns and provides a
+        # closer, less top-down view than the original fixed overview.
+        world_position=(0.5, -4.5, 4.2),
+        world_lookat=(0.5, 0.5, 0.0),
+        follow_robot_translation=True,
         fovy=62.0,
     ),
 )

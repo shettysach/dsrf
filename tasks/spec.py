@@ -22,6 +22,7 @@ class ObservationCameraSpec:
     egocentric: bool = False
     world_position: tuple[float, float, float] | None = None
     world_lookat: tuple[float, float, float] | None = None
+    follow_robot_translation: bool = False
 
     def __post_init__(self) -> None:
         if (self.world_position is None) != (self.world_lookat is None):
@@ -29,6 +30,8 @@ class ObservationCameraSpec:
         if self.world_position is not None:
             if self.egocentric or self.world_position == self.world_lookat:
                 raise ValueError("Invalid world camera pose")
+        elif self.follow_robot_translation:
+            raise ValueError("A tracking camera requires a world camera pose")
         if self.distance <= 0.0:
             raise ValueError("Observation camera distance must be positive")
         if not -89.0 < self.elevation < 89.0:
