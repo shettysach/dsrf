@@ -1,6 +1,7 @@
 from typing import Any, cast
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 import torch
 from tasks.box_push import TASK as BOX_PUSH_TASK
@@ -13,7 +14,7 @@ from tasks.box_push.scene import (
 )
 
 from sim.config import make_sim_env_cfg
-from sim.env import MjlabEnv, _hand_object_contacts_from_buffers
+from sim.env import MjlabEnv, SokobanMotionEvents, _hand_object_contacts_from_buffers
 from sim.viewer import ViserSimViewer
 
 
@@ -89,3 +90,19 @@ def test_hand_object_contacts_are_filtered_with_torch_buffers() -> None:
     )
 
     assert contacts == {("left_hand", "box")}
+
+
+def test_sokoban_motion_feedback_indexes_batched_geometry_positions() -> None:
+    """Sokoban geometry IDs index the geom axis, after MJLab's batch axis."""
+
+    positions = torch.zeros((1, 80, 3))
+    positions[0, 75, :2] = torch.tensor((2.25, -1.5))
+    data = type("Data", (), {"geom_xpos": positions})()
+    events = SokobanMotionEvents(
+        robot_geom_ids=frozenset(),
+        wall_geom_ids=frozenset(),
+        box_geom_ids=(75,),
+        initial_box_centers=np.array(((2.0, -1.5),)),
+    )
+
+    assert events.feedback(data) == "Box 1 pushed: Δx=+0.25 m, Δy=+0.00 m."

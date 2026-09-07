@@ -49,7 +49,7 @@ class SokobanMotionEvents:
         return False
 
     def feedback(self, data: Any) -> str:
-        centers = _host_array(data.geom_xpos)[list(self.box_geom_ids), :2]
+        centers = _world_geom_positions(data.geom_xpos)[list(self.box_geom_ids), :2]
         deltas = centers - self.initial_box_centers
         messages: list[str] = []
         if self.wall_collision:
@@ -261,7 +261,9 @@ class MjlabEnv:
                 "sokoban_outer_west_wall_collision",
              )))
         )
-        centers = _host_array(self._env.sim.data.geom_xpos)[list(box_geom_ids), :2]
+        centers = _world_geom_positions(self._env.sim.data.geom_xpos)[
+            list(box_geom_ids), :2
+        ]
         return SokobanMotionEvents(
             robot_geom_ids=frozenset(self._robot.indexing.geom_ids.detach().cpu().tolist()),
             wall_geom_ids=wall_geom_ids,
@@ -350,6 +352,25 @@ def _host_array(value: Any) -> np.ndarray:
     if hasattr(value, "detach"):
         return value.detach().cpu().numpy()
     return np.asarray(value)
+
+
+def _world_geom_positions(value: Any) -> np.ndarray:
+    """Return geometry positions for DSRF's single simulated world.
+
+    MJLab exposes MuJoCo data with a leading environment dimension, even when
+    this application uses one world. Geometry IDs index the second dimension,
+    not that batch dimension.
+    """
+
+    positions = _host_array(value)
+    if positions.ndim == 2:
+        return positions
+    if positions.ndim == 3 and positions.shape[0] == 1:
+        return positions[0]
+    raise ValueError(
+        "Expected geometry positions shaped [geom, xyz] or [1, geom, xyz], "
+        f"got {positions.shape}"
+    )
 
 
 def _hand_object_contacts_from_buffers(
