@@ -5,7 +5,6 @@ from tasks import TASKS, get_task
 from tasks.sokoban.scene import (
     BOX_MASS,
     COMPLETED_BOX_RGBA,
-    COMPLETED_BOX_CENTER_TOLERANCE,
     GRID_HEIGHT,
     GRID_WIDTH,
     MJ_JOINT_SLIDE,
@@ -143,7 +142,9 @@ def test_sokoban_box_is_complete_when_comfortably_centred_on_a_goal() -> None:
 
     for axis, coordinate in (("x", 0), ("y", 1)):
         joint = model.joint(f"sokoban_box_1_{axis}")
-        offset = COMPLETED_BOX_CENTER_TOLERANCE * 0.9 if axis == "x" else 0.0
+        # This placement has about 66% footprint coverage, which is visibly
+        # settled on the goal but not strictly contained by it.
+        offset = 0.35 if axis == "x" else 0.0
         data.qpos[model.jnt_qposadr[joint.id]] = (
             model.geom_pos[goal.id, coordinate]
             - model.body_pos[model.geom_bodyid[box.id], coordinate]

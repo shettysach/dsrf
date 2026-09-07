@@ -27,11 +27,10 @@ BOX_MASS = 0.5
 BOX_SLIDE_DAMPING = 0.8
 BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.46
-# The physical controller cannot reliably centre a box to the 11 cm tolerance
-# implied by strict geometric containment (0.46 - 0.35).  A box whose centre is
-# in this central region is visibly settled on the goal, while a box merely
-# grazing its edge is not marked complete.
-COMPLETED_BOX_CENTER_TOLERANCE = 0.22
+# Continuous pushes do not stop perfectly at a cell centre.  Count a box as
+# completed once most of its footprint covers a goal, rather than requiring
+# strict containment or an arbitrarily precise centre position.
+COMPLETED_BOX_MIN_GOAL_COVERAGE = 0.60
 WALL_HALF_HEIGHT = 0.6
 WALL_HALF_SIZE = TILE_SIZE * 0.5
 OUTER_WALL_HALF_THICKNESS = 0.1
@@ -249,16 +248,14 @@ class SokobanCompletionVisualizer:
         if geom_positions.ndim == 3:
             geom_positions = geom_positions[0]
         box_centers = geom_positions[list(self._box_ids), :2]
-        # Motion is continuous, unlike the discrete reference environment. A
-        # box is complete once it is comfortably settled over the centre of a
-        # goal, rather than only when its footprint is perfectly contained.
-        clearance = COMPLETED_BOX_CENTER_TOLERANCE
+        # The box and goal are axis-aligned planar squares. Measure how much of
+        # each box footprint overlaps every goal; this matches what is visible
+        # in the camera far better than a brittle centre-point tolerance.
+        delta = np.abs(box_centers[:, None, :] - self._goal_centers[None, :, :])
+        overlap = np.clip(BOX_HALF_SIZE + GOAL_HALF_SIZE - delta, 0.0, None)
+        coverage = overlap.prod(axis=2) / (2.0 * BOX_HALF_SIZE) ** 2
         completed = np.any(
-            np.all(
-                np.abs(box_centers[:, None, :] - self._goal_centers[None, :, :])
-                <= clearance,
-                axis=2,
-            ),
+            coverage >= COMPLETED_BOX_MIN_GOAL_COVERAGE,
             axis=1,
         )
         for geom_id, is_completed in zip(self._box_ids, completed, strict=True):
