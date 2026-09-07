@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from tasks.push_motion.settings import PushMotionSettings
 
-from shared.messages import AgentCommand, RootPathGoal
+from shared.messages import AgentCommand, EndEffectorTarget, RootPathGoal
 
 
 @dataclass(frozen=True)
@@ -25,5 +25,17 @@ class PushMotionScript:
             root_path_goal=RootPathGoal(
                 approach_xy=(self.settings.approach_x, 0.0),
                 target_xy=(self.settings.goal_x, 0.0),
+                points=tuple(
+                    EndEffectorTarget(
+                        name,
+                        (
+                            self.settings.hand_forward,
+                            side * self.settings.hand_half_width,
+                            self.settings.hand_height,
+                        ),
+                        palm_normal=(1.0, 0.0, 0.0),
+                    )
+                    for name, side in (("left_hand", 1), ("right_hand", -1))
+                ),
             ),
         )

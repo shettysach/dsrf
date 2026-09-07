@@ -85,6 +85,18 @@ def _root_path_goal(metadata: dict[str, Any]) -> RootPathGoal | None:
     return RootPathGoal(
         approach_xy=tuple(value["approach_xy"]),
         target_xy=tuple(value["target_xy"]),
+        points=tuple(
+            EndEffectorTarget(
+                point["name"],
+                tuple(point["target_xyz"]),
+                (
+                    tuple(point["palm_normal"])
+                    if point.get("palm_normal") is not None
+                    else None
+                ),
+            )
+            for point in value.get("points", ())
+        ),
     )
 
 

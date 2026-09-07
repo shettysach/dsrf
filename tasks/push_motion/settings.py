@@ -14,6 +14,9 @@ class PushMotionSettings:
     navigation_speed: float = 0.4
     push_speed: float = 0.4
     reach_windows: int = 2
+    hand_forward: float = 0.58
+    hand_half_width: float = 0.16
+    hand_height: float = 0.40
     timeout: float = 90.0
     approach_prompt: str = "Walking forward"
     reach_prompt: str = (
@@ -43,6 +46,9 @@ class PushMotionSettings:
             self.navigation_speed,
             self.push_speed,
             self.timeout,
+            self.hand_forward,
+            self.hand_half_width,
+            self.hand_height,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Push-motion waypoints must be finite")
@@ -55,6 +61,8 @@ class PushMotionSettings:
                     self.navigation_speed,
                     self.push_speed,
                     self.timeout,
+                    self.hand_forward,
+                    self.hand_half_width,
                 )
             )
             or self.reach_windows < 1

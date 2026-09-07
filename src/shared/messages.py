@@ -81,6 +81,7 @@ class RootPathGoal:
 
     approach_xy: tuple[float, float]
     target_xy: tuple[float, float]
+    points: tuple[EndEffectorTarget, ...] = ()
 
     def __post_init__(self) -> None:
         if len(self.approach_xy) != 2 or len(self.target_xy) != 2:
@@ -89,6 +90,12 @@ class RootPathGoal:
             np.isfinite(value) for value in (*self.approach_xy, *self.target_xy)
         ):
             raise ValueError("Root path points must be finite")
+        _validate_end_effectors(self.points)
+        if self.points and {point.name for point in self.points} != {
+            "left_hand",
+            "right_hand",
+        }:
+            raise ValueError("Root path hand constraints require both hands")
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,10 @@ import numpy as np
 from tasks.push_motion.settings import PushMotionSettings
 
 from motion_gen.targets import TimedTargets
-from shared.messages import RootPathGoal
+from shared.messages import EndEffectorTarget, RootPathGoal
+
+_REACH_HAND_FRAMES = frozenset({15, 31, 51})
+_PUSH_HAND_FRAMES = frozenset({9, 19, 29, 39, 51})
 
 
 @dataclass(frozen=True)
@@ -87,8 +90,18 @@ class RootPathController:
             if self.phase == "approach"
             else self.config.push_speed
         )
+        root_frames = set(range(3, frames, 4)) | {frames - 1}
+        hand_frames = (
+            _REACH_HAND_FRAMES
+            if self.phase == "reach"
+            else _PUSH_HAND_FRAMES
+            if self.phase == "push"
+            else frozenset()
+        )
         samples = []
-        for frame in sorted(set(range(3, frames, 4)) | {frames - 1}):
+        for frame in sorted(
+            root_frames | {frame for frame in hand_frames if frame < frames}
+        ):
             root_delta = np.zeros(3)
             if self.phase != "reach":
                 target = (
@@ -103,10 +116,23 @@ class RootPathController:
                     speed * ((frame + 1) / fps) / max(distance, 1e-8),
                 )
             local_delta = world_to_local @ root_delta
+            hands = (
+                tuple(
+                    EndEffectorTarget(
+                        point.name,
+                        tuple(np.asarray(point.target_xyz) + local_delta),
+                        palm_normal=point.palm_normal,
+                    )
+                    for point in self.goal.points
+                )
+                if frame in hand_frames
+                else ()
+            )
             samples.append(
                 TimedTargets(
                     frame,
                     (float(local_delta[0]), float(local_delta[1])),
+                    hands,
                 )
             )
         return tuple(samples)

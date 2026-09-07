@@ -26,9 +26,11 @@ def test_push_motion_uses_plain_text_generation_without_targets() -> None:
     assert command.root_path_goal is not None
     assert command.root_path_goal.approach_xy == (2.0, 0.0)
     assert command.root_path_goal.target_xy == (6.0, 0.0)
+    left, right = command.root_path_goal.points
+    assert left.palm_normal == right.palm_normal == (1.0, 0.0, 0.0)
 
 
-def test_root_path_uses_only_timed_2d_root_targets() -> None:
+def test_root_path_uses_only_timed_2d_root_targets_during_approach() -> None:
     command = create_task_script("push_motion", "walk forward").next_command(0)
     assert command is not None and command.root_path_goal is not None
     state = RootPathState(
@@ -42,3 +44,30 @@ def test_root_path_uses_only_timed_2d_root_targets() -> None:
         not target.end_effectors and not target.root_upright for target in targets
     )
     assert targets[-1].root_xy == (0.8320000000000001, 0.0)
+
+
+def test_root_path_uses_sparse_hand_keyframes() -> None:
+    command = create_task_script("push_motion", "walk forward").next_command(0)
+    assert command is not None and command.root_path_goal is not None
+    state = RootPathState(
+        np.array((2.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0), dtype=np.float64)
+    )
+    controller = RootPathController(command.root_path_goal, state, window_seconds=2.08)
+    controller.phase = "reach"
+
+    reach_targets = controller.targets(state, frames=52, fps=25.0)
+    assert [target.frame for target in reach_targets if target.end_effectors] == [
+        15,
+        31,
+        51,
+    ]
+
+    controller.phase = "push"
+    push_targets = controller.targets(state, frames=52, fps=25.0)
+    assert [target.frame for target in push_targets if target.end_effectors] == [
+        9,
+        19,
+        29,
+        39,
+        51,
+    ]

@@ -153,9 +153,10 @@ TEXT_ENCODER_MODEL=/path/to/encoder \
 dora run push_motion_script.yml
 ```
 
-This uses only two ARDY root waypoints: x=2 m and the green line at x=6 m.
-There are no hand, wrist, palm-orientation, or pose constraints. Change them
-with `PUSH_MOTION_APPROACH_X` and `PUSH_MOTION_GOAL_X`.
+This uses timed root targets for x=2 m and the green line at x=6 m, plus sparse
+bilateral hand keyframes with forward-facing palm normals. There are no torso,
+upright-root, or contact constraints. Change the root targets with
+`PUSH_MOTION_APPROACH_X` and `PUSH_MOTION_GOAL_X`.
 
 ## Constraint grounding
 

@@ -44,7 +44,14 @@ def test_root_path_goal_arrow_round_trip() -> None:
         "walk forward",
         "walk forward",
         (),
-        root_path_goal=RootPathGoal((2.0, 0.0), (6.0, 0.0)),
+        root_path_goal=RootPathGoal(
+            (2.0, 0.0),
+            (6.0, 0.0),
+            (
+                EndEffectorTarget("left_hand", (0.58, 0.16, 0.40)),
+                EndEffectorTarget("right_hand", (0.58, -0.16, 0.40)),
+            ),
+        ),
     )
 
     value, metadata = agent_command_to_arrow(command)
