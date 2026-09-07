@@ -153,7 +153,7 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
     assert posted[0]["tool_choice"]["function"]["name"] == "kinematic_planner_command"
 
 
-def test_llama_client_uses_an_initial_image_anchor_and_bounded_text_history(
+def test_llama_client_uses_one_current_image_and_bounded_text_history(
     monkeypatch,
 ) -> None:
     posted: list[dict[str, Any]] = []
@@ -202,8 +202,8 @@ def test_llama_client_uses_an_initial_image_anchor_and_bounded_text_history(
         if isinstance(message.get("content"), list)
         and any(item["type"] == "image_url" for item in message["content"])
     ]
-    assert len(image_messages) == 2  # immutable initial anchor + current image
-    assert "aW1hZ2UtMA==" in image_messages[0]["content"][1]["image_url"]["url"]
+    assert len(image_messages) == 1
+    assert "aW1hZ2UtNQ==" in image_messages[0]["content"][1]["image_url"]["url"]
     text_history = [
         message["content"]
         for message in messages

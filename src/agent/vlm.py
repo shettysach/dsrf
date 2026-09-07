@@ -58,17 +58,12 @@ class OAIChatClient:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system_prompt}
         ]
-        if self._history:
-            # Keep the first multimodal turn forever. It is a large, immutable
-            # prefix after the first request, so vLLM can reuse its KV cache.
-            _append_turn(
-                messages, self._history[0], user_prompt=self.user_prompt, image=True
-            )
-            # Recent turns retain action context but omit obsolete images. A
-            # sliding suffix limits context without invalidating the anchor.
-            start = max(1, len(self._history) - self.recent_turns)
-            for turn in self._history[start:]:
-                _append_turn(messages, turn, user_prompt=self.user_prompt, image=False)
+        # The current observation completely describes Sokoban state. Replay a
+        # bounded suffix of old turns as text/tool context only; sending an old
+        # board image makes moved boxes and the robot ambiguous.
+        history = self._history[-self.recent_turns :] if self.recent_turns else ()
+        for turn in history:
+            _append_turn(messages, turn, user_prompt=self.user_prompt)
         messages.append(
             _user_message(
                 observation,
@@ -121,12 +116,8 @@ def _append_turn(
     turn: _ConversationTurn,
     *,
     user_prompt: str,
-    image: bool,
 ) -> None:
-    if image:
-        messages.append(_user_message(turn.observation, user_prompt))
-    else:
-        messages.append(_history_user_message(turn.observation, user_prompt))
+    messages.append(_history_user_message(turn.observation, user_prompt))
     messages.append(turn.completion.assistant_message)
     if turn.completion.tool_call_id is not None:
         messages.append(
