@@ -8,6 +8,7 @@ from script.tasks.prompt import PromptScript
 from script.tasks.push import PushScript
 from shared.arrow import agent_command_from_arrow, observation_to_arrow
 from shared.messages import EndEffectorTarget, VisualObservation
+from sim.push import PushController, PushState
 
 
 class _Node:
@@ -53,7 +54,29 @@ def test_push_script_emits_one_continuous_contact_and_push_motion() -> None:
     left, right = command.contact_goal.points
     np.testing.assert_allclose(left.target_xyz, (-0.50, 0.22, 0.40))
     np.testing.assert_allclose(right.target_xyz, (-0.50, -0.22, 0.40))
+    assert left.palm_normal == right.palm_normal == (1.0, 0.0, 0.0)
     assert script.next_command(1) is None
+
+
+def test_push_controller_transforms_box_local_palm_normals_to_robot_local() -> None:
+    command = PushScript(prompt="reach and push with both palms").next_command(0)
+    assert command is not None and command.contact_goal is not None
+    state = PushState(
+        qpos=np.array((0.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0)),
+        body_position=np.array((3.0, 0.0, 0.65)),
+        body_rotation=np.array(((0.0, -1.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))),
+        body_velocity=np.zeros(3),
+        hands={"left_hand": np.zeros(3), "right_hand": np.zeros(3)},
+        contacts=frozenset(),
+        footprint=np.zeros((4, 2)),
+    )
+    controller = PushController(command.contact_goal, state, window_seconds=2.08)
+    controller.phase = "hold"
+
+    targets = controller.targets(state, frames=4, fps=25.0)
+
+    for target in targets[-1].end_effectors:
+        np.testing.assert_allclose(target.palm_normal, (0.0, 1.0, 0.0))
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:

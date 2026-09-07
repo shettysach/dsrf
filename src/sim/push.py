@@ -179,6 +179,14 @@ class PushController:
         c, s = np.cos(yaw), np.sin(yaw)
         world_to_local = np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
         contacts = self.contact_points(state)
+        contact_normals = {
+            point.name: (
+                state.body_rotation @ np.asarray(point.palm_normal)
+                if point.palm_normal is not None
+                else None
+            )
+            for point in self.goal.points
+        }
         samples = []
         indices = sorted(set(range(3, frames, 4)) | {frames - 1})
         for frame in indices:
@@ -223,6 +231,11 @@ class PushController:
                         EndEffectorTarget(
                             name,
                             tuple(world_to_local @ (p - root)),
+                            palm_normal=(
+                                tuple(world_to_local @ contact_normals[name])
+                                if contact_normals[name] is not None
+                                else None
+                            ),
                         )
                         for name, p in hands.items()
                     ),
