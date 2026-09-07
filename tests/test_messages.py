@@ -15,7 +15,6 @@ from shared.messages import (
     GroundingRequest,
     GroundingResult,
     PipelineError,
-    PushMotionGoal,
     VisualObservation,
 )
 
@@ -35,24 +34,6 @@ def test_agent_command_arrow_round_trip() -> None:
         terminal=True,
     )
     value, metadata = agent_command_to_arrow(command)
-    assert agent_command_from_arrow(value, metadata) == command
-
-
-def test_push_motion_goal_arrow_round_trip() -> None:
-    points = (
-        EndEffectorTarget("left_hand", (0.58, 0.16, 0.40), (1.0, 0.0, 0.0)),
-        EndEffectorTarget("right_hand", (0.58, -0.16, 0.40), (1.0, 0.0, 0.0)),
-    )
-    command = AgentCommand(
-        0,
-        "execute the bilateral push motion",
-        "execute the bilateral push motion",
-        (),
-        push_motion_goal=PushMotionGoal((2.0, 0.0), (6.0, 0.0), points),
-    )
-
-    value, metadata = agent_command_to_arrow(command)
-
     assert agent_command_from_arrow(value, metadata) == command
 
 

@@ -1,4 +1,4 @@
-# One logical, contact-free approach/reach/push motion. No VLM or box.
+# One plain text-to-motion generation. No VLM, box, or spatial constraints.
 nodes:
   - id: agent
     path: uv
@@ -7,7 +7,7 @@ nodes:
     env:
       AGENT: script
       SCRIPT_TASK: push_motion
-      SCRIPT_PROMPT: execute the bilateral push motion
+      SCRIPT_PROMPT: walk forward with both arms held forward
       SCRIPT_START_IMMEDIATELY: "false"
       MOTION_GENERATOR: ardy
     inputs:

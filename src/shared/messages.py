@@ -76,24 +76,6 @@ class ContactGoal:
 
 
 @dataclass(frozen=True)
-class PushMotionGoal:
-    """A kinematic bilateral-push path with no object or contact requirement."""
-
-    approach_xy: tuple[float, float]
-    target_xy: tuple[float, float]
-    points: tuple[EndEffectorTarget, ...]
-
-    def __post_init__(self) -> None:
-        if len(self.approach_xy) != 2 or len(self.target_xy) != 2:
-            raise ValueError("Push-motion goal requires 2D approach and destination")
-        if not all(np.isfinite(v) for v in (*self.approach_xy, *self.target_xy)):
-            raise ValueError("Push-motion goal must be finite")
-        _validate_end_effectors(self.points)
-        if {point.name for point in self.points} != {"left_hand", "right_hand"}:
-            raise ValueError("Push-motion goal requires both hand targets")
-
-
-@dataclass(frozen=True)
 class AgentCommand:
     observation_id: int
     text: str
@@ -104,7 +86,6 @@ class AgentCommand:
     reasoning: str | None = None
     terminal: bool = False
     contact_goal: ContactGoal | None = None
-    push_motion_goal: PushMotionGoal | None = None
 
     def __post_init__(self) -> None:
         normalized = self.text.strip()
@@ -112,8 +93,6 @@ class AgentCommand:
             raise ValueError("Command is empty")
         _validate_navigation(self.motion, self.target_xys, self.direction)
         _validate_end_effectors(self.end_effectors)
-        if self.contact_goal is not None and self.push_motion_goal is not None:
-            raise ValueError("A command cannot contain two scripted goals")
         object.__setattr__(self, "text", normalized)
 
 

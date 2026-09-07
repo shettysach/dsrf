@@ -6,7 +6,6 @@ from nodes.script_agent import ScriptAgentLoop
 from script.tasks.arms_hold import ArmsHoldScript
 from script.tasks.prompt import PromptScript
 from script.tasks.push import PushScript
-from script.tasks.push_motion import PushMotionScript
 from shared.arrow import agent_command_from_arrow, observation_to_arrow
 from shared.messages import EndEffectorTarget, VisualObservation
 
@@ -55,26 +54,6 @@ def test_push_script_emits_one_continuous_contact_and_push_motion() -> None:
     np.testing.assert_allclose(left.target_xyz, (-0.50, 0.22, 0.40))
     np.testing.assert_allclose(right.target_xyz, (-0.50, -0.22, 0.40))
     assert script.next_command(1) is None
-
-
-def test_push_motion_script_emits_contact_free_bilateral_push() -> None:
-    command = PushMotionScript(prompt="execute the bilateral push motion").next_command(
-        0
-    )
-
-    assert command is not None
-    assert command.contact_goal is None
-    assert command.push_motion_goal is not None
-    assert command.push_motion_goal.approach_xy == (2.0, 0.0)
-    assert command.push_motion_goal.target_xy == (6.0, 0.0)
-    left, right = command.push_motion_goal.points
-    assert left.palm_normal == right.palm_normal == (1.0, 0.0, 0.0)
-    np.testing.assert_allclose(left.target_xyz, (0.58, 0.16, 0.40))
-    np.testing.assert_allclose(right.target_xyz, (0.58, -0.16, 0.40))
-    assert (
-        PushMotionScript(prompt="execute the bilateral push motion").next_command(1)
-        is None
-    )
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:

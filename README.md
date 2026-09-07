@@ -153,10 +153,9 @@ TEXT_ENCODER_MODEL=/path/to/encoder \
 dora run push_motion_script.yml
 ```
 
-The script walks to x=2 m, reaches a bilateral palms-forward pose, then carries
-that pose while walking to the green line at x=6 m. Configure those locations
-with `PUSH_MOTION_APPROACH_X` and `PUSH_MOTION_GOAL_X`; use
-`PUSH_MOTION_NAVIGATION_SPEED` and `PUSH_MOTION_SPEED` to tune pacing.
+This uses ARDY's plain text-to-motion path: there are no root, hand, wrist, or
+palm-orientation constraints. The green line at x=6 m is visual-only; change
+it with `PUSH_MOTION_GOAL_X` if desired.
 
 ## Constraint grounding
 

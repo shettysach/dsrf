@@ -36,7 +36,6 @@ from sim.camera import ProjectionContext
 from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.push import PushController
-from sim.push_motion import PushMotionController, PushMotionState
 from sim.renderer import SimRenderer
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
@@ -206,9 +205,6 @@ class SimRuntime:
 
         if command.contact_goal is not None:
             self._execute_push(command)
-            return
-        if command.push_motion_goal is not None:
-            self._execute_push_motion(command)
             return
 
         generation_started_at = time.perf_counter()
@@ -481,107 +477,6 @@ class SimRuntime:
                     welds.detach()
             # This is the single-interaction script path, not a VLM protocol.
             self._stop_requested = True
-
-    def _execute_push_motion(self, command: AgentCommand) -> None:
-        """Execute a virtual bilateral push; it deliberately has no contact path."""
-        from motion_gen.ardy.adapter import ArdyMotionGenerator
-
-        goal = command.push_motion_goal
-        assert goal is not None
-        if not isinstance(self.generator, ArdyMotionGenerator):
-            self._report_error("Scripted push motion requires ARDY", source="execution")
-            self._stop_requested = True
-            return
-        generator = self.generator
-        windows = 0
-        try:
-            with self.simulation.compute_context():
-                state = self._push_motion_state()
-            controller = PushMotionController(
-                goal, state, window_seconds=generator.window_frames / generator.fps
-            )
-            history = deque([state.qpos.copy() for _ in range(9)], maxlen=9)
-            if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
-                raise ValueError(
-                    "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
-                )
-
-            def after_step() -> bool:
-                nonlocal state
-                with self.simulation.compute_context():
-                    state = self._push_motion_state()
-                history.append(state.qpos.copy())
-                previous = controller.phase
-                interrupt = controller.update(state, self.simulation.step_dt)
-                if controller.phase != previous:
-                    self.node.log(
-                        "info",
-                        f"Push-motion phase: {previous} -> {controller.phase}",
-                        target="dsrf.sim.push_motion",
-                    )
-                return interrupt or self._stop_requested
-
-            while not controller.finished and not self._stop_requested:
-                motion = controller.motion_prompt
-                self.demo_vlm_state = DemoVlmState(
-                    observation_id=command.observation_id,
-                    reasoning=(
-                        f"Script: {controller.phase}; window {windows + 1}; "
-                        f"remaining {controller.remaining(state):.2f}m"
-                    ),
-                    command=motion,
-                )
-                samples = controller.targets(
-                    state, generator.window_frames, generator.fps
-                )
-                observed = np.stack(list(history)[::2])
-                started = time.perf_counter()
-                with self.simulation.compute_context():
-                    qpos = generator.generate_window(motion, samples, observed)
-                    reference = resample_qpos(qpos, source_fps=generator.fps)
-                    self.tracker.load_motion(
-                        reference, self.simulation.robot_state(), world_aligned=True
-                    )
-                self._projection_cache = None
-                windows += 1
-                self.node.log(
-                    "info",
-                    f"Push-motion window {windows}: phase={controller.phase} "
-                    f"remaining={controller.remaining(state):.3f}m",
-                    target="dsrf.sim.push_motion",
-                )
-                self._log_motion_generated(
-                    command,
-                    qpos,
-                    reference,
-                    plan_ms=(time.perf_counter() - started) * 1000,
-                    prompt=motion,
-                )
-                self._execute(after_step=after_step)
-
-            success = controller.phase == "done"
-            self.node.log(
-                "info" if success else "error",
-                f"Scripted push motion {'succeeded' if success else 'failed'}: "
-                f"{controller.reason or 'Stopped externally'}; windows={windows}, "
-                f"sim_seconds={controller.elapsed:.2f}",
-                target="dsrf.sim.push_motion",
-            )
-            if success:
-                self.completed_commands += 1
-            else:
-                self._report_error(
-                    controller.reason or "Stopped externally", source="execution"
-                )
-        except ValueError as exc:
-            self._report_error(str(exc), source="execution")
-        finally:
-            self._stop_requested = True
-
-    def _push_motion_state(self) -> PushMotionState:
-        state = self.simulation.robot_state()
-        qpos = torch.cat((state.root_pos_w, state.root_quat_w, state.joint_pos))
-        return PushMotionState(qpos=qpos.detach().cpu().numpy().copy())
 
     def _execute(
         self, *, after_step: Callable[[], bool] | None = None
