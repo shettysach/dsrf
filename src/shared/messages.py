@@ -76,6 +76,22 @@ class ContactGoal:
 
 
 @dataclass(frozen=True)
+class RootPathGoal:
+    """A scripted, contact-free root path with staging and destination points."""
+
+    approach_xy: tuple[float, float]
+    target_xy: tuple[float, float]
+
+    def __post_init__(self) -> None:
+        if len(self.approach_xy) != 2 or len(self.target_xy) != 2:
+            raise ValueError("Root path requires 2D staging and destination points")
+        if not all(
+            np.isfinite(value) for value in (*self.approach_xy, *self.target_xy)
+        ):
+            raise ValueError("Root path points must be finite")
+
+
+@dataclass(frozen=True)
 class AgentCommand:
     observation_id: int
     text: str
@@ -86,6 +102,7 @@ class AgentCommand:
     reasoning: str | None = None
     terminal: bool = False
     contact_goal: ContactGoal | None = None
+    root_path_goal: RootPathGoal | None = None
 
     def __post_init__(self) -> None:
         normalized = self.text.strip()
@@ -93,6 +110,8 @@ class AgentCommand:
             raise ValueError("Command is empty")
         _validate_navigation(self.motion, self.target_xys, self.direction)
         _validate_end_effectors(self.end_effectors)
+        if self.contact_goal is not None and self.root_path_goal is not None:
+            raise ValueError("A command cannot contain two scripted goals")
         object.__setattr__(self, "text", normalized)
 
 

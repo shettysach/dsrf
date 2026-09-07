@@ -1,9 +1,10 @@
 # Task: Contact-free Push Motion
 
-There is no box to touch or move. Generate the push-like motion from text only:
+There is no box to touch or move. Run the following scripted sequence:
 
-1. Walk forward with both arms held forward.
-2. Do not seek, make, or maintain contact with anything.
+1. Walk forward to the staging waypoint.
+2. Stand and extend both arms straight forward.
+3. Walk forward with both arms held forward to the goal waypoint.
 
-ARDY receives only two root-position waypoints: a staging point and the green
-goal line. It receives no hand, wrist, palm-orientation, or pose constraints.
+ARDY receives timed 2D root-position targets only. It receives no hand, wrist,
+palm-orientation, upright-root, contact, or other pose constraints.

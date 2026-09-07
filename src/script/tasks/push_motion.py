@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from tasks.push_motion.settings import PushMotionSettings
 
-from shared.messages import AgentCommand
+from shared.messages import AgentCommand, RootPathGoal
 
 
 @dataclass(frozen=True)
@@ -21,5 +21,9 @@ class PushMotionScript:
             observation_id=observation_id,
             text=self.prompt,
             motion=self.prompt,
-            target_xys=((self.settings.approach_x, 0.0), (self.settings.goal_x, 0.0)),
+            target_xys=(),
+            root_path_goal=RootPathGoal(
+                approach_xy=(self.settings.approach_x, 0.0),
+                target_xy=(self.settings.goal_x, 0.0),
+            ),
         )

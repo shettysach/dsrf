@@ -15,6 +15,7 @@ from shared.messages import (
     GroundingRequest,
     GroundingResult,
     PipelineError,
+    RootPathGoal,
     VisualObservation,
 )
 
@@ -34,6 +35,20 @@ def test_agent_command_arrow_round_trip() -> None:
         terminal=True,
     )
     value, metadata = agent_command_to_arrow(command)
+    assert agent_command_from_arrow(value, metadata) == command
+
+
+def test_root_path_goal_arrow_round_trip() -> None:
+    command = AgentCommand(
+        0,
+        "walk forward",
+        "walk forward",
+        (),
+        root_path_goal=RootPathGoal((2.0, 0.0), (6.0, 0.0)),
+    )
+
+    value, metadata = agent_command_to_arrow(command)
+
     assert agent_command_from_arrow(value, metadata) == command
 
 

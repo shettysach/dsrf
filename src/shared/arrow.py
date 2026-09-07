@@ -14,6 +14,7 @@ from shared.messages import (
     GroundingRequest,
     GroundingResult,
     PipelineError,
+    RootPathGoal,
     VisualObservation,
 )
 
@@ -37,6 +38,8 @@ def agent_command_to_arrow(
         metadata["terminal"] = "true"
     if command.contact_goal is not None:
         metadata["contact_goal"] = json.dumps(asdict(command.contact_goal))
+    if command.root_path_goal is not None:
+        metadata["root_path_goal"] = json.dumps(asdict(command.root_path_goal))
     return pa.array([command.text], type=pa.string()), metadata
 
 
@@ -51,6 +54,7 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         reasoning=(str(metadata["reasoning"]) if "reasoning" in metadata else None),
         terminal=metadata.get("terminal") == "true",
         contact_goal=_contact_goal(metadata),
+        root_path_goal=_root_path_goal(metadata),
     )
 
 
@@ -71,6 +75,16 @@ def _contact_goal(metadata: dict[str, Any]) -> ContactGoal | None:
         ),
         goal_half_size=value["goal_half_size"],
         maintain_contact=bool(value.get("maintain_contact", False)),
+    )
+
+
+def _root_path_goal(metadata: dict[str, Any]) -> RootPathGoal | None:
+    if "root_path_goal" not in metadata:
+        return None
+    value = json.loads(metadata["root_path_goal"])
+    return RootPathGoal(
+        approach_xy=tuple(value["approach_xy"]),
+        target_xy=tuple(value["target_xy"]),
     )
 
 
