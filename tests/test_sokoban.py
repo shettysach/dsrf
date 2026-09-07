@@ -5,6 +5,7 @@ from tasks import TASKS, get_task
 from tasks.sokoban.scene import (
     BOX_MASS,
     COMPLETED_BOX_RGBA,
+    COMPLETED_BOX_CENTER_TOLERANCE,
     GRID_HEIGHT,
     GRID_WIDTH,
     MJ_JOINT_SLIDE,
@@ -28,7 +29,9 @@ def test_catalog_contains_sokoban() -> None:
     assert task.robot_initial_rot == pytest.approx(
         (0.7071067811865476, 0.0, 0.0, 0.7071067811865475)
     )
-    assert task.observation_camera.world_position == (0.0, -6.8, 7.4)
+    assert task.observation_camera.world_position is None
+    assert task.observation_camera.distance == pytest.approx(5.25)
+    assert task.observation_camera.elevation == pytest.approx(-65.0)
 
 
 def test_sokoban_uses_elevated_observation_framing() -> None:
@@ -54,6 +57,7 @@ def test_every_eval_preset_is_a_tile_for_tile_physical_scene(level: int) -> None
     assert len(positions.walls) == sum(row.count("#") for row in board.rows)
     outer_wall = model.geom("sokoban_outer_north_wall_collision")
     assert model.geom_size[outer_wall.id, 1] == pytest.approx(OUTER_WALL_HALF_THICKNESS)
+    assert model.geom_size[outer_wall.id, 0] == pytest.approx(3.0)
     outer_wall_body = model.body("sokoban_outer_north_wall")
     assert model.body_pos[outer_wall_body.id, 1] - model.geom_size[
         outer_wall.id, 1
@@ -91,7 +95,7 @@ def test_sokoban_box_moves_under_a_small_planar_force() -> None:
     assert data.qpos[qpos_address] > 0.001
 
 
-def test_sokoban_box_is_dark_green_only_when_fully_inside_a_goal() -> None:
+def test_sokoban_box_is_dark_green_when_centred_on_a_goal() -> None:
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
     make_sokoban_spec_fn(level=1)(spec)
     model = spec.compile()
@@ -125,3 +129,26 @@ def test_sokoban_box_is_dark_green_only_when_fully_inside_a_goal() -> None:
     mujoco.mj_forward(model, data)  # ty: ignore[unresolved-attribute]
 
     assert visualizer.update(data)
+
+
+def test_sokoban_box_is_complete_when_comfortably_centred_on_a_goal() -> None:
+    spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
+    make_sokoban_spec_fn(level=1)(spec)
+    model = spec.compile()
+    data = mujoco.MjData(model)  # ty: ignore[unresolved-attribute]
+    visualizer = SokobanCompletionVisualizer(model)
+    box = model.geom("sokoban_box_1_collision")
+    goal = model.geom("sokoban_goal_1")
+
+    for axis, coordinate in (("x", 0), ("y", 1)):
+        joint = model.joint(f"sokoban_box_1_{axis}")
+        offset = COMPLETED_BOX_CENTER_TOLERANCE * 0.9 if axis == "x" else 0.0
+        data.qpos[model.jnt_qposadr[joint.id]] = (
+            model.geom_pos[goal.id, coordinate]
+            - model.body_pos[model.geom_bodyid[box.id], coordinate]
+            + offset
+        )
+    mujoco.mj_forward(model, data)  # ty: ignore[unresolved-attribute]
+
+    assert not visualizer.update(data)
+    np.testing.assert_allclose(model.geom_rgba[box.id], COMPLETED_BOX_RGBA)

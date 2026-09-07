@@ -27,6 +27,11 @@ BOX_MASS = 0.5
 BOX_SLIDE_DAMPING = 0.8
 BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.46
+# The physical controller cannot reliably centre a box to the 11 cm tolerance
+# implied by strict geometric containment (0.46 - 0.35).  A box whose centre is
+# in this central region is visibly settled on the goal, while a box merely
+# grazing its edge is not marked complete.
+COMPLETED_BOX_CENTER_TOLERANCE = 0.22
 WALL_HALF_HEIGHT = 0.6
 WALL_HALF_SIZE = TILE_SIZE * 0.5
 OUTER_WALL_HALF_THICKNESS = 0.1
@@ -244,9 +249,10 @@ class SokobanCompletionVisualizer:
         if geom_positions.ndim == 3:
             geom_positions = geom_positions[0]
         box_centers = geom_positions[list(self._box_ids), :2]
-        # A cube is fully within a goal only if its centre is at most this far
-        # from the goal centre in both tile axes.
-        clearance = GOAL_HALF_SIZE - BOX_HALF_SIZE
+        # Motion is continuous, unlike the discrete reference environment. A
+        # box is complete once it is comfortably settled over the centre of a
+        # goal, rather than only when its footprint is perfectly contained.
+        clearance = COMPLETED_BOX_CENTER_TOLERANCE
         completed = np.any(
             np.all(
                 np.abs(box_centers[:, None, :] - self._goal_centers[None, :, :])
@@ -308,9 +314,7 @@ def make_sokoban_spec_fn(level: int = 1) -> SceneSpecFn:
 
     def add_sokoban(spec: MjSpec) -> None:
         _add_outer_walls(spec)
-        for index, cell in enumerate(positions.walls, 1):
-            if not _is_outer_cell(cell):
-                _add_wall(spec, index=index, center=grid_to_world(cell))
+        _add_interior_wall_runs(spec, positions.walls)
         for index, cell in enumerate(positions.goals, 1):
             _add_goal(spec, index=index, center=grid_to_world(cell))
         for index, cell in enumerate(positions.boxes, 1):
@@ -325,32 +329,34 @@ def _is_outer_cell(cell: Position) -> bool:
 
 
 def _add_outer_walls(spec: "MjSpec") -> None:
-    board_half_extent = GRID_WIDTH * TILE_SIZE * 0.5
     # The discrete outer cells are walls. Put the thin physical boundary at
     # their inner edge, flush with the playable cells, rather than at the
-    # board's outer edge where it would leave a one-cell visual gap.
-    playable_half_extent = board_half_extent - TILE_SIZE
+    # board's outer edge where it would leave a one-cell visual gap.  Each side
+    # ends at its corner instead of extending through the perpendicular side:
+    # overlapping long slabs create conspicuous plus-shaped joins in the
+    # overhead render.
+    playable_half_extent = GRID_WIDTH * TILE_SIZE * 0.5 - TILE_SIZE
     boundary_center = playable_half_extent + OUTER_WALL_HALF_THICKNESS
     for name, pos, size in (
         (
             "sokoban_outer_north_wall",
             (0.0, boundary_center, WALL_HALF_HEIGHT),
-            (board_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+            (playable_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
         ),
         (
             "sokoban_outer_south_wall",
             (0.0, -boundary_center, WALL_HALF_HEIGHT),
-            (board_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
+            (playable_half_extent, OUTER_WALL_HALF_THICKNESS, WALL_HALF_HEIGHT),
         ),
         (
             "sokoban_outer_east_wall",
             (boundary_center, 0.0, WALL_HALF_HEIGHT),
-            (OUTER_WALL_HALF_THICKNESS, board_half_extent, WALL_HALF_HEIGHT),
+            (OUTER_WALL_HALF_THICKNESS, playable_half_extent, WALL_HALF_HEIGHT),
         ),
         (
             "sokoban_outer_west_wall",
             (-boundary_center, 0.0, WALL_HALF_HEIGHT),
-            (OUTER_WALL_HALF_THICKNESS, board_half_extent, WALL_HALF_HEIGHT),
+            (OUTER_WALL_HALF_THICKNESS, playable_half_extent, WALL_HALF_HEIGHT),
         ),
     ):
         body = spec.worldbody.add_body(name=name)
@@ -365,15 +371,54 @@ def _add_outer_walls(spec: "MjSpec") -> None:
         )
 
 
-def _add_wall(spec: "MjSpec", *, index: int, center: tuple[float, float]) -> None:
-    x, y = center
+def _add_interior_wall_runs(spec: "MjSpec", walls: tuple[Position, ...]) -> None:
+    """Render contiguous interior wall cells as one rectangular slab.
+
+    Individual cell cubes leave dark seams at their shared edges.  In a tilted
+    overview those seams read as plus signs, rather than as a continuous wall.
+    The collision footprint remains exactly the union of the original cells.
+    """
+    remaining = {cell for cell in walls if not _is_outer_cell(cell)}
+    index = 1
+    while remaining:
+        start = min(remaining, key=lambda cell: (cell[1], cell[0]))
+        horizontal = _wall_run(start, (1, 0), remaining)
+        vertical = _wall_run(start, (0, 1), remaining)
+        run = horizontal if len(horizontal) >= len(vertical) else vertical
+        for cell in run:
+            remaining.remove(cell)
+        _add_wall_run(spec, index=index, cells=run)
+        index += 1
+
+
+def _wall_run(
+    start: Position, direction: Position, available: set[Position]
+) -> tuple[Position, ...]:
+    cells = [start]
+    x, y = start
+    dx, dy = direction
+    while (x + dx, y + dy) in available:
+        x += dx
+        y += dy
+        cells.append((x, y))
+    return tuple(cells)
+
+
+def _add_wall_run(
+    spec: "MjSpec", *, index: int, cells: tuple[Position, ...]
+) -> None:
+    first_x, first_y = grid_to_world(cells[0])
+    last_x, last_y = grid_to_world(cells[-1])
+    x, y = ((first_x + last_x) * 0.5, (first_y + last_y) * 0.5)
+    half_x = (abs(last_x - first_x) + TILE_SIZE) * 0.5
+    half_y = (abs(last_y - first_y) + TILE_SIZE) * 0.5
     name = f"sokoban_wall_{index}"
     body = spec.worldbody.add_body(name=name)
     body.pos = (x, y, WALL_HALF_HEIGHT)
     body.add_geom(
         name=f"{name}_collision",
         type=MJGEOM_BOX,
-        size=(WALL_HALF_SIZE, WALL_HALF_SIZE, WALL_HALF_HEIGHT),
+        size=(half_x, half_y, WALL_HALF_HEIGHT),
         rgba=_WALL_RGBA,
         contype=1,
         conaffinity=1,

@@ -6,13 +6,15 @@ on the level.
 
 ## Visual legend
 
-- **Humanoid robot:** the player. The elevated overview camera is fixed above
-  the board; it does not rotate when the robot turns.
+- **Humanoid robot:** the player. The elevated camera follows behind the robot,
+  so the robot stays near the centre of the image. Image-forward is the
+  robot's forward direction; image-left and image-right match its relative
+  walk directions.
 - **Yellow cube:** a movable box not yet on a goal. It is smaller than a grid
   cell, so use its centre rather than an edge as the alignment reference.
 - **Bright green floor square:** an unoccupied goal.
-- **Dark green cube:** a box fully inside a goal. It is complete; never touch
-  or move it again.
+- **Dark green cube:** a box comfortably settled in the centre of a goal. It
+  is complete; never touch or move it again.
 - **Open floor:** traversable space between grid cells.
 - **Dark solid blocks:** walls and the board boundary. They cannot be crossed.
 
@@ -32,8 +34,8 @@ a non-goal corner: it may be impossible to recover because it cannot be pulled.
 Work on one uncompleted box at a time whenever this avoids blocking the route
 to another box.
 
-A box is complete only when it is fully inside a bright green goal. It then
-appears dark green. Leave every dark green box alone permanently, including
+A box is complete once it is comfortably centred on a bright green goal. It
+then appears dark green. Leave every dark green box alone permanently, including
 while travelling to another box.
 
 ## Response policy
