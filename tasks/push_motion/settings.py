@@ -16,7 +16,7 @@ class PushMotionSettings:
     reach_windows: int = 2
     hand_forward: float = 0.58
     hand_half_width: float = 0.16
-    hand_height: float = 0.40
+    hand_height: float = 0.30
     timeout: float = 90.0
     approach_prompt: str = "Walking forward"
     reach_prompt: str = (
