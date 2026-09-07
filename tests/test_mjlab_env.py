@@ -1,4 +1,5 @@
 from typing import Any, cast
+from unittest.mock import Mock
 
 import pytest
 import torch
@@ -13,6 +14,7 @@ from tasks.box_push.scene import (
 
 from sim.config import make_sim_env_cfg
 from sim.env import MjlabEnv, _hand_object_contacts_from_buffers
+from sim.viewer import ViserSimViewer
 
 
 def test_observation_camera_is_attached_to_torso() -> None:
@@ -21,6 +23,20 @@ def test_observation_camera_is_attached_to_torso() -> None:
     assert camera.parent_body == "robot/torso_link"
     assert camera.pos == pytest.approx((-1.931852, 0.0, 0.517638), abs=1e-6)
     assert camera.fovy == 45.0
+
+
+def test_viser_viewer_syncs_only_when_a_browser_is_connected() -> None:
+    viewer = object.__new__(ViserSimViewer)
+    viewer._server = Mock()  # type: ignore[attr-defined]
+    viewer.sync_env_to_viewer = Mock()  # type: ignore[method-assign]
+
+    viewer._server.get_clients.return_value = {}  # type: ignore[attr-defined]
+    viewer.sync()
+    viewer.sync_env_to_viewer.assert_not_called()
+
+    viewer._server.get_clients.return_value = {1: object()}  # type: ignore[attr-defined]
+    viewer.sync()
+    viewer.sync_env_to_viewer.assert_called_once()
 
 
 def test_box_push_starts_g1_directly_behind_the_box() -> None:

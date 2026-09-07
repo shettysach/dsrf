@@ -56,7 +56,8 @@ decisions and makes failures directly comparable. The batch launcher records
 each selected level separately, with the same maximum number of VLM commands.
 
 ```bash
-# All ten levels, one rollout each; headless; 20 VLM commands maximum per rollout.
+# All ten levels, one rollout each; lazy Viser viewer; 20 VLM commands maximum
+# per rollout. Use VIEWER=none for no viewer server at all.
 ./run_sokoban_videos.sh
 
 # Three independent attempts on levels 1 and 5, with a 30-command budget.

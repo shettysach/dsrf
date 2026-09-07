@@ -127,6 +127,7 @@ class VisualObservation:
     observation_id: int
     completed_command: str | None
     jpeg: bytes
+    execution_feedback: str | None = None
 
     def __post_init__(self) -> None:
         if not self.jpeg:

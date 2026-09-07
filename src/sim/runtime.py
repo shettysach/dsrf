@@ -242,7 +242,19 @@ class SimRuntime:
         pause_ms = (
             (received_at - published_at) * 1000.0 if published_at is not None else 0.0
         )
-        stats = self._execute()
+        sokoban_events = self.simulation.begin_sokoban_motion_events()
+        stats = self._execute(
+            after_step=(
+                (lambda: self.simulation.observe_sokoban_motion_events(sokoban_events))
+                if sokoban_events is not None
+                else None
+            )
+        )
+        execution_feedback = (
+            self.simulation.finish_sokoban_motion_events(sokoban_events)
+            if sokoban_events is not None
+            else None
+        )
         completed_observation_id = self.observation_id
         self.completed_commands += 1
         if getattr(self.simulation, "task_completed", False):
@@ -289,7 +301,10 @@ class SimRuntime:
         self.observation_id += 1
         if not self.publish_observations:
             return
-        render_ms, jpeg_size = self._publish_observation(completed_command=command.text)
+        render_ms, jpeg_size = self._publish_observation(
+            completed_command=command.text,
+            execution_feedback=execution_feedback,
+        )
         target_ms = stats.frames * self.simulation.step_dt * 1000.0
         realtime = target_ms / stats.elapsed_ms if stats.elapsed_ms > 0.0 else 0.0
         self.node.log(
@@ -654,7 +669,10 @@ class SimRuntime:
             )
 
     def _publish_observation(
-        self, *, completed_command: str | None
+        self,
+        *,
+        completed_command: str | None,
+        execution_feedback: str | None = None,
     ) -> tuple[float, int]:
         render_started_at = time.perf_counter()
         if self.recorder is None:
@@ -669,6 +687,7 @@ class SimRuntime:
             observation_id=self.observation_id,
             completed_command=completed_command,
             jpeg=jpeg,
+            execution_feedback=execution_feedback,
         )
         self._projection_cache = projection
         self._observation_published_at = time.perf_counter()

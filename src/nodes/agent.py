@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from dora import Node
 
@@ -107,7 +107,13 @@ class AgentLoop:
                 )
             assert self.pending_command is not None
             assert self.pending_completion is not None
-            self.client.commit(self.observation, self.pending_completion)
+            self.client.commit(
+                self.observation,
+                replace(
+                    self.pending_completion,
+                    execution_feedback=observation.execution_feedback,
+                ),
+            )
 
         self.observation = observation
         self.pending_command = None

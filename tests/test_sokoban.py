@@ -142,9 +142,9 @@ def test_sokoban_box_is_complete_when_comfortably_centred_on_a_goal() -> None:
 
     for axis, coordinate in (("x", 0), ("y", 1)):
         joint = model.joint(f"sokoban_box_1_{axis}")
-        # This placement has about 66% footprint coverage, which is visibly
-        # settled on the goal but not strictly contained by it.
-        offset = 0.35 if axis == "x" else 0.0
+        # The box centre remains inside the visible goal even though strict
+        # whole-footprint containment would reject this physical placement.
+        offset = 0.42 if axis == "x" else 0.0
         data.qpos[model.jnt_qposadr[joint.id]] = (
             model.geom_pos[goal.id, coordinate]
             - model.body_pos[model.geom_bodyid[box.id], coordinate]

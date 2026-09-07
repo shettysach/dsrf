@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from contextlib import AbstractContextManager, nullcontext
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -18,6 +19,49 @@ from tracker.state import RobotState
 if TYPE_CHECKING:
     from mjlab.envs.types import VecEnvStepReturn
     from mjlab.sim import Simulation
+
+
+@dataclass
+class SokobanMotionEvents:
+    """Collect task-relevant contact and box-motion feedback for one command."""
+
+    robot_geom_ids: frozenset[int]
+    wall_geom_ids: frozenset[int]
+    box_geom_ids: tuple[int, ...]
+    initial_box_centers: np.ndarray
+    wall_collision: bool = False
+
+    def observe(self, data: Any) -> bool:
+        pairs = data.contact.geom
+        count = data.nacon[0]
+        world_ids = data.contact.worldid
+        active = (torch.arange(pairs.shape[0], device=pairs.device) < count) & (
+            world_ids == 0
+        )
+        robot_ids = torch.tensor(tuple(self.robot_geom_ids), device=pairs.device)
+        wall_ids = torch.tensor(tuple(self.wall_geom_ids), device=pairs.device)
+        first, second = pairs.unbind(dim=-1)
+        collision = active & (
+            (torch.isin(first, robot_ids) & torch.isin(second, wall_ids))
+            | (torch.isin(second, robot_ids) & torch.isin(first, wall_ids))
+        )
+        self.wall_collision |= bool(collision.any().item())
+        return False
+
+    def feedback(self, data: Any) -> str:
+        centers = _host_array(data.geom_xpos)[list(self.box_geom_ids), :2]
+        deltas = centers - self.initial_box_centers
+        messages: list[str] = []
+        if self.wall_collision:
+            messages.append("Wall collision detected.")
+        for index, (delta_x, delta_y) in enumerate(deltas, 1):
+            if max(abs(delta_x), abs(delta_y)) >= 0.04:
+                messages.append(
+                    f"Box {index} pushed: Δx={delta_x:+.2f} m, Δy={delta_y:+.2f} m."
+                )
+        if not messages:
+            messages.append("No wall collision and no box push detected.")
+        return " ".join(messages)
 
 
 class MjlabEnv:
@@ -201,6 +245,36 @@ class MjlabEnv:
         if self._sokoban_visualizer is not None:
             self._task_completed = self._sokoban_visualizer.update(self._env.sim.data)
 
+    def begin_sokoban_motion_events(self) -> SokobanMotionEvents | None:
+        if self._task is None or self._task.name != "sokoban":
+            return None
+        model = self._env.sim.mj_model
+        box_geom_ids = _contiguous_geom_ids(
+            model, "sokoban_box_", "_collision"
+        )
+        wall_geom_ids = frozenset(
+            (*_contiguous_geom_ids(model, "sokoban_wall_", "_collision"),
+             *(model.geom(name).id for name in (
+                "sokoban_outer_north_wall_collision",
+                "sokoban_outer_south_wall_collision",
+                "sokoban_outer_east_wall_collision",
+                "sokoban_outer_west_wall_collision",
+             )))
+        )
+        centers = _host_array(self._env.sim.data.geom_xpos)[list(box_geom_ids), :2]
+        return SokobanMotionEvents(
+            robot_geom_ids=frozenset(self._robot.indexing.geom_ids.detach().cpu().tolist()),
+            wall_geom_ids=wall_geom_ids,
+            box_geom_ids=box_geom_ids,
+            initial_box_centers=centers.copy(),
+        )
+
+    def observe_sokoban_motion_events(self, events: SokobanMotionEvents) -> bool:
+        return events.observe(self._env.sim.data)
+
+    def finish_sokoban_motion_events(self, events: SokobanMotionEvents) -> str:
+        return events.feedback(self._env.sim.data)
+
     def capture_rgbd(self) -> tuple[torch.Tensor, ProjectionContext]:
         with self.compute_context():
             return self._camera_capture.capture(self.robot_state())
@@ -259,6 +333,23 @@ def _single_geom_body_id(model, geom_ids: frozenset[int], *, object_name: str) -
             f"Virtual-force object {object_name!r} must have exactly one collision geom"
         )
     return int(model.geom_bodyid[next(iter(geom_ids))])
+
+
+def _contiguous_geom_ids(model: Any, prefix: str, suffix: str) -> tuple[int, ...]:
+    ids: list[int] = []
+    index = 1
+    while True:
+        try:
+            ids.append(model.geom(f"{prefix}{index}{suffix}").id)
+        except KeyError:
+            return tuple(ids)
+        index += 1
+
+
+def _host_array(value: Any) -> np.ndarray:
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    return np.asarray(value)
 
 
 def _hand_object_contacts_from_buffers(

@@ -38,7 +38,7 @@ for level in $SOKOBAN_LEVELS; do
 
         SOKOBAN_LEVEL="$level" DEMO_VIDEO_PATH="$output_path" \
             STOP_ON_STAND=true DEMO_MAX_COMMANDS="$MAX_COMMANDS" \
-            DEMO_TIMEOUT_SECONDS="$RUN_TIMEOUT_SECONDS" VIEWER=none \
+            DEMO_TIMEOUT_SECONDS="$RUN_TIMEOUT_SECONDS" VIEWER="${VIEWER:-viser}" \
             dora run sokoban.yml &
         active_pid=$!
         status=0

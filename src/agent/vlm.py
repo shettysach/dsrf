@@ -21,6 +21,7 @@ class CommandCompletion:
     assistant_message: dict[str, Any]
     tool_call_id: str | None
     reasoning: str | None = None
+    execution_feedback: str | None = None
 
 
 class OAIChatClient:
@@ -124,7 +125,7 @@ def _append_turn(
             {
                 "role": "tool",
                 "tool_call_id": turn.completion.tool_call_id,
-                "content": "Motion completed.",
+                "content": turn.completion.execution_feedback or "Motion completed.",
             }
         )
 
@@ -175,6 +176,8 @@ def _user_message(
 ) -> dict[str, Any]:
     completed = observation.completed_command or "none (initial observation)"
     text = f"Completed command: {completed}\n\n{user_prompt}"
+    if observation.execution_feedback is not None:
+        text = f"Completed command: {completed}\nSimulator events: {observation.execution_feedback}\n\n{user_prompt}"
     if retry_feedback is not None:
         text = f"{retry_feedback}\n\n{text}"
     image_url = "data:image/jpeg;base64," + b64encode(observation.jpeg).decode("ascii")

@@ -60,11 +60,12 @@ def test_root_path_goal_arrow_round_trip() -> None:
 
 
 def test_observation_arrow_round_trip() -> None:
-    observation = VisualObservation(4, "stand", b"jpeg")
+    observation = VisualObservation(4, "stand", b"jpeg", "Wall collision detected.")
     value, metadata = observation_to_arrow(observation)
     restored = observation_from_arrow(value, metadata)
     assert restored.observation_id == observation.observation_id
     assert restored.completed_command == observation.completed_command
+    assert restored.execution_feedback == observation.execution_feedback
     assert restored.jpeg == observation.jpeg
 
 

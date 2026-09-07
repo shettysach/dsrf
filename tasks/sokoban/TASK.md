@@ -12,7 +12,7 @@ on the level.
 - **Yellow cube:** a movable box not yet on a goal. It is smaller than a grid
   cell, so use its centre rather than an edge as the alignment reference.
 - **Bright green floor square:** an unoccupied goal.
-- **Dark green cube:** a box with most of its footprint settled over a goal. It
+- **Dark green cube:** a box whose centre is within a goal square. It
   is complete; never touch or move it again.
 - **Open floor:** traversable space between grid cells.
 - **Dark solid blocks:** walls and the board boundary. They cannot be crossed.
@@ -33,7 +33,7 @@ a non-goal corner: it may be impossible to recover because it cannot be pulled.
 Work on one uncompleted box at a time whenever this avoids blocking the route
 to another box.
 
-A box is complete once most of its footprint is settled over a bright green goal. It
+A box is complete once its centre is within a bright green goal square. It
 then appears dark green. Leave every dark green box alone permanently, including
 while travelling to another box.
 

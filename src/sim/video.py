@@ -76,10 +76,10 @@ def compose_demo_frame(
                 draw, state.reasoning or "(not returned)", font, text_width, 5
             )
         ],
-        ("ARDY command", bold),
+        ("VLM command", bold),
         *[
             (line, font)
-            for line in _wrap(draw, _format_ardy(state.command), font, text_width, 4)
+            for line in _wrap(draw, _format_command(state.command), font, text_width, 4)
         ],
     ]
     line_height = font_size + 5
@@ -126,7 +126,7 @@ def _wrap(
     return lines
 
 
-def _format_ardy(command: str) -> str:
+def _format_command(command: str) -> str:
     try:
         payload = json.loads(command)
     except (json.JSONDecodeError, TypeError):
@@ -134,6 +134,8 @@ def _format_ardy(command: str) -> str:
     if not isinstance(payload, dict):
         return command
     fields = [f"motion: {payload.get('motion', 'unknown')}"]
+    if isinstance(payload.get("direction"), str):
+        fields.append(f"direction: {payload['direction']}")
     if payload.get("waypoints_2d"):
         fields.append(f"waypoints: {payload['waypoints_2d']}")
     if payload.get("end_effectors"):

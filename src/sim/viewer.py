@@ -81,6 +81,11 @@ class ViserSimViewer(ViserPlayViewer):
         self.sync()
 
     def sync(self) -> None:
+        # The runtime calls every viewer once per physics frame so the native
+        # viewer stays live. Viser renders in the browser, however, and its
+        # scene serialization is wasted until a browser client exists.
+        if not self._server.get_clients():
+            return
         self.sync_env_to_viewer()
 
     def _queue_debug_visualizers(self) -> None:

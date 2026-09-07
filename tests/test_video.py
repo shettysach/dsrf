@@ -1,6 +1,11 @@
 import numpy as np
 
-from sim.video import DemoVideoRecorder, DemoVlmState, _format_ardy, compose_demo_frame
+from sim.video import (
+    DemoVideoRecorder,
+    DemoVlmState,
+    _format_command,
+    compose_demo_frame,
+)
 
 
 def test_video_frame_overlays_a_vlm_decision() -> None:
@@ -20,7 +25,13 @@ def test_video_frame_overlays_a_vlm_decision() -> None:
 
 
 def test_ardy_command_is_formatted_for_the_overlay() -> None:
-    assert _format_ardy('{"motion":"wave","end_effectors":[]}') == "motion: wave"
+    assert _format_command('{"motion":"wave","end_effectors":[]}') == "motion: wave"
+
+
+def test_video_formats_kinematic_planner_direction() -> None:
+    assert _format_command('{"motion":"walk","direction":"left"}') == (
+        "motion: walk · direction: left"
+    )
 
 
 def test_video_marks_waypoints_and_labeled_end_effectors() -> None:

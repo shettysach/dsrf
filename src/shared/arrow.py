@@ -109,6 +109,8 @@ def observation_to_arrow(
     }
     if observation.completed_command is not None:
         metadata["completed_command"] = observation.completed_command
+    if observation.execution_feedback is not None:
+        metadata["execution_feedback"] = observation.execution_feedback
     return pa.array([observation.jpeg], type=pa.binary()), metadata
 
 
@@ -127,6 +129,11 @@ def observation_from_arrow(
             else None
         ),
         jpeg=jpeg,
+        execution_feedback=(
+            str(metadata["execution_feedback"])
+            if "execution_feedback" in metadata
+            else None
+        ),
     )
 
 

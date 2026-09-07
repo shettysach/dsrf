@@ -27,10 +27,10 @@ BOX_MASS = 0.5
 BOX_SLIDE_DAMPING = 0.8
 BOX_FRICTION = (0.75, 0.01, 0.001)
 GOAL_HALF_SIZE = 0.46
-# Continuous pushes do not stop perfectly at a cell centre.  Count a box as
-# completed once most of its footprint covers a goal, rather than requiring
-# strict containment or an arbitrarily precise centre position.
-COMPLETED_BOX_MIN_GOAL_COVERAGE = 0.60
+# Continuous pushes do not stop perfectly at a cell centre.  The visible green
+# square is the interaction region, so a box is complete when its centre is in
+# that square; this is stable under small physical push error and matches the
+# visual rule the VLM can apply.
 WALL_HALF_HEIGHT = 0.6
 WALL_HALF_SIZE = TILE_SIZE * 0.5
 OUTER_WALL_HALF_THICKNESS = 0.1
@@ -248,14 +248,12 @@ class SokobanCompletionVisualizer:
         if geom_positions.ndim == 3:
             geom_positions = geom_positions[0]
         box_centers = geom_positions[list(self._box_ids), :2]
-        # The box and goal are axis-aligned planar squares. Measure how much of
-        # each box footprint overlaps every goal; this matches what is visible
-        # in the camera far better than a brittle centre-point tolerance.
+        # The goal square itself is the visual completion region.  Requiring
+        # whole-footprint overlap made diagonal but visibly valid placements
+        # remain yellow.
         delta = np.abs(box_centers[:, None, :] - self._goal_centers[None, :, :])
-        overlap = np.clip(BOX_HALF_SIZE + GOAL_HALF_SIZE - delta, 0.0, None)
-        coverage = overlap.prod(axis=2) / (2.0 * BOX_HALF_SIZE) ** 2
         completed = np.any(
-            coverage >= COMPLETED_BOX_MIN_GOAL_COVERAGE,
+            np.all(delta <= GOAL_HALF_SIZE, axis=2),
             axis=1,
         )
         for geom_id, is_completed in zip(self._box_ids, completed, strict=True):
