@@ -49,8 +49,6 @@ use it to infer the current positions of the robot or boxes.
 
 - Use `walk` with one relative direction (`forward`, `backward`, `left`, or
   `right`) for a short, controlled reposition or push.
-- Use `walk` with image waypoints only when a precise free-floor destination is
-  clearer than a relative direction. Do not combine a waypoint and direction.
 - Use `stand` only after every box is dark green and every goal is occupied.
 
 After each push, reassess the board image before choosing the next action.
