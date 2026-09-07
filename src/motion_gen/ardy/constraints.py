@@ -17,10 +17,24 @@ _JOINT_NAMES = {
     "left_foot": "left_toe_base",
     "right_foot": "right_toe_base",
 }
-# ARDY's G1 converter maps MuJoCo's +X (the palm collision capsule's long
-# axis) into ARDY's +Z.  Hand targets use semantic local coordinates
-# (forward, left, up), so this is the axis that must point into a surface.
-_PALM_FORWARD_AXIS_ARDY = torch.tensor((0.0, 0.0, 1.0))
+# The G1 rubber hand is long along MuJoCo-link +X and broad along +Z, so its
+# palm plane is X/Z and its normal is along Y.  ARDY maps MuJoCo link axes
+# (X, Y, Z) to (Z, X, Y).  The mirrored meshes therefore have opposite
+# palm-normal axes, while both point their fingers along ARDY-local +Z.
+#
+# A palm normal alone leaves wrist roll unspecified.  These two axes define a
+# complete physical palm frame so that a requested normal can be paired with
+# an upright finger direction without inheriting arbitrary reference twist.
+_PALM_FRAME_AXES_ARDY = {
+    "left_hand": (
+        torch.tensor((-1.0, 0.0, 0.0)),
+        torch.tensor((0.0, 0.0, 1.0)),
+    ),
+    "right_hand": (
+        torch.tensor((1.0, 0.0, 0.0)),
+        torch.tensor((0.0, 0.0, 1.0)),
+    ),
+}
 _WRIST_ROTATION_JOINTS = {
     "left_hand": "left_wrist_yaw_skel",
     "right_hand": "right_wrist_yaw_skel",
@@ -334,7 +348,7 @@ def _with_palm_normal(
     target: EndEffectorTarget,
     heading: torch.Tensor,
 ) -> torch.Tensor:
-    """Align a hand's palm-forward axis, retaining ARDY's reference twist."""
+    """Set a complete upright palm frame for a requested facing direction."""
     if target.palm_normal is None:
         return rotations
     try:
@@ -354,41 +368,43 @@ def _with_palm_normal(
         dim=0,
     )
     joint = skeleton.bone_order_names.index(joint_name)
-    current_rotation = rotations[0, joint]
-    source_axis = current_rotation @ _PALM_FORWARD_AXIS_ARDY.to(
-        device=rotations.device, dtype=rotations.dtype
+    local_normal, local_fingers = (
+        axis.to(device=rotations.device, dtype=rotations.dtype)
+        for axis in _PALM_FRAME_AXES_ARDY[target.name]
     )
-    alignment = _rotation_between_unit_vectors(source_axis, desired_axis)
+    desired_fingers = _project_onto_plane(
+        torch.tensor((0.0, 1.0, 0.0), dtype=rotations.dtype, device=rotations.device),
+        desired_axis,
+    )
+    if float(torch.linalg.vector_norm(desired_fingers)) < 1e-6:
+        # If the palm itself points vertically, use robot-forward as the
+        # finger direction so the frame remains deterministic.
+        robot_forward = _upright_rotation(heading, rotations) @ torch.tensor(
+            (0.0, 0.0, 1.0), dtype=rotations.dtype, device=rotations.device
+        )
+        desired_fingers = _project_onto_plane(robot_forward, desired_axis)
+    desired_fingers = torch.nn.functional.normalize(desired_fingers, dim=0)
+
+    local_frame = _frame_from_normal_and_fingers(local_normal, local_fingers)
+    desired_frame = _frame_from_normal_and_fingers(desired_axis, desired_fingers)
     edited = rotations.clone()
-    edited[0, joint] = alignment @ current_rotation
+    edited[0, joint] = desired_frame @ local_frame.T
     return edited
 
 
-def _rotation_between_unit_vectors(
-    source: torch.Tensor, target: torch.Tensor
+def _project_onto_plane(vector: torch.Tensor, normal: torch.Tensor) -> torch.Tensor:
+    normal = torch.nn.functional.normalize(normal, dim=0)
+    return vector - torch.dot(vector, normal) * normal
+
+
+def _frame_from_normal_and_fingers(
+    normal: torch.Tensor, fingers: torch.Tensor
 ) -> torch.Tensor:
-    """Return the shortest proper rotation from ``source`` to ``target``."""
-    source = torch.nn.functional.normalize(source, dim=0)
-    target = torch.nn.functional.normalize(target, dim=0)
-    cosine = torch.clamp(torch.dot(source, target), -1.0, 1.0)
-    cross = torch.linalg.cross(source, target)
-    sine = torch.linalg.vector_norm(cross)
-    identity = torch.eye(3, dtype=source.dtype, device=source.device)
-    if float(sine) < 1e-6:
-        if float(cosine) > 0.0:
-            return identity
-        basis = torch.tensor((1.0, 0.0, 0.0), dtype=source.dtype, device=source.device)
-        if abs(float(source[0])) > 0.9:
-            basis = torch.tensor(
-                (0.0, 1.0, 0.0), dtype=source.dtype, device=source.device
-            )
-        axis = torch.nn.functional.normalize(torch.linalg.cross(source, basis), dim=0)
-        return 2.0 * torch.outer(axis, axis) - identity
-    skew = torch.zeros((3, 3), dtype=source.dtype, device=source.device)
-    skew[0, 1], skew[0, 2] = -cross[2], cross[1]
-    skew[1, 0], skew[1, 2] = cross[2], -cross[0]
-    skew[2, 0], skew[2, 1] = -cross[1], cross[0]
-    return identity + skew + skew @ skew * ((1.0 - cosine) / (sine * sine))
+    """Build a right-handed frame with columns (normal, fingers, side)."""
+    normal = torch.nn.functional.normalize(normal, dim=0)
+    fingers = torch.nn.functional.normalize(_project_onto_plane(fingers, normal), dim=0)
+    side = torch.linalg.cross(normal, fingers)
+    return torch.stack((normal, fingers, side), dim=1)
 
 
 def global_end_effector_targets(

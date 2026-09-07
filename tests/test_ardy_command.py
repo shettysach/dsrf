@@ -206,24 +206,44 @@ def test_native_ee_translates_wrist_and_hand_and_preserves_root() -> None:
     assert received["index"]["global_root_heading"][0].tolist() == [128]
 
 
-def test_palm_normal_aligns_ardy_palm_forward_axis() -> None:
+@pytest.mark.parametrize(
+    ("hand", "wrist_name", "local_normal"),
+    (
+        ("left_hand", "left_wrist_yaw_skel", (-1.0, 0.0, 0.0)),
+        ("right_hand", "right_wrist_yaw_skel", (1.0, 0.0, 0.0)),
+    ),
+)
+def test_palm_normal_builds_complete_upright_palm_frame(
+    hand: str, wrist_name: str, local_normal: tuple[float, float, float]
+) -> None:
     motion_rep, _ = _conditions()
     rotations = (
         torch.eye(3).expand(1, len(motion_rep.skeleton.bone_order_names), 3, 3).clone()
     )
-    target = EndEffectorTarget(
-        "right_hand", (0.4, 0.0, 0.2), palm_normal=(1.0, 0.0, 0.0)
-    )
+    target = EndEffectorTarget(hand, (0.4, 0.0, 0.2), palm_normal=(1.0, 0.0, 0.0))
 
     aligned = _with_palm_normal(
         rotations, motion_rep.skeleton, target, torch.tensor(math.pi / 2.0)
     )
 
-    wrist = motion_rep.skeleton.bone_order_names.index("right_wrist_yaw_skel")
-    # At +90 degrees, ARDY's local forward points along world +X.
+    wrist = motion_rep.skeleton.bone_order_names.index(wrist_name)
+    wrist_rotation = aligned[0, wrist]
+    # At +90 degrees, the palm faces world +X while the fingers remain upright.
     torch.testing.assert_close(
-        aligned[0, wrist] @ torch.tensor([0.0, 0.0, 1.0]),
+        wrist_rotation @ torch.tensor(local_normal),
         torch.tensor([1.0, 0.0, 0.0]),
+        atol=1e-6,
+        rtol=1e-6,
+    )
+    torch.testing.assert_close(
+        wrist_rotation @ torch.tensor([0.0, 0.0, 1.0]),
+        torch.tensor([0.0, 1.0, 0.0]),
+        atol=1e-6,
+        rtol=1e-6,
+    )
+    torch.testing.assert_close(
+        torch.linalg.det(wrist_rotation),
+        torch.tensor(1.0),
         atol=1e-6,
         rtol=1e-6,
     )
