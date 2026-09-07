@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Protocol
 
 import mujoco.viewer
 import torch
+import viser
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 from mjlab.viewer.native.visualizer import MujocoNativeDebugVisualizer
 
@@ -69,10 +71,15 @@ class ViserSimViewer(ViserPlayViewer):
         env: EnvProtocol,
         reference: MotionReference | None = None,
     ) -> None:
+        # Viser itself defaults to 8080, which is DSRF's VLM API port. Keep the
+        # display server separate; an explicit VISER_PORT remains available for
+        # remote or multi-run setups.
+        port = int(os.environ.get("VISER_PORT", "8081"))
         super().__init__(
             env,
             _ViewerOnlyPolicy(),
             frame_rate=float(REFERENCE_HZ),
+            viser_server=viser.ViserServer(port=port, label="DSRF"),
         )
         self._reference_ghost = (
             ReferenceGhost(env, reference) if reference is not None else None

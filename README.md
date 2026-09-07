@@ -60,6 +60,9 @@ each selected level separately, with the same maximum number of VLM commands.
 # per rollout. Use VIEWER=none for no viewer server at all.
 ./run_sokoban_videos.sh
 
+# The optional Viser scene viewer is at http://localhost:8081 by default.
+# Override its port with VISER_PORT when needed.
+
 # Three independent attempts on levels 1 and 5, with a 30-command budget.
 SOKOBAN_LEVELS="1 5" RUN_COUNT=3 MAX_COMMANDS=30 ./run_sokoban_videos.sh /tmp/sokoban-videos
 ```
