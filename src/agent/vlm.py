@@ -22,6 +22,7 @@ class CommandCompletion:
     tool_call_id: str | None
     reasoning: str | None = None
     execution_feedback: str | None = None
+    finished: bool = False
 
 
 class OAIChatClient:
@@ -33,6 +34,7 @@ class OAIChatClient:
         system_prompt: str,
         user_prompt: str,
         tool: dict[str, Any],
+        finish_tool: dict[str, Any] | None = None,
         recent_turns: int = 3,
     ) -> None:
         if not system_prompt.strip():
@@ -47,6 +49,10 @@ class OAIChatClient:
         self.user_prompt = user_prompt
         self.tool = tool
         self.tool_name = _tool_name(tool)
+        self.finish_tool = finish_tool
+        self.finish_tool_name = (
+            _tool_name(finish_tool) if finish_tool is not None else None
+        )
         self.recent_turns = recent_turns
         self._history: list[_ConversationTurn] = []
 
@@ -78,12 +84,19 @@ class OAIChatClient:
             "messages": messages,
             "temperature": 0,
         }
+        tools = [self.tool]
+        if self.finish_tool is not None:
+            tools.append(self.finish_tool)
         payload.update(
-            tools=[self.tool],
-            tool_choice={
-                "type": "function",
-                "function": {"name": self.tool_name},
-            },
+            tools=tools,
+            tool_choice=(
+                "required"
+                if self.finish_tool is not None
+                else {
+                    "type": "function",
+                    "function": {"name": self.tool_name},
+                }
+            ),
             parallel_tool_calls=False,
         )
 
@@ -102,7 +115,7 @@ class OAIChatClient:
             raise RuntimeError("llama-server returned no assistant message") from exc
         if not isinstance(message, dict):
             raise RuntimeError("llama-server returned an invalid assistant message")
-        return _tool_completion(message, self.tool_name)
+        return _tool_completion(message, self.tool_name, self.finish_tool_name)
 
     def commit(
         self,
@@ -130,7 +143,11 @@ def _append_turn(
         )
 
 
-def _tool_completion(message: dict[str, Any], tool_name: str) -> CommandCompletion:
+def _tool_completion(
+    message: dict[str, Any],
+    tool_name: str,
+    finish_tool_name: str | None = None,
+) -> CommandCompletion:
     tool_calls = message.get("tool_calls")
     if not isinstance(tool_calls, list) or len(tool_calls) != 1:
         raise RuntimeError("llama-server returned no motion tool call")
@@ -143,7 +160,7 @@ def _tool_completion(message: dict[str, Any], tool_name: str) -> CommandCompleti
     function = tool_call.get("function")
     if (
         not isinstance(function, dict)
-        or function.get("name") != tool_name
+        or function.get("name") not in {tool_name, finish_tool_name}
         or not isinstance(function.get("arguments"), str)
     ):
         raise RuntimeError("llama-server returned an invalid motion tool call")
@@ -157,7 +174,11 @@ def _tool_completion(message: dict[str, Any], tool_name: str) -> CommandCompleti
     if reasoning is not None and not isinstance(reasoning, str):
         reasoning = str(reasoning)
     return CommandCompletion(
-        function["arguments"], assistant_message, tool_call_id, reasoning
+        function["arguments"],
+        assistant_message,
+        tool_call_id,
+        reasoning,
+        finished=function["name"] == finish_tool_name,
     )
 
 

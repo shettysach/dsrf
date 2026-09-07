@@ -118,6 +118,9 @@ class AgentConfig:
     vlm_recent_turns: int = dataclass_field(
         default=3, metadata={"env": "VLM_RECENT_TURNS"}
     )
+    vlm_enable_finished: bool = dataclass_field(
+        default=False, metadata={"env": "VLM_ENABLE_FINISHED"}
+    )
     agent: Literal["vlm", "script"] = "vlm"
     script_task: str | None = None
     script_prompt: str | None = None

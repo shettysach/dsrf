@@ -11,6 +11,7 @@ nodes:
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
       VLM_USER_PROMPT: prompt/PLANNER_USER.md
       VLM_RECENT_TURNS: "${VLM_RECENT_TURNS:-3}"
+      VLM_ENABLE_FINISHED: "true"
       MOTION_GENERATOR: kinematic_planner
       DEMO_MAX_COMMANDS: "${DEMO_MAX_COMMANDS:-}"
     inputs:

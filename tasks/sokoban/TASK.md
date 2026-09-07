@@ -39,9 +39,10 @@ while travelling to another box.
 
 ## Response policy
 
-Use the provided kinematic-planner tool for every response. Choose one safe,
-deliberate command from the current image; do not describe an action in ordinary
-text.
+Use the kinematic-planner tool for every unfinished board. Call the `finished`
+tool only after every box is dark green and every goal is occupied. Choose one
+safe, deliberate action from the current image; do not describe an action in
+ordinary text.
 
 The final user image in the conversation is the current board state. An earlier
 initial-board image may be retained in the conversation only as context; do not
@@ -49,6 +50,6 @@ use it to infer the current positions of the robot or boxes.
 
 - Use `walk` with one relative direction (`forward`, `backward`, `left`, or
   `right`) for a short, controlled reposition or push.
-- Use `stand` only after every box is dark green and every goal is occupied.
+- Use `stand` only as a nonterminal idle action. It does not complete the task.
 
 After each push, reassess the board image before choosing the next action.

@@ -5,6 +5,7 @@ import numpy as np
 
 from agent.ardy import ARDY_TOOL
 from agent.kinematic_planner import (
+    FINISHED_TOOL,
     KINEMATIC_PLANNER_TOOL,
 )
 from agent.vlm import CommandCompletion, OAIChatClient
@@ -151,6 +152,39 @@ def test_llama_client_uses_the_selected_kinematic_tool(monkeypatch) -> None:
     assert completion.command == '{"motion":"walk","direction":"left"}'
     assert posted[0]["tools"] == [KINEMATIC_PLANNER_TOOL]
     assert posted[0]["tool_choice"]["function"]["name"] == "kinematic_planner_command"
+
+
+def test_llama_client_allows_sokoban_to_call_the_finished_tool(monkeypatch) -> None:
+    posted: list[dict[str, Any]] = []
+    response = {
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "finished", "arguments": "{}"},
+            }
+        ]
+    }
+
+    def urlopen(request, timeout):
+        posted.append(json.loads(request.data))
+        return _Response(response)
+
+    monkeypatch.setattr("agent.vlm.urllib.request.urlopen", urlopen)
+    client = OAIChatClient(
+        base_url="http://127.0.0.1:8080",
+        timeout=12.0,
+        system_prompt="system",
+        user_prompt="user",
+        tool=KINEMATIC_PLANNER_TOOL,
+        finish_tool=FINISHED_TOOL,
+    )
+
+    completion = client.complete(VisualObservation(0, None, b"jpeg"))
+
+    assert completion.finished is True
+    assert posted[0]["tools"] == [KINEMATIC_PLANNER_TOOL, FINISHED_TOOL]
+    assert posted[0]["tool_choice"] == "required"
 
 
 def test_llama_client_uses_one_current_image_and_bounded_text_history(
@@ -401,8 +435,36 @@ def test_agent_command_without_waypoint_bypasses_grounding() -> None:
     )
     assert command.motion == "stand"
     assert command.target_xys == ()
-    assert command.terminal is True
+    assert command.terminal is False
     assert [output_id for output_id, _, _ in node.outputs] == ["command"]
+
+
+def test_agent_ends_only_when_the_vlm_calls_finished() -> None:
+    node = _Node(
+        [
+            _observation_event(VisualObservation(0, None, b"jpeg")),
+            {"type": "STOP"},
+        ]
+    )
+    client = _Client(
+        [
+            CommandCompletion(
+                "{}",
+                {"role": "assistant", "tool_calls": []},
+                "call_1",
+                finished=True,
+            )
+        ]
+    )
+
+    AgentLoop(cast(Any, node), cast(Any, client), command_mode="direction").run()
+
+    command = agent_command_from_arrow(
+        node.outputs[0][1], cast(Any, node.outputs[0][2]["metadata"])
+    )
+    assert command.text == "finished"
+    assert command.motion == "stand"
+    assert command.terminal is True
 
 
 def test_agent_grounds_end_effector_before_sending_command() -> None:

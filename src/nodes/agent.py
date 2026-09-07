@@ -6,9 +6,7 @@ from dataclasses import dataclass, replace
 from dora import Node
 
 from agent.ardy import ARDY_TOOL
-from agent.kinematic_planner import (
-    KINEMATIC_PLANNER_TOOL,
-)
+from agent.kinematic_planner import FINISHED_TOOL, KINEMATIC_PLANNER_TOOL
 from agent.vlm import CommandCompletion, OAIChatClient
 from motion_gen.ardy.parser import parse_ardy_command
 from motion_gen.kinematic_planner.parser import parse_kinematic_planner_command
@@ -247,8 +245,29 @@ class AgentLoop:
             )
             raise
 
-        command = completion.command
         vlm_ms = (time.perf_counter() - started_at) * 1000.0
+        if completion.finished:
+            self.node.log(
+                "info",
+                f"[OBS {observation_id}] VLM finished the task vlm_ms={vlm_ms:.1f}",
+                target="dsrf.agent.vlm",
+                fields={
+                    "event": "vlm_finished",
+                    "observation_id": str(observation_id),
+                    "vlm_ms": f"{vlm_ms:.1f}",
+                    "jpeg_kb": f"{len(self.observation.jpeg) / 1024.0:.1f}",
+                },
+            )
+            self._send(
+                "finished",
+                motion="stand",
+                target_xys=(),
+                completion=completion,
+                terminal=True,
+            )
+            return
+
+        command = completion.command
         self.node.log(
             "info",
             f"[OBS {observation_id}] VLM command: {command!r} "
@@ -344,7 +363,7 @@ class AgentLoop:
         assert self.observation is not None
         if terminal is None:
             terminal = completion is not None and (
-                motion == "stand" or self._at_vlm_turn_limit
+                completion.finished or self._at_vlm_turn_limit
             )
         command = AgentCommand(
             self.observation.observation_id,
@@ -399,6 +418,7 @@ def main() -> None:
         system_prompt=cfg.system_prompt.read_text(encoding="utf-8"),
         user_prompt=cfg.user_prompt.read_text(encoding="utf-8"),
         tool=(KINEMATIC_PLANNER_TOOL if cfg.command_mode == "direction" else ARDY_TOOL),
+        finish_tool=(FINISHED_TOOL if cfg.vlm_enable_finished else None),
         recent_turns=cfg.vlm_recent_turns,
     )
     AgentLoop(

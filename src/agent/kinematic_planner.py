@@ -28,3 +28,20 @@ KINEMATIC_PLANNER_TOOL = {
         },
     },
 }
+
+
+FINISHED_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "finished",
+        "description": (
+            "End the task. Call this only when every Sokoban box is dark green "
+            "and every goal is occupied."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {},
+        },
+    },
+}
