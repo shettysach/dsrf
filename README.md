@@ -153,9 +153,9 @@ TEXT_ENCODER_MODEL=/path/to/encoder \
 dora run push_motion_script.yml
 ```
 
-This uses ARDY's plain text-to-motion path: there are no root, hand, wrist, or
-palm-orientation constraints. The green line at x=6 m is visual-only; change
-it with `PUSH_MOTION_GOAL_X` if desired.
+This uses only two ARDY root waypoints: x=2 m and the green line at x=6 m.
+There are no hand, wrist, palm-orientation, or pose constraints. Change them
+with `PUSH_MOTION_APPROACH_X` and `PUSH_MOTION_GOAL_X`.
 
 ## Constraint grounding
 

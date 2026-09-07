@@ -18,6 +18,6 @@ def test_push_motion_uses_plain_text_generation_without_targets() -> None:
     command = script.next_command(0)
 
     assert command is not None
-    assert command.target_xys == ()
+    assert command.target_xys == ((2.0, 0.0), (6.0, 0.0))
     assert command.end_effectors == ()
     assert command.contact_goal is None
