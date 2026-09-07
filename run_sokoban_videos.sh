@@ -8,7 +8,7 @@ VIDEO_DIR="${1:-${VIDEO_DIR:-./videos/sokoban-runs}}"
 RUN_COUNT="${RUN_COUNT:-1}"
 MAX_COMMANDS="${MAX_COMMANDS:-20}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-600}"
-SOKOBAN_LEVELS="${SOKOBAN_LEVELS:-1 2 3 4 5 6 7 8 9 10}"
+SOKOBAN_LEVELS="${SOKOBAN_LEVELS:-1 2 3 4 5}"
 
 mkdir -p "$VIDEO_DIR"
 
@@ -38,7 +38,7 @@ for level in $SOKOBAN_LEVELS; do
 
         SOKOBAN_LEVEL="$level" DEMO_VIDEO_PATH="$output_path" \
             STOP_ON_STAND=true DEMO_MAX_COMMANDS="$MAX_COMMANDS" \
-            DEMO_TIMEOUT_SECONDS="$RUN_TIMEOUT_SECONDS" VIEWER="${VIEWER:-viser}" \
+            DEMO_TIMEOUT_SECONDS="$RUN_TIMEOUT_SECONDS" VIEWER="${VIEWER:-none}" \
             dora run sokoban.yml &
         active_pid=$!
         status=0

@@ -28,7 +28,9 @@ def test_catalog_contains_sokoban() -> None:
     assert task.robot_initial_rot == pytest.approx(
         (0.7071067811865476, 0.0, 0.0, 0.7071067811865475)
     )
-    assert task.observation_camera.world_position == (0.5, -4.5, 4.2)
+    assert task.observation_camera.world_position == pytest.approx(
+        (0.5, 0.5 - 6.0 / np.sqrt(2.0), 6.0 / np.sqrt(2.0))
+    )
     assert task.observation_camera.world_lookat == (0.5, 0.5, 0.0)
     assert task.observation_camera.follow_robot_translation
 

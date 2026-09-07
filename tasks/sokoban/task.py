@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from math import sqrt
 
 from tasks.spec import ObservationCameraSpec, SceneSpecFn, TaskSpec
 
@@ -22,19 +23,25 @@ def _robot_start() -> tuple[float, float, float]:
     return (*grid_to_world(level_positions(get_level(_LEVEL)).player), 0.76)
 
 
+def _observation_camera() -> ObservationCameraSpec:
+    x, y, _ = _robot_start()
+    offset = 6.0 / sqrt(2.0)
+    return ObservationCameraSpec(
+        # Match MJLab's default viewer angle (-45° elevation, 90° azimuth), but
+        # stand one metre farther back than its default. Translate with the
+        # robot while retaining this stable world orientation.
+        world_position=(x, y - offset, offset),
+        world_lookat=(x, y, 0.0),
+        follow_robot_translation=True,
+        fovy=62.0,
+    )
+
+
 TASK = TaskSpec(
     name="sokoban",
     objective="Push every yellow box onto a separate green goal region.",
     make_scene=_make_scene,
     robot_initial_pos=_robot_start(),
     robot_initial_rot=_FACING_BOARD_QUAT,
-    observation_camera=ObservationCameraSpec(
-        # Translate with the robot while retaining this world orientation. This
-        # keeps the screen axes stable when the robot turns and provides a
-        # closer, less top-down view than the original fixed overview.
-        world_position=(0.5, -4.5, 4.2),
-        world_lookat=(0.5, 0.5, 0.0),
-        follow_robot_translation=True,
-        fovy=62.0,
-    ),
+    observation_camera=_observation_camera(),
 )

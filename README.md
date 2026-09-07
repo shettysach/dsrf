@@ -56,12 +56,9 @@ decisions and makes failures directly comparable. The batch launcher records
 each selected level separately, with the same maximum number of VLM commands.
 
 ```bash
-# All ten levels, one rollout each; lazy Viser viewer; 20 VLM commands maximum
-# per rollout. Use VIEWER=none for no viewer server at all.
+# The first five levels, one rollout each; no viewer; 20 VLM commands maximum
+# per rollout. Set SOKOBAN_LEVELS explicitly to choose another subset.
 ./run_sokoban_videos.sh
-
-# The optional Viser scene viewer is at http://localhost:8081 by default.
-# Override its port with VISER_PORT when needed.
 
 # Three independent attempts on levels 1 and 5, with a 30-command budget.
 SOKOBAN_LEVELS="1 5" RUN_COUNT=3 MAX_COMMANDS=30 ./run_sokoban_videos.sh /tmp/sokoban-videos
