@@ -13,13 +13,17 @@ class PushMotionSettings:
     goal_x: float = 6.0
     navigation_speed: float = 0.4
     push_speed: float = 0.15
-    reach_windows: int = 1
+    reach_windows: int = 2
     timeout: float = 90.0
     stall_seconds: float = 4.0
     progress_distance: float = 0.02
-    approach_prompt: str = "walk forward"
-    reach_prompt: str = "stand and extend both arms straight forward"
-    push_prompt: str = "walk forward with both arms held forward"
+    approach_prompt: str = "Walking forward"
+    reach_prompt: str = (
+        "A person reaches out forwards, fully extending arms to push a box"
+    )
+    push_prompt: str = (
+        "A person walks forwards with both arms fully extended to push a box"
+    )
 
     @classmethod
     def from_env(cls) -> "PushMotionSettings":
@@ -41,8 +45,6 @@ class PushMotionSettings:
             self.navigation_speed,
             self.push_speed,
             self.timeout,
-            self.stall_seconds,
-            self.progress_distance,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Push-motion waypoints must be finite")
@@ -55,8 +57,6 @@ class PushMotionSettings:
                     self.navigation_speed,
                     self.push_speed,
                     self.timeout,
-                    self.stall_seconds,
-                    self.progress_distance,
                 )
             )
             or self.reach_windows < 1

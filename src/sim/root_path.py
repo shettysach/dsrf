@@ -31,8 +31,6 @@ class RootPathController:
         self.phase = "approach"
         self.elapsed = self.phase_elapsed = 0.0
         self.reason = ""
-        self._progress_time = 0.0
-        self._progress_distance = self.remaining(state)
 
     @property
     def finished(self) -> bool:
@@ -55,8 +53,6 @@ class RootPathController:
     def _transition(self, phase: str, state: RootPathState) -> None:
         self.phase = phase
         self.phase_elapsed = 0.0
-        self._progress_time = self.elapsed
-        self._progress_distance = self.remaining(state)
 
     def update(self, state: RootPathState, dt: float) -> bool:
         if self.finished:
@@ -76,12 +72,6 @@ class RootPathController:
         elif self.phase == "push" and self.remaining(state) <= 0.10:
             self.phase, self.reason = "done", "Reached the root-path goal"
 
-        if self.phase in {"approach", "push"}:
-            distance = self.remaining(state)
-            if self._progress_distance - distance >= self.config.progress_distance:
-                self._progress_time, self._progress_distance = self.elapsed, distance
-            elif self.elapsed - self._progress_time >= self.config.stall_seconds:
-                self.phase, self.reason = "failed", "No meaningful base progress"
         return self.finished
 
     def targets(
