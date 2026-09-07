@@ -49,3 +49,14 @@ def test_push_motion_carries_palm_targets_with_the_base() -> None:
     np.testing.assert_allclose(left.target_xyz, (0.892, 0.16, 0.40))
     assert left.palm_normal == (1.0, 0.0, 0.0)
     assert not samples[-1].root_upright
+
+
+def test_push_motion_does_not_force_an_upright_root_during_reach() -> None:
+    command = PushMotionScript("execute the bilateral push motion").next_command(0)
+    assert command is not None and command.push_motion_goal is not None
+    controller = PushMotionController(
+        command.push_motion_goal, _state(2.0), window_seconds=2.08
+    )
+    controller.phase = "reach"
+
+    assert not controller.targets(_state(2.0), frames=52, fps=25.0)[-1].root_upright

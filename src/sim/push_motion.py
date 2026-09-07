@@ -137,10 +137,10 @@ class PushMotionController:
                     frame,
                     (float(local_root[0]), float(local_root[1])),
                     hands,
-                    # The reach is stationary, so an upright torso is useful.
-                    # While walking, preserve ARDY's learned pelvis pitch/roll
-                    # for balance instead of forcing a rigid upright root.
-                    root_upright=self.phase == "reach",
+                    # Preserve ARDY's learned pelvis pitch/roll in every phase.
+                    # The arm targets constrain the push pose without rigidly
+                    # overriding the root orientation.
+                    root_upright=False,
                 )
             )
         return tuple(samples)
