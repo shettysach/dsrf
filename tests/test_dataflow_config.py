@@ -74,6 +74,15 @@ def test_push_script_dataflow_runs_one_observation_driven_motion() -> None:
     assert "observation" in nodes["sim"]["outputs"]
 
 
+def test_push_motion_dataflow_uses_the_contact_free_task() -> None:
+    descriptor = yaml.safe_load(Path("push_motion_script.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["SCRIPT_TASK"] == "push_motion"
+    assert nodes["sim"]["env"]["TASK"] == "push_motion"
+    assert "PUSH_WELD" not in nodes["sim"]["env"]
+
+
 def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     descriptor = yaml.safe_load(Path("sokoban.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}

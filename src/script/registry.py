@@ -4,6 +4,7 @@ from script.interface import TaskScript
 from script.tasks.arms_hold import ArmsHoldScript
 from script.tasks.prompt import PromptScript
 from script.tasks.push import PushScript
+from script.tasks.push_motion import PushMotionScript
 
 
 def create_task_script(task_name: str, prompt: str) -> TaskScript:
@@ -11,6 +12,8 @@ def create_task_script(task_name: str, prompt: str) -> TaskScript:
     match task_name:
         case "box_push":
             return PushScript(prompt=prompt)
+        case "push_motion":
+            return PushMotionScript(prompt=prompt)
         case "prompt":
             return PromptScript(prompt=prompt)
         case "arms_hold":

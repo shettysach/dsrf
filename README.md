@@ -142,6 +142,22 @@ These pacing defaults require physical validation.
 This implementation is intentionally limited to the scripted, aligned planar
 box push. The VLM tool interface and other one-window commands are unchanged.
 
+### Contact-free push motion
+
+For the same bilateral push gesture without a box, contact requirement, weld,
+or virtual-force assistance, run:
+
+```bash
+CHECKPOINTS_DIR=/path/to/checkpoints \
+TEXT_ENCODER_MODEL=/path/to/encoder \
+dora run push_motion_script.yml
+```
+
+The script walks to x=2 m, reaches a bilateral palms-forward pose, then carries
+that pose while walking to the green line at x=6 m. Configure those locations
+with `PUSH_MOTION_APPROACH_X` and `PUSH_MOTION_GOAL_X`; use
+`PUSH_MOTION_NAVIGATION_SPEED` and `PUSH_MOTION_SPEED` to tune pacing.
+
 ## Constraint grounding
 
 The simulator publishes RGB-only observations. When a VLM command contains one

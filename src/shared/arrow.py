@@ -14,6 +14,7 @@ from shared.messages import (
     GroundingRequest,
     GroundingResult,
     PipelineError,
+    PushMotionGoal,
     VisualObservation,
 )
 
@@ -37,6 +38,8 @@ def agent_command_to_arrow(
         metadata["terminal"] = "true"
     if command.contact_goal is not None:
         metadata["contact_goal"] = json.dumps(asdict(command.contact_goal))
+    if command.push_motion_goal is not None:
+        metadata["push_motion_goal"] = json.dumps(asdict(command.push_motion_goal))
     return pa.array([command.text], type=pa.string()), metadata
 
 
@@ -51,6 +54,7 @@ def agent_command_from_arrow(value: pa.Array, metadata: dict[str, Any]) -> Agent
         reasoning=(str(metadata["reasoning"]) if "reasoning" in metadata else None),
         terminal=metadata.get("terminal") == "true",
         contact_goal=_contact_goal(metadata),
+        push_motion_goal=_push_motion_goal(metadata),
     )
 
 
@@ -71,6 +75,28 @@ def _contact_goal(metadata: dict[str, Any]) -> ContactGoal | None:
         ),
         goal_half_size=value["goal_half_size"],
         maintain_contact=bool(value.get("maintain_contact", False)),
+    )
+
+
+def _push_motion_goal(metadata: dict[str, Any]) -> PushMotionGoal | None:
+    if "push_motion_goal" not in metadata:
+        return None
+    value = json.loads(metadata["push_motion_goal"])
+    return PushMotionGoal(
+        approach_xy=tuple(value["approach_xy"]),
+        target_xy=tuple(value["target_xy"]),
+        points=tuple(
+            EndEffectorTarget(
+                point["name"],
+                tuple(point["target_xyz"]),
+                (
+                    tuple(point["palm_normal"])
+                    if point.get("palm_normal") is not None
+                    else None
+                ),
+            )
+            for point in value["points"]
+        ),
     )
 
 
