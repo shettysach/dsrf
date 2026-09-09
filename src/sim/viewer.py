@@ -4,14 +4,13 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import mujoco.viewer
 import torch
-from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
+from mjlab.viewer import EnvProtocol, NativeMujocoViewer, ViserPlayViewer
 from mjlab.viewer.native.visualizer import MujocoNativeDebugVisualizer
 
 from shared.messages import REFERENCE_HZ
 
 if TYPE_CHECKING:
     from mjlab.envs import ManagerBasedRlEnv
-    from mjlab.viewer import EnvProtocol
 
     from tracker.reference import MotionReference
 
