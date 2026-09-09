@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 # the Sokoban object model: it translates on the floor but cannot tip or roll.
 DEFAULT_SETTINGS = BoxPushSettings()
 BOX_HALF_SIZE = DEFAULT_SETTINGS.half_size
-BOX_MASS = DEFAULT_SETTINGS.box_mass
 BOX_START = (DEFAULT_SETTINGS.box_x, 0.0)
 DEFAULT_GOAL_X = DEFAULT_SETTINGS.goal_x
 GOAL_HALF_SIZE = (
@@ -77,8 +76,6 @@ def _make_box_spec() -> "MjSpec":
         name="box_collision",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
         size=BOX_HALF_SIZE,
-        mass=BOX_MASS,
-        friction=DEFAULT_SETTINGS.box_friction,
         rgba=_BOX_RGBA,
         contype=1,
         conaffinity=1,

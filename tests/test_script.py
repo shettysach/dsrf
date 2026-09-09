@@ -1,6 +1,7 @@
 from typing import Any, cast
 
 import numpy as np
+from tasks.box_push.settings import BoxPushSettings
 
 from nodes.script_agent import ScriptAgentLoop
 from script.tasks.arms_hold import ArmsHoldScript
@@ -77,6 +78,31 @@ def test_push_controller_transforms_box_local_palm_normals_to_robot_local() -> N
 
     for target in targets[-1].end_effectors:
         np.testing.assert_allclose(target.palm_normal, (0.0, 1.0, 0.0))
+
+
+def test_push_controller_continues_when_contact_is_not_established() -> None:
+    command = PushScript(prompt="reach and push with both palms").next_command(0)
+    assert command is not None and command.contact_goal is not None
+    state = PushState(
+        qpos=np.array((0.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0)),
+        body_position=np.array((3.0, 0.0, 0.65)),
+        body_rotation=np.eye(3),
+        body_velocity=np.zeros(3),
+        hands={"left_hand": np.zeros(3), "right_hand": np.zeros(3)},
+        contacts=frozenset(),
+        footprint=np.zeros((4, 2)),
+    )
+    controller = PushController(
+        command.contact_goal,
+        state,
+        window_seconds=2.08,
+        config=BoxPushSettings(contact_retries=0),
+    )
+    controller.phase = "hold"
+
+    controller.update(state, dt=2.08)
+
+    assert controller.phase == "push"
 
 
 def test_script_agent_sends_commands_through_the_normal_agent_channel() -> None:

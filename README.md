@@ -26,6 +26,13 @@ uvx --from huggingface_hub hf download nvidia/GEAR-SONIC \
   --local-dir /tmp/GEAR-SONIC
 ```
 
+ARDY (accept the model's Hugging Face license terms first, if prompted)
+
+```bash
+uvx --from huggingface_hub hf download nvidia/ARDY-G1-RP-25FPS-Horizon52 \
+  --local-dir /tmp/ardy/checkpoints/ARDY-G1-RP-25FPS-Horizon52
+```
+
 Also an OpenAI compatible VLM inference server.
 
 ## Run

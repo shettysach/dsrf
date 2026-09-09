@@ -130,7 +130,7 @@ class PushController:
                 self._transition("push", state)
             elif self.phase_elapsed >= self.config.hold_windows * self.window_seconds:
                 if self.contact_retries >= self.config.contact_retries:
-                    self.fail("Both hands did not establish sustained contact")
+                    self._transition("push", state)
                 else:
                     self.contact_retries += 1
                     self._transition("retry", state)
@@ -138,14 +138,12 @@ class PushController:
             if self.contact_age >= self.config.contact_dwell:
                 self._transition("push", state)
             elif self.phase_elapsed >= self.config.reach_windows * self.window_seconds:
-                self.fail("Both hands did not establish sustained contact")
+                self._transition("push", state)
         elif self.phase == "push":
             if self.remaining(state) <= 0.10:
                 self._transition("settle", state)
             elif not self.attached and self.loss_age >= self.config.contact_loss:
-                if self.reacquisitions >= self.config.reacquisitions:
-                    self.fail("Contact reacquisition budget exhausted")
-                else:
+                if self.reacquisitions < self.config.reacquisitions:
                     self.reacquisitions += 1
                     self._transition("retry", state)
         elif self.phase == "settle":
