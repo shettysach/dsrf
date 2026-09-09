@@ -1,3 +1,5 @@
+from typing import Any, Protocol, cast
+
 import torch
 from ardy.constraints import (
     LeftFootConstraintSet,
@@ -45,6 +47,92 @@ _MAX_END_EFFECTOR_REACH_M = {
     "left_foot": 1.5,
     "right_foot": 1.5,
 }
+
+
+class _EndEffectorConstraintState(Protocol):
+    frame_indices: torch.Tensor
+    pos_indices: torch.Tensor
+    rot_indices: torch.Tensor
+    global_joints_positions: torch.Tensor
+    global_joints_rots: torch.Tensor
+    root_2d: torch.Tensor
+    root_y_pos: torch.Tensor
+    global_root_heading: torch.Tensor
+
+
+class _DeviceAwareEndEffectorConstraint:
+    """Work around ARDY creating temporary indexing tensors on CPU.
+
+    ARDY's native implementation otherwise combines those tensors with CUDA
+    frame indices. Keep this compatibility shim local until ARDY owns the
+    device placement itself.
+    """
+
+    def update_constraints(
+        self, data_dict: dict[str, list[Any]], index_dict: dict[str, list[Any]]
+    ) -> None:
+        constraint = cast(_EndEffectorConstraintState, self)
+        device = constraint.frame_indices.device
+        crop_frames = torch.arange(len(constraint.frame_indices), device=device)
+        pos_indices = constraint.pos_indices.to(device)
+        rot_indices = constraint.rot_indices.to(device)
+
+        data_dict["global_joints_positions"].append(
+            constraint.global_joints_positions[
+                _constraint_pairs(crop_frames, pos_indices).T.unbind()
+            ]
+        )
+        index_dict["global_joints_positions"].append(
+            _constraint_pairs(constraint.frame_indices, pos_indices)
+        )
+        data_dict["global_joints_rots"].append(
+            constraint.global_joints_rots[
+                _constraint_pairs(crop_frames, rot_indices).T.unbind()
+            ]
+        )
+        index_dict["global_joints_rots"].append(
+            _constraint_pairs(constraint.frame_indices, rot_indices)
+        )
+        data_dict["root_2d"].append(constraint.root_2d)
+        index_dict["root_2d"].append(constraint.frame_indices)
+        data_dict["root_y_pos"].append(constraint.root_y_pos)
+        index_dict["root_y_pos"].append(constraint.frame_indices)
+        data_dict["global_root_heading"].append(constraint.global_root_heading)
+        index_dict["global_root_heading"].append(constraint.frame_indices)
+
+
+class _DeviceAwareLeftHandConstraint(
+    _DeviceAwareEndEffectorConstraint, LeftHandConstraintSet
+):
+    pass
+
+
+class _DeviceAwareRightHandConstraint(
+    _DeviceAwareEndEffectorConstraint, RightHandConstraintSet
+):
+    pass
+
+
+class _DeviceAwareLeftFootConstraint(
+    _DeviceAwareEndEffectorConstraint, LeftFootConstraintSet
+):
+    pass
+
+
+class _DeviceAwareRightFootConstraint(
+    _DeviceAwareEndEffectorConstraint, RightFootConstraintSet
+):
+    pass
+
+
+def _constraint_pairs(first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
+    return torch.stack(
+        (
+            first[:, None].expand(-1, len(second)),
+            second.expand(len(first), -1),
+        ),
+        dim=-1,
+    ).reshape(-1, 2)
 
 
 def build_timed_constraints(
@@ -257,11 +345,6 @@ def _root_constraint(
     )
 
 
-def native_constraint_source() -> str:
-    """Describe the constraint implementation used by this generator."""
-    return "ardy.constraints"
-
-
 def _end_effector_constraint(
     skeleton,
     name: str,
@@ -269,19 +352,23 @@ def _end_effector_constraint(
     positions: torch.Tensor,
     rotations: torch.Tensor,
 ):
-    constraint_class = {
-        "left_hand": LeftHandConstraintSet,
-        "right_hand": RightHandConstraintSet,
-        "left_foot": LeftFootConstraintSet,
-        "right_foot": RightFootConstraintSet,
+    # ARDY's concrete subclasses expose variadic ``__init__`` methods without
+    # usable type annotations. Keep that boundary local rather than leaking
+    # untyped values through the rest of the constraint builder.
+    constraint_class: Any = {
+        "left_hand": _DeviceAwareLeftHandConstraint,
+        "right_hand": _DeviceAwareRightHandConstraint,
+        "left_foot": _DeviceAwareLeftFootConstraint,
+        "right_foot": _DeviceAwareRightFootConstraint,
     }[name]
-    return constraint_class(
+    constraint = constraint_class(
         skeleton,
         frame_indices=frame_indices,
         global_joints_positions=positions,
         global_joints_rots=rotations,
         root_2d=None,
     )
+    return constraint
 
 
 def _edit_end_effector_pose(

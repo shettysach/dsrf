@@ -156,3 +156,24 @@ def test_sokoban_box_is_complete_when_comfortably_centred_on_a_goal() -> None:
 
     assert not visualizer.update(data)
     np.testing.assert_allclose(model.geom_rgba[box.id], COMPLETED_BOX_RGBA)
+
+
+def test_sokoban_is_not_complete_when_boxes_share_one_goal() -> None:
+    spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
+    make_sokoban_spec_fn(level=1)(spec)
+    model = spec.compile()
+    data = mujoco.MjData(model)  # ty: ignore[unresolved-attribute]
+    visualizer = SokobanCompletionVisualizer(model)
+    goal = model.geom("sokoban_goal_1")
+
+    for index in (1, 2):
+        box = model.geom(f"sokoban_box_{index}_collision")
+        for axis, coordinate in (("x", 0), ("y", 1)):
+            joint = model.joint(f"sokoban_box_{index}_{axis}")
+            data.qpos[model.jnt_qposadr[joint.id]] = (
+                model.geom_pos[goal.id, coordinate]
+                - model.body_pos[model.geom_bodyid[box.id], coordinate]
+            )
+    mujoco.mj_forward(model, data)  # ty: ignore[unresolved-attribute]
+
+    assert not visualizer.update(data)

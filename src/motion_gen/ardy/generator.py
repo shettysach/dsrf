@@ -66,7 +66,9 @@ class Ardy:
             device=self.device,
         )
         self.root_history = root_positions[0, -2:].detach().clone()
-        self.root_heading = torch.tensor(0.0)
+        self.root_heading = torch.zeros(
+            (), dtype=root_positions.dtype, device=root_positions.device
+        )
 
     def generate(
         self,

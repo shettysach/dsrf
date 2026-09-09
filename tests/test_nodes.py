@@ -103,6 +103,17 @@ class _Simulation:
         del action
         self.steps += 1
 
+    def begin_sokoban_motion_events(self):
+        return None
+
+    def observe_sokoban_motion_events(self, events) -> bool:
+        del events
+        return False
+
+    def finish_sokoban_motion_events(self, events) -> str:
+        del events
+        return ""
+
 
 class _Generator:
     fps = 50

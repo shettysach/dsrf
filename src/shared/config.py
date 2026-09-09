@@ -18,6 +18,7 @@ from typing import (
 from tasks import TaskSpec, get_task
 
 type ViewerMode = Literal["none", "native", "viser"]
+type AgentMode = Literal["vlm", "script", "keyboard"]
 
 
 @dataclass(frozen=True)
@@ -121,7 +122,7 @@ class AgentConfig:
     vlm_enable_finished: bool = dataclass_field(
         default=False, metadata={"env": "VLM_ENABLE_FINISHED"}
     )
-    agent: Literal["vlm", "script"] = "vlm"
+    agent: AgentMode = "vlm"
     script_task: str | None = None
     script_prompt: str | None = None
     script_start_immediately: bool = False
@@ -129,8 +130,8 @@ class AgentConfig:
     @classmethod
     def from_env(cls) -> "AgentConfig":
         agent = os.environ.get("AGENT", "vlm").strip().lower()
-        if agent not in {"vlm", "script"}:
-            raise ValueError("AGENT must be 'vlm' or 'script'")
+        if agent not in {"vlm", "script", "keyboard"}:
+            raise ValueError("AGENT must be 'vlm', 'script', or 'keyboard'")
         command_mode: Literal["waypoint", "direction"] = (
             "direction"
             if os.environ.get("MOTION_GENERATOR", "").strip().lower()
@@ -147,8 +148,8 @@ class AgentConfig:
                 "SCRIPT_START_IMMEDIATELY", default=False
             ),
         }
-        if agent == "script":
-            # Script mode never instantiates the VLM client, so it should be
+        if agent in {"script", "keyboard"}:
+            # These modes never instantiate the VLM client, so they should be
             # runnable without endpoint or prompt configuration.
             overrides.update(
                 vlm_url="",
@@ -159,12 +160,14 @@ class AgentConfig:
         return _dataclass_from_env(cls, overrides=overrides)
 
     def __post_init__(self) -> None:
-        if self.agent not in {"vlm", "script"}:
-            raise ValueError("AGENT must be 'vlm' or 'script'")
+        if self.agent not in {"vlm", "script", "keyboard"}:
+            raise ValueError("AGENT must be 'vlm', 'script', or 'keyboard'")
         if self.agent == "script" and self.script_task is None:
             raise ValueError("SCRIPT_TASK must be set when AGENT is 'script'")
         if self.agent == "script" and self.script_prompt is None:
             raise ValueError("SCRIPT_PROMPT must be set when AGENT is 'script'")
+        if self.agent == "keyboard" and self.command_mode != "direction":
+            raise ValueError("AGENT='keyboard' requires MOTION_GENERATOR='kinematic_planner'")
         if self.agent == "vlm":
             url = self.vlm_url.strip().rstrip("/")
             if not url:

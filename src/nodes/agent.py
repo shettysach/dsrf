@@ -400,6 +400,11 @@ class AgentLoop:
 def main() -> None:
     cfg = AgentConfig.from_env()
     node = Node()
+    if cfg.agent == "keyboard":
+        from nodes.keyboard_agent import KeyboardSokobanAgentLoop
+
+        KeyboardSokobanAgentLoop(node).run()
+        return
     if cfg.agent == "script":
         assert cfg.script_task is not None
         assert cfg.script_prompt is not None

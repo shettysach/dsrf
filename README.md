@@ -69,6 +69,19 @@ is marked terminal at `MAX_COMMANDS`. `RUN_TIMEOUT_SECONDS` (600 by default) is
 only a safety stop. For a single interactive run, use
 `SOKOBAN_LEVEL=4 DEMO_VIDEO_PATH=/tmp/sokoban.mp4 STOP_ON_STAND=true DEMO_MAX_COMMANDS=20 dora run sokoban.yml`.
 
+### Keyboard Sokoban
+
+Control Sokoban directly from the terminal instead of starting a VLM server:
+
+```bash
+AGENT=keyboard dora run sokoban.yml
+```
+
+The terminal waits after each completed motion. Press `W`/`K` to move forward,
+`S`/`J` backward, `A`/`H` left, or `D`/`L` right. Press `F` to send the terminal
+finish command; the keyboard agent then remains idle. This mode requires the
+directional kinematic planner configuration already used by `sokoban.yml`.
+
 ## ARDY closed loop
 
 The ARDY motion generator encodes each command's `motion` field with a local

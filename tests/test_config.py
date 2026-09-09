@@ -207,6 +207,25 @@ def test_script_agent_config_requires_prompt(monkeypatch) -> None:
         AgentConfig.from_env()
 
 
+def test_keyboard_agent_config_skips_vlm_settings(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT", "keyboard")
+    monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
+
+    cfg = AgentConfig.from_env()
+
+    assert cfg.agent == "keyboard"
+    assert cfg.command_mode == "direction"
+    assert cfg.vlm_url == ""
+
+
+def test_keyboard_agent_config_requires_the_directional_planner(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT", "keyboard")
+    monkeypatch.setenv("MOTION_GENERATOR", "ardy")
+
+    with pytest.raises(ValueError, match="kinematic_planner"):
+        AgentConfig.from_env()
+
+
 def test_missing_runtime_value_fails(monkeypatch) -> None:
     monkeypatch.delenv("PLANNER_ONNX", raising=False)
     monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")

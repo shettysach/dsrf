@@ -6,6 +6,7 @@ nodes:
     args: run dsrf-agent
     min_log_level: warn
     env:
+      AGENT: "${AGENT:-vlm}"
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md

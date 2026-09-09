@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import mujoco
 import numpy as np
@@ -32,7 +32,6 @@ GOAL_HALF_SIZE = 0.46
 # that square; this is stable under small physical push error and matches the
 # visual rule the VLM can apply.
 WALL_HALF_HEIGHT = 0.6
-WALL_HALF_SIZE = TILE_SIZE * 0.5
 OUTER_WALL_HALF_THICKNESS = 0.1
 
 _BOX_RGBA = (0.95, 0.55, 0.1, 1.0)
@@ -235,7 +234,7 @@ class LevelPositions:
 
 
 class SokobanCompletionVisualizer:
-    """Colors a box dark green only when it is fully inside a goal tile."""
+    """Colors a box dark green when its centre is inside a goal tile."""
 
     def __init__(self, model: Any) -> None:
         self._model = model
@@ -252,15 +251,16 @@ class SokobanCompletionVisualizer:
         # whole-footprint overlap made diagonal but visibly valid placements
         # remain yellow.
         delta = np.abs(box_centers[:, None, :] - self._goal_centers[None, :, :])
-        completed = np.any(
-            np.all(delta <= GOAL_HALF_SIZE, axis=2),
-            axis=1,
-        )
-        for geom_id, is_completed in zip(self._box_ids, completed, strict=True):
+        within_goal = np.all(delta <= GOAL_HALF_SIZE, axis=2)
+        box_on_goal = np.any(within_goal, axis=1)
+        for geom_id, is_completed in zip(self._box_ids, box_on_goal, strict=True):
             self._model.geom_rgba[geom_id] = (
                 COMPLETED_BOX_RGBA if is_completed else _BOX_RGBA
             )
-        return bool(completed.all())
+        # Equal box/goal counts are enforced by ``SokobanLevel``. Requiring
+        # every goal to be occupied prevents two boxes sharing one goal from
+        # being reported as a solved board.
+        return bool(np.any(within_goal, axis=0).all())
 
 
 def _named_geom_ids(model: Any, prefix: str, suffix: str) -> tuple[int, ...]:
@@ -298,9 +298,8 @@ def level_positions(level: SokobanLevel) -> LevelPositions:
                 boxes.append(cell)
             elif tile == "@":
                 player = cell
-    return LevelPositions(
-        tuple(walls), tuple(goals), tuple(boxes), cast(Position, player)
-    )
+    assert player is not None  # guaranteed by SokobanLevel validation
+    return LevelPositions(tuple(walls), tuple(goals), tuple(boxes), player)
 
 
 def make_sokoban_spec_fn(level: int = 1) -> SceneSpecFn:

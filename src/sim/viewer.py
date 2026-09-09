@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 import mujoco.viewer
 import torch
@@ -10,6 +10,7 @@ from mjlab.viewer.native.visualizer import MujocoNativeDebugVisualizer
 from shared.messages import REFERENCE_HZ
 
 if TYPE_CHECKING:
+    from mjlab.envs import ManagerBasedRlEnv
     from mjlab.viewer import EnvProtocol
 
     from tracker.reference import MotionReference
@@ -28,11 +29,11 @@ class NativeSimViewer(NativeMujocoViewer):
 
     def __init__(
         self,
-        env: EnvProtocol,
+        env: ManagerBasedRlEnv,
         reference: MotionReference | None = None,
     ) -> None:
         super().__init__(
-            env,
+            cast(EnvProtocol, env),
             _ViewerOnlyPolicy(),
             frame_rate=float(REFERENCE_HZ),
             enable_perturbations=False,
@@ -66,11 +67,11 @@ class ViserSimViewer(ViserPlayViewer):
 
     def __init__(
         self,
-        env: EnvProtocol,
+        env: ManagerBasedRlEnv,
         reference: MotionReference | None = None,
     ) -> None:
         super().__init__(
-            env,
+            cast(EnvProtocol, env),
             _ViewerOnlyPolicy(),
             frame_rate=float(REFERENCE_HZ),
         )
