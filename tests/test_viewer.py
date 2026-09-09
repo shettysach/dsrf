@@ -5,7 +5,7 @@ import pytest
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
 import sim.viewer as viewer_module
-from sim.viewer import NativeSimViewer, ViserSimViewer
+from sim.viewer import NativeSimViewer, ViserSimViewer, _keyboard_message
 
 
 @pytest.mark.parametrize(
@@ -68,3 +68,15 @@ def test_viser_reference_ghost_follows_mjlab_visualizers(
     sonic_viewer._queue_debug_visualizers()
 
     assert calls == ["mjlab", "ghost"]
+
+
+def test_native_viewer_maps_arrow_keys_and_f_to_keyboard_messages() -> None:
+    from mjlab.viewer.native.keys import KEY_DOWN, KEY_F, KEY_LEFT, KEY_RIGHT, KEY_UP
+
+    assert [_keyboard_message(key) for key in (KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_F)] == [
+        b"up",
+        b"down",
+        b"left",
+        b"right",
+        b"finish",
+    ]

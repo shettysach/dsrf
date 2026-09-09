@@ -37,7 +37,7 @@ def test_keyboard_agent_maps_wasd_and_hjkl_to_planner_directions() -> None:
             {"type": "STOP"},
         ]
     )
-    keys = iter(("h", "f"))
+    keys = iter(("left", "finish"))
 
     KeyboardSokobanAgentLoop(cast(Any, node), read_key=lambda: next(keys)).run()
 
@@ -52,14 +52,10 @@ def test_keyboard_agent_maps_wasd_and_hjkl_to_planner_directions() -> None:
     assert commands[1].text == "finished"
 
 
-def test_wasd_and_hjkl_have_matching_direction_mappings() -> None:
+def test_arrow_keys_have_matching_direction_mappings() -> None:
     assert _DIRECTIONS == {
-        "w": "forward",
-        "k": "forward",
-        "s": "backward",
-        "j": "backward",
-        "a": "left",
-        "h": "left",
-        "d": "right",
-        "l": "right",
+        "up": "forward",
+        "down": "backward",
+        "left": "left",
+        "right": "right",
     }

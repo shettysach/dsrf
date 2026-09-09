@@ -77,8 +77,8 @@ Control Sokoban directly from the terminal instead of starting a VLM server:
 AGENT=keyboard dora run sokoban.yml
 ```
 
-The terminal waits after each completed motion. Press `W`/`K` to move forward,
-`S`/`J` backward, `A`/`H` left, or `D`/`L` right. Press `F` to send the terminal
+Focus the native MuJoCo viewer and use the arrow keys to move: Up is forward,
+Down backward, Left left, and Right right. Press `F` to send the terminal
 finish command; the keyboard agent then remains idle. This mode requires the
 directional kinematic planner configuration already used by `sokoban.yml`.
 

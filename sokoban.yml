@@ -7,6 +7,7 @@ nodes:
     min_log_level: warn
     env:
       AGENT: "${AGENT:-vlm}"
+      KEYBOARD_SOCKET: "${KEYBOARD_SOCKET:-/tmp/dsrf-sokoban-keys.sock}"
       VLM_URL: http://127.0.0.1:8080
       VLM_TIMEOUT: "120"
       VLM_SYSTEM_PROMPT: tasks/sokoban/TASK.md
@@ -28,6 +29,7 @@ nodes:
     args: run dsrf-sim
     min_log_level: warn
     env:
+      AGENT: "${AGENT:-vlm}"
       DEVICE: cuda
       MOTION_GENERATOR: kinematic_planner
       PLANNER_ONNX: /tmp/GEAR-SONIC/planner_sonic.onnx
@@ -37,6 +39,7 @@ nodes:
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
       VIEWER: "${VIEWER:-native}"
+      KEYBOARD_SOCKET: "${KEYBOARD_SOCKET:-/tmp/dsrf-sokoban-keys.sock}"
       REFERENCE_GHOST: "${REFERENCE_GHOST:-false}"
       SOKOBAN_LEVEL: "${SOKOBAN_LEVEL:-1}"
       DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-}"

@@ -73,6 +73,7 @@ class SimConfig:
     jpeg_quality: int
     viewer: ViewerMode
     reference_ghost: bool
+    keyboard_socket: Path | None = None
     publish_observations: bool = True
     demo_video_path: Path | None = None
     stop_on_stand: bool = False
@@ -89,6 +90,11 @@ class SimConfig:
                     "PUBLISH_OBSERVATIONS", default=True
                 ),
                 "demo_video_path": _optional_path("DEMO_VIDEO_PATH"),
+                "keyboard_socket": (
+                    _optional_path("KEYBOARD_SOCKET")
+                    if os.environ.get("AGENT", "").strip().lower() == "keyboard"
+                    else None
+                ),
                 "stop_on_stand": _optional_boolean("STOP_ON_STAND", default=False),
                 "demo_max_commands": _optional_positive_int("DEMO_MAX_COMMANDS"),
                 "demo_timeout_seconds": _optional_positive_float(
@@ -106,6 +112,8 @@ class SimConfig:
                 raise ValueError(f"{name} must be >= 1, got {value}")
         if not 1 <= self.jpeg_quality <= 100:
             raise ValueError(f"JPEG_QUALITY must be in 1..100, got {self.jpeg_quality}")
+        if self.keyboard_socket is not None and self.viewer != "native":
+            raise ValueError("KEYBOARD_SOCKET requires VIEWER='native'")
 
 
 @dataclass(frozen=True)
@@ -126,6 +134,7 @@ class AgentConfig:
     script_task: str | None = None
     script_prompt: str | None = None
     script_start_immediately: bool = False
+    keyboard_socket: Path | None = None
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -147,6 +156,7 @@ class AgentConfig:
             "script_start_immediately": _optional_boolean(
                 "SCRIPT_START_IMMEDIATELY", default=False
             ),
+            "keyboard_socket": _optional_path("KEYBOARD_SOCKET"),
         }
         if agent in {"script", "keyboard"}:
             # These modes never instantiate the VLM client, so they should be
@@ -168,6 +178,8 @@ class AgentConfig:
             raise ValueError("SCRIPT_PROMPT must be set when AGENT is 'script'")
         if self.agent == "keyboard" and self.command_mode != "direction":
             raise ValueError("AGENT='keyboard' requires MOTION_GENERATOR='kinematic_planner'")
+        if self.agent == "keyboard" and self.keyboard_socket is None:
+            raise ValueError("KEYBOARD_SOCKET must be set when AGENT is 'keyboard'")
         if self.agent == "vlm":
             url = self.vlm_url.strip().rstrip("/")
             if not url:

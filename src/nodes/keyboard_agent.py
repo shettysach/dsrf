@@ -1,11 +1,12 @@
-"""Terminal controls for the directional Sokoban planner."""
+"""Viewer-focused arrow-key controls for the directional Sokoban planner."""
 
 from __future__ import annotations
 
-import sys
-import termios
-import tty
+import os
+import socket
+import stat
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from shared.arrow import agent_command_to_arrow, observation_from_arrow
@@ -16,30 +17,41 @@ if TYPE_CHECKING:
 
 
 _DIRECTIONS = {
-    "w": "forward",
-    "a": "left",
-    "s": "backward",
-    "d": "right",
-    "h": "left",
-    "j": "backward",
-    "k": "forward",
-    "l": "right",
+    "up": "forward",
+    "down": "backward",
+    "left": "left",
+    "right": "right",
 }
 
 
 class KeyboardSokobanAgentLoop:
-    """Issue one planner command per observation from a terminal key press."""
+    """Issue one planner command per observation from a viewer key press."""
 
     def __init__(
-        self, node: Node, *, read_key: Callable[[], str] | None = None
+        self,
+        node: Node,
+        keyboard_socket: Path | None = None,
+        *,
+        read_key: Callable[[], str] | None = None,
     ) -> None:
         self.node = node
-        self._read_key = read_key or _read_key
+        self._keyboard_socket = keyboard_socket
+        self._read_key = read_key
         self.observation: VisualObservation | None = None
         self.pending_command: str | None = None
         self.finished = False
 
     def run(self) -> None:
+        if self._read_key is None:
+            if self._keyboard_socket is None:
+                raise ValueError("Keyboard Sokoban control requires KEYBOARD_SOCKET")
+            with _ViewerKeyReceiver(self._keyboard_socket) as receiver:
+                self._read_key = lambda: receiver.recv(16).decode("ascii")
+                self._run_events()
+        else:
+            self._run_events()
+
+    def _run_events(self) -> None:
         for event in self.node:
             if event["type"] == "STOP":
                 return
@@ -66,38 +78,38 @@ class KeyboardSokobanAgentLoop:
 
         self.observation = observation
         self.pending_command = None
-        if self.finished:
-            return
-        self._send_key_command()
+        if not self.finished:
+            self._send_key_command()
 
     def _send_key_command(self) -> None:
         assert self.observation is not None
+        assert self._read_key is not None
         while True:
-            print("Sokoban: WASD/HJKL move; F finishes.", flush=True)
-            key = self._read_key().lower()
-            if key == "f":
-                command = AgentCommand(
-                    self.observation.observation_id,
-                    "finished",
-                    "stand",
-                    (),
-                    terminal=True,
+            key = self._read_key()
+            if key == "finish":
+                self._send(
+                    AgentCommand(
+                        self.observation.observation_id,
+                        "finished",
+                        "stand",
+                        (),
+                        terminal=True,
+                    )
                 )
-                self._send(command)
                 self.finished = True
                 return
             direction = _DIRECTIONS.get(key)
             if direction is not None:
-                command = AgentCommand(
-                    self.observation.observation_id,
-                    f'{{"motion":"walk","direction":"{direction}"}}',
-                    "walk",
-                    (),
-                    direction=direction,
+                self._send(
+                    AgentCommand(
+                        self.observation.observation_id,
+                        f'{{"motion":"walk","direction":"{direction}"}}',
+                        "walk",
+                        (),
+                        direction=direction,
+                    )
                 )
-                self._send(command)
                 return
-            print(f"Ignored key {key!r}; use WASD, HJKL, or F.", flush=True)
 
     def _send(self, command: AgentCommand) -> None:
         data, metadata = agent_command_to_arrow(command)
@@ -115,13 +127,23 @@ class KeyboardSokobanAgentLoop:
         )
 
 
-def _read_key() -> str:
-    if not sys.stdin.isatty():
-        raise RuntimeError("Keyboard Sokoban control requires an interactive terminal")
-    descriptor = sys.stdin.fileno()
-    saved = termios.tcgetattr(descriptor)
-    try:
-        tty.setraw(descriptor)
-        return sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(descriptor, termios.TCSADRAIN, saved)
+class _ViewerKeyReceiver:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+
+    def __enter__(self) -> socket.socket:
+        if self.path.exists():
+            mode = self.path.stat().st_mode
+            if not stat.S_ISSOCK(mode):
+                raise RuntimeError(f"KEYBOARD_SOCKET is not a socket: {self.path}")
+            self.path.unlink()
+        self.socket.bind(str(self.path))
+        return self.socket
+
+    def __exit__(self, *_: object) -> None:
+        self.socket.close()
+        try:
+            os.unlink(self.path)
+        except FileNotFoundError:
+            pass

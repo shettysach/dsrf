@@ -210,6 +210,7 @@ def test_script_agent_config_requires_prompt(monkeypatch) -> None:
 def test_keyboard_agent_config_skips_vlm_settings(monkeypatch) -> None:
     monkeypatch.setenv("AGENT", "keyboard")
     monkeypatch.setenv("MOTION_GENERATOR", "kinematic_planner")
+    monkeypatch.setenv("KEYBOARD_SOCKET", "/tmp/dsrf-keys.sock")
 
     cfg = AgentConfig.from_env()
 
@@ -221,6 +222,7 @@ def test_keyboard_agent_config_skips_vlm_settings(monkeypatch) -> None:
 def test_keyboard_agent_config_requires_the_directional_planner(monkeypatch) -> None:
     monkeypatch.setenv("AGENT", "keyboard")
     monkeypatch.setenv("MOTION_GENERATOR", "ardy")
+    monkeypatch.setenv("KEYBOARD_SOCKET", "/tmp/dsrf-keys.sock")
 
     with pytest.raises(ValueError, match="kinematic_planner"):
         AgentConfig.from_env()

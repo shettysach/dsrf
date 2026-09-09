@@ -403,7 +403,8 @@ def main() -> None:
     if cfg.agent == "keyboard":
         from nodes.keyboard_agent import KeyboardSokobanAgentLoop
 
-        KeyboardSokobanAgentLoop(node).run()
+        assert cfg.keyboard_socket is not None
+        KeyboardSokobanAgentLoop(node, cfg.keyboard_socket).run()
         return
     if cfg.agent == "script":
         assert cfg.script_task is not None

@@ -46,7 +46,11 @@ def main() -> None:
         if cfg.viewer in {"native", "viser"}:
             reference = tracker.reference if cfg.reference_ghost else None
             viewer = (
-                NativeSimViewer(simulation.mjlab_env, reference)
+                NativeSimViewer(
+                    simulation.mjlab_env,
+                    reference,
+                    keyboard_socket=cfg.keyboard_socket,
+                )
                 if cfg.viewer == "native"
                 else ViserSimViewer(simulation.mjlab_env, reference)
             )
