@@ -61,6 +61,10 @@ class BoxPushSettings:
             standoff=_float_env("PUSH_STANDOFF", defaults.standoff),
             reach_windows=_int_env("PUSH_REACH_WINDOWS", defaults.reach_windows),
             hold_windows=_int_env("PUSH_HOLD_WINDOWS", defaults.hold_windows),
+            contact_retries=_int_env(
+                "PUSH_CONTACT_RETRIES", defaults.contact_retries
+            ),
+            reacquisitions=_int_env("PUSH_REACQUISITIONS", defaults.reacquisitions),
             weld_enabled=_bool_env("PUSH_WELD", defaults.weld_enabled),
         )
 

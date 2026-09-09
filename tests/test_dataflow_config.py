@@ -71,6 +71,8 @@ def test_push_script_dataflow_runs_one_observation_driven_motion() -> None:
     assert nodes["agent"]["inputs"]["observation"] == "sim/observation"
     assert nodes["sim"]["env"]["PUBLISH_OBSERVATIONS"] == "true"
     assert nodes["sim"]["env"]["DEMO_MAX_COMMANDS"] == "1"
+    assert nodes["sim"]["env"]["PUSH_CONTACT_RETRIES"] == "0"
+    assert nodes["sim"]["env"]["PUSH_REACQUISITIONS"] == "0"
     assert "observation" in nodes["sim"]["outputs"]
 
 
