@@ -41,7 +41,9 @@ class NativeSimViewer(NativeMujocoViewer):
             _ViewerOnlyPolicy(),
             frame_rate=float(REFERENCE_HZ),
             enable_perturbations=False,
-            key_callback=self._send_keyboard_key if keyboard_socket is not None else None,
+            key_callback=self._send_keyboard_key
+            if keyboard_socket is not None
+            else None,
         )
         self._reference_ghost = (
             ReferenceGhost(env, reference) if reference is not None else None

@@ -177,7 +177,9 @@ class AgentConfig:
         if self.agent == "script" and self.script_prompt is None:
             raise ValueError("SCRIPT_PROMPT must be set when AGENT is 'script'")
         if self.agent == "keyboard" and self.command_mode != "direction":
-            raise ValueError("AGENT='keyboard' requires MOTION_GENERATOR='kinematic_planner'")
+            raise ValueError(
+                "AGENT='keyboard' requires MOTION_GENERATOR='kinematic_planner'"
+            )
         if self.agent == "keyboard" and self.keyboard_socket is None:
             raise ValueError("KEYBOARD_SOCKET must be set when AGENT is 'keyboard'")
         if self.agent == "vlm":

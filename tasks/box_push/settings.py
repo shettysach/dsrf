@@ -42,9 +42,7 @@ class BoxPushSettings:
     stall_seconds: float = 4.0
     progress_distance: float = 0.02
 
-    # Optional contact assistance.
-    weld_enabled: bool = False
-    weld_solref: tuple[float, float] = (0.1, 1.0)
+    # Contact-gated virtual-force assistance.
     virtual_force_magnitude: float = 15.0
     virtual_force_max: float = 30.0
 
@@ -61,11 +59,8 @@ class BoxPushSettings:
             standoff=_float_env("PUSH_STANDOFF", defaults.standoff),
             reach_windows=_int_env("PUSH_REACH_WINDOWS", defaults.reach_windows),
             hold_windows=_int_env("PUSH_HOLD_WINDOWS", defaults.hold_windows),
-            contact_retries=_int_env(
-                "PUSH_CONTACT_RETRIES", defaults.contact_retries
-            ),
+            contact_retries=_int_env("PUSH_CONTACT_RETRIES", defaults.contact_retries),
             reacquisitions=_int_env("PUSH_REACQUISITIONS", defaults.reacquisitions),
-            weld_enabled=_bool_env("PUSH_WELD", defaults.weld_enabled),
         )
 
     @property
@@ -105,7 +100,6 @@ class BoxPushSettings:
             self.timeout,
             self.stall_seconds,
             self.progress_distance,
-            *self.weld_solref,
             self.virtual_force_magnitude,
             self.virtual_force_max,
         )
@@ -115,10 +109,7 @@ class BoxPushSettings:
             raise ValueError(
                 "Box must start ahead of the robot, with the goal beyond it"
             )
-        if (
-            any(size <= 0.0 for size in self.half_size)
-            or self.box_slide_damping <= 0.0
-        ):
+        if any(size <= 0.0 for size in self.half_size) or self.box_slide_damping <= 0.0:
             raise ValueError("Box dimensions and damping must be positive")
         if self.goal_half_size <= 0.0 or self.hand_half_width < 0.0:
             raise ValueError("Goal and hand-spacing settings are invalid")
@@ -135,7 +126,6 @@ class BoxPushSettings:
                 self.timeout,
                 self.stall_seconds,
                 self.progress_distance,
-                self.weld_solref[0],
             )
         ):
             raise ValueError("Box-push pacing settings must be positive")
@@ -167,12 +157,3 @@ def _float_env(name: str, default: float) -> float:
 def _int_env(name: str, default: int) -> int:
     value = os.environ.get(name)
     return default if value is None or not value.strip() else int(value)
-
-
-def _bool_env(name: str, default: bool) -> bool:
-    value = os.environ.get(name)
-    if value is None or not value.strip():
-        return default
-    if value not in {"false", "true"}:
-        raise ValueError(f"{name} must be 'false' or 'true'")
-    return value == "true"

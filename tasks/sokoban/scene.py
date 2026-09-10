@@ -398,9 +398,7 @@ def _wall_run(
     return tuple(cells)
 
 
-def _add_wall_run(
-    spec: "MjSpec", *, index: int, cells: tuple[Position, ...]
-) -> None:
+def _add_wall_run(spec: "MjSpec", *, index: int, cells: tuple[Position, ...]) -> None:
     first_x, first_y = grid_to_world(cells[0])
     last_x, last_y = grid_to_world(cells[-1])
     x, y = ((first_x + last_x) * 0.5, (first_y + last_y) * 0.5)

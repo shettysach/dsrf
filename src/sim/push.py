@@ -38,7 +38,6 @@ class PushController:
         self.contact_age = self.loss_age = self.settle_age = 0.0
         self.contact_retries = self.reacquisitions = 0
         self.reason = ""
-        self.attached = False
         self._hand_start = state.hands
         self._root_offset = state.qpos[:2] - state.body_position[:2]
         self._progress_time = 0.0
@@ -63,11 +62,6 @@ class PushController:
             p.name: state.body_position + state.body_rotation @ np.asarray(p.target_xyz)
             for p in self.goal.points
         }
-
-    def mark_welded(self) -> None:
-        if self.phase != "push":
-            raise ValueError("A weld may only be attached when pushing")
-        self.attached = True
 
     def _direction(self, state: PushState) -> np.ndarray:
         delta = np.asarray(self.goal.target_xy) - state.body_position[:2]
@@ -142,7 +136,7 @@ class PushController:
         elif self.phase == "push":
             if self.remaining(state) <= 0.10:
                 self._transition("settle", state)
-            elif not self.attached and self.loss_age >= self.config.contact_loss:
+            elif self.loss_age >= self.config.contact_loss:
                 if self.reacquisitions < self.config.reacquisitions:
                     self.reacquisitions += 1
                     self._transition("retry", state)

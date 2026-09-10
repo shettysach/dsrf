@@ -113,8 +113,7 @@ class MjlabEnv:
             self._env.sim,
             camera,
             follow_robot_translation=(
-                task is not None
-                and task.observation_camera.follow_robot_translation
+                task is not None and task.observation_camera.follow_robot_translation
             ),
         )
         self._sokoban_visualizer = None
@@ -249,23 +248,28 @@ class MjlabEnv:
         if self._task is None or self._task.name != "sokoban":
             return None
         model = self._env.sim.mj_model
-        box_geom_ids = _contiguous_geom_ids(
-            model, "sokoban_box_", "_collision"
-        )
+        box_geom_ids = _contiguous_geom_ids(model, "sokoban_box_", "_collision")
         wall_geom_ids = frozenset(
-            (*_contiguous_geom_ids(model, "sokoban_wall_", "_collision"),
-             *(model.geom(name).id for name in (
-                "sokoban_outer_north_wall_collision",
-                "sokoban_outer_south_wall_collision",
-                "sokoban_outer_east_wall_collision",
-                "sokoban_outer_west_wall_collision",
-             )))
+            (
+                *_contiguous_geom_ids(model, "sokoban_wall_", "_collision"),
+                *(
+                    model.geom(name).id
+                    for name in (
+                        "sokoban_outer_north_wall_collision",
+                        "sokoban_outer_south_wall_collision",
+                        "sokoban_outer_east_wall_collision",
+                        "sokoban_outer_west_wall_collision",
+                    )
+                ),
+            )
         )
         centers = _world_geom_positions(self._env.sim.data.geom_xpos)[
             list(box_geom_ids), :2
         ]
         return SokobanMotionEvents(
-            robot_geom_ids=frozenset(self._robot.indexing.geom_ids.detach().cpu().tolist()),
+            robot_geom_ids=frozenset(
+                self._robot.indexing.geom_ids.detach().cpu().tolist()
+            ),
             wall_geom_ids=wall_geom_ids,
             box_geom_ids=box_geom_ids,
             initial_box_centers=centers.copy(),

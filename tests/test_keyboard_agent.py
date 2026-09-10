@@ -45,7 +45,9 @@ def test_keyboard_agent_maps_wasd_and_hjkl_to_planner_directions() -> None:
         agent_command_from_arrow(value, cast(Any, kwargs["metadata"]))
         for _, value, kwargs in node.outputs
     ]
-    assert [(command.motion, command.direction, command.terminal) for command in commands] == [
+    assert [
+        (command.motion, command.direction, command.terminal) for command in commands
+    ] == [
         ("walk", "left", False),
         ("stand", None, True),
     ]

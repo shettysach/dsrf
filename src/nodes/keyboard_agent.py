@@ -65,7 +65,10 @@ class KeyboardSokobanAgentLoop:
 
     def _accept_observation(self, observation: VisualObservation) -> None:
         if self.observation is None:
-            if observation.observation_id != 0 or observation.completed_command is not None:
+            if (
+                observation.observation_id != 0
+                or observation.completed_command is not None
+            ):
                 raise RuntimeError("Initial observation must be observation 0")
         else:
             expected_id = self.observation.observation_id + 1
@@ -74,7 +77,9 @@ class KeyboardSokobanAgentLoop:
                     f"Expected observation {expected_id}, got {observation.observation_id}"
                 )
             if observation.completed_command != self.pending_command:
-                raise RuntimeError("Completed command does not match the keyboard command")
+                raise RuntimeError(
+                    "Completed command does not match the keyboard command"
+                )
 
         self.observation = observation
         self.pending_command = None

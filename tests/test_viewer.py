@@ -73,7 +73,9 @@ def test_viser_reference_ghost_follows_mjlab_visualizers(
 def test_native_viewer_maps_arrow_keys_and_f_to_keyboard_messages() -> None:
     from mjlab.viewer.native.keys import KEY_DOWN, KEY_F, KEY_LEFT, KEY_RIGHT, KEY_UP
 
-    assert [_keyboard_message(key) for key in (KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_F)] == [
+    assert [
+        _keyboard_message(key) for key in (KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_F)
+    ] == [
         b"up",
         b"down",
         b"left",

@@ -120,13 +120,6 @@ DEMO_VIDEO_PATH=/tmp/scripted_push.mp4 \
 dora run push_script.yml
 ```
 
-For the direct physical-contact baseline, run the same script with its welds
-disabled:
-
-```bash
-PUSH_WELD=false dora run push_script.yml
-```
-
 The robot approaches a box at x=3 m, reaches for two native windows, and pushes
 toward x=6 m. One script request owns the entire
 interaction. Each window uses four actual-state history frames at 25 FPS;
@@ -134,12 +127,8 @@ Timed intermediate root/hand targets set the pace instead of demanding that
 the final goal be reached in 2.08 seconds. Simulation pauses during generation.
 ARDY receives only concise phase prompts such as `walk forward`, `reach forward
 with both hands`, or `stand`. Hand targets follow the box's measured pose. The
-script spends two native windows reaching. By default, contact-gated virtual
-force assists the box only while a palm physically touches it. Setting
-`PUSH_WELD=true` instead captures current hand-to-box poses in two predeclared,
-initially inactive MuJoCo welds and enables them for the push; welds and virtual
-force are intentionally mutually exclusive. The welds detach before free-box
-settling and always detach on cleanup.
+script spends two native windows reaching. Contact-gated virtual force assists
+the box only while a palm physically touches it.
 
 All box-push defaults—including geometry, palm targets, phase prompts, pacing,
 and assistance—live in `tasks/box_push/settings.py`. Optional environment
@@ -149,8 +138,6 @@ overrides are limited to:
 - `PUSH_NAVIGATION_SPEED` / `PUSH_SPEED`: reference pace (0.4 / 0.15 m/s).
 - `PUSH_STANDOFF`: base-to-contact staging distance (0.35 m).
 - `PUSH_CONTACT_WINDOWS`: number of native reach windows (2).
-- `PUSH_WELD`: enable scripted hand-to-box welds (`false` by default). It cannot
-  be combined with the task's virtual-force assistance.
 - `ARDY_SEED`: diffusion seed (0); `REFERENCE_GHOST`: reference overlay (true).
 - `DEMO_VIDEO_PATH`: optional recording path.
 
@@ -165,8 +152,8 @@ box push. The VLM tool interface and other one-window commands are unchanged.
 
 ### Contact-free push motion
 
-For the same bilateral push gesture without a box, contact requirement, weld,
-or virtual-force assistance, run:
+For the same bilateral push gesture without a box, contact requirement, or
+virtual-force assistance, run:
 
 ```bash
 CHECKPOINTS_DIR=/path/to/checkpoints \

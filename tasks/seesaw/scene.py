@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 import mujoco
@@ -137,7 +136,3 @@ def _add_seesaw(spec: "MjSpec") -> None:
         conaffinity=1,
     )
     counterweight.quat = (1.0, 0.0, 0.0, 0.0)
-
-
-def hinge_limit_radians() -> float:
-    return math.radians(HINGE_LIMIT_DEGREES)
