@@ -63,7 +63,6 @@ class SokobanMotionEvents:
             messages.append("No wall collision and no box push detected.")
         return " ".join(messages)
 
-
 class MjlabEnv:
     def __init__(
         self,

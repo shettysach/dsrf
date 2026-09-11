@@ -37,7 +37,7 @@ from sim.env import MjlabEnv
 from sim.grounding import resolve_end_effector, resolve_waypoint
 from sim.push import PushController
 from sim.renderer import SimRenderer
-from sim.root_path import RootPathController, RootPathState
+from sim.root_path import RootPathController
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
 from sim.virtual_force import VirtualForce, VirtualForceResult
@@ -391,21 +391,10 @@ class SimRuntime:
                 samples = controller.targets(
                     state, generator.window_frames, generator.fps
                 )
-                # Keep an extra observed frame for velocity encoding, then crop
-                # the encoded sequence to four frames inside ARDY.observe().
-                observed = np.stack(list(history)[::2])
                 started = time.perf_counter()
-                with self.simulation.compute_context():
-                    qpos = generator.generate_window(motion, samples, observed)
-                    reference = resample_qpos(qpos, source_fps=generator.fps)
-                    self.tracker.load_motion(
-                        reference, self.simulation.robot_state(), world_aligned=True
-                    )
-                    if self.virtual_force is not None:
-                        self.virtual_force.load_motion(
-                            reference, self.simulation.robot_state()
-                        )
-                self._projection_cache = None
+                qpos, reference = self._generate_scripted_window(
+                    generator, motion, samples, history, load_virtual_force=True
+                )
                 windows += 1
                 self.node.log(
                     "info",
@@ -470,9 +459,9 @@ class SimRuntime:
         windows = 0
         try:
             with self.simulation.compute_context():
-                state = self._root_path_state()
+                state = self._root_path_qpos()
             controller = RootPathController(
-                goal, state, window_seconds=generator.window_frames / generator.fps
+                goal, window_seconds=generator.window_frames / generator.fps
             )
             history = deque([state.qpos.copy() for _ in range(9)], maxlen=9)
             if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
@@ -483,7 +472,7 @@ class SimRuntime:
             def after_step() -> bool:
                 nonlocal state
                 with self.simulation.compute_context():
-                    state = self._root_path_state()
+                    state = self._root_path_qpos()
                 history.append(state.qpos.copy())
                 previous = controller.phase
                 interrupt = controller.update(state, self.simulation.step_dt)
@@ -508,15 +497,10 @@ class SimRuntime:
                     ),
                     command=motion,
                 )
-                observed = np.stack(list(history)[::2])
                 started = time.perf_counter()
-                with self.simulation.compute_context():
-                    qpos = generator.generate_window(motion, samples, observed)
-                    reference = resample_qpos(qpos, source_fps=generator.fps)
-                    self.tracker.load_motion(
-                        reference, self.simulation.robot_state(), world_aligned=True
-                    )
-                self._projection_cache = None
+                qpos, reference = self._generate_scripted_window(
+                    generator, motion, samples, history, load_virtual_force=False
+                )
                 windows += 1
                 self._log_motion_generated(
                     command,
@@ -545,10 +529,32 @@ class SimRuntime:
         finally:
             self._stop_requested = True
 
-    def _root_path_state(self) -> RootPathState:
+    def _root_path_qpos(self) -> np.ndarray:
         state = self.simulation.robot_state()
         qpos = torch.cat((state.root_pos_w, state.root_quat_w, state.joint_pos))
-        return RootPathState(qpos=qpos.detach().cpu().numpy().copy())
+        return qpos.detach().cpu().numpy().copy()
+
+    def _generate_scripted_window(
+        self,
+        generator: Any,
+        motion: str,
+        samples: Any,
+        history: deque[np.ndarray],
+        *,
+        load_virtual_force: bool,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Keep an extra observed frame for velocity encoding, then crop the
+        # encoded sequence to four frames inside ARDY.observe().
+        observed = np.stack(list(history)[::2])
+        with self.simulation.compute_context():
+            source_qpos = generator.generate_window(motion, samples, observed)
+            reference = resample_qpos(source_qpos, source_fps=generator.fps)
+            state = self.simulation.robot_state()
+            self.tracker.load_motion(reference, state, world_aligned=True)
+            if load_virtual_force and self.virtual_force is not None:
+                self.virtual_force.load_motion(reference, state)
+        self._projection_cache = None
+        return source_qpos, reference
 
     def _execute(
         self, *, after_step: Callable[[], bool] | None = None
@@ -589,11 +595,13 @@ class SimRuntime:
                     self.simulation.step(action, external_forces=force_result.forces)
                 if self.viewer is not None:
                     self.viewer.sync()
-                if self.recorder is not None:
+                frames += 1
+                if self.recorder is not None and getattr(
+                    self.recorder, "should_capture", lambda _: True
+                )(frames):
                     self.recorder.write_frame(
                         self.renderer.capture_demo_rgb(), self.demo_vlm_state
                     )
-                frames += 1
 
                 interrupted = after_step() if after_step is not None else False
 

@@ -78,6 +78,8 @@ def test_video_shows_targets_for_half_a_second_per_observation(
     state = DemoVlmState(command='{"motion":"walk","waypoints_2d":[[700,800]]}')
     source = np.zeros((400, 600, 3), dtype=np.uint8)
 
+    assert sum(recorder.should_capture(frame) for frame in range(1, 51)) == 10
+
     for _ in range(6):
         recorder.write_frame(source, state)
 

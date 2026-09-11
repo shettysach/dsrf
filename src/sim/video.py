@@ -28,7 +28,8 @@ class DemoVlmState:
 
 
 class DemoVideoRecorder:
-    def __init__(self, path: Path, *, fps: int = REFERENCE_HZ) -> None:
+    def __init__(self, path: Path, *, fps: int = REFERENCE_HZ // 2) -> None:
+        self.fps = fps
         path.parent.mkdir(parents=True, exist_ok=True)
         self._writer = iio.get_writer(
             str(path), fps=fps, codec="libx264", macro_block_size=1
@@ -37,6 +38,12 @@ class DemoVideoRecorder:
         self._marked_observation_id: int | None = None
         self._target_frames_remaining = 0
         self._target_display_frames = max(1, round(fps * TARGET_DISPLAY_SECONDS))
+
+    def should_capture(self, source_frame: int) -> bool:
+        """Whether a 50 Hz simulation frame belongs in this video."""
+        return source_frame * self.fps // REFERENCE_HZ != (
+            (source_frame - 1) * self.fps // REFERENCE_HZ
+        )
 
     def write_frame(self, rgb: np.ndarray, state: DemoVlmState) -> None:
         if state.observation_id != self._marked_observation_id:

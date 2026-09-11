@@ -1,7 +1,5 @@
 """Feedback-paced root-only path controller for scripted ARDY motions."""
 
-from dataclasses import dataclass
-
 import numpy as np
 from tasks.push_motion.settings import PushMotionSettings
 
@@ -11,19 +9,12 @@ from shared.messages import EndEffectorTarget, RootPathGoal
 _REACH_HAND_FRAMES = frozenset({15, 31, 51})
 _PUSH_HAND_FRAMES = frozenset({9, 19, 29, 39, 51})
 
-
-@dataclass(frozen=True)
-class RootPathState:
-    qpos: np.ndarray
-
-
 class RootPathController:
     """Own root progress while deliberately supplying no body-pose targets."""
 
     def __init__(
         self,
         goal: RootPathGoal,
-        state: RootPathState,
         *,
         window_seconds: float,
         config: PushMotionSettings | None = None,
@@ -47,41 +38,41 @@ class RootPathController:
             "push": self.config.push_prompt,
         }[self.phase]
 
-    def remaining(self, state: RootPathState) -> float:
+    def remaining(self, qpos: np.ndarray) -> float:
         target = (
             self.goal.approach_xy if self.phase == "approach" else self.goal.target_xy
         )
-        return float(np.linalg.norm(np.asarray(target) - state.qpos[:2]))
+        return float(np.linalg.norm(np.asarray(target) - qpos[:2]))
 
-    def _transition(self, phase: str, state: RootPathState) -> None:
+    def _transition(self, phase: str) -> None:
         self.phase = phase
         self.phase_elapsed = 0.0
 
-    def update(self, state: RootPathState, dt: float) -> bool:
+    def update(self, qpos: np.ndarray, dt: float) -> bool:
         if self.finished:
             return True
         self.elapsed += dt
         self.phase_elapsed += dt
-        if not np.isfinite(state.qpos).all():
+        if not np.isfinite(qpos).all():
             self.phase, self.reason = "failed", "Non-finite robot state"
         elif self.elapsed >= self.config.timeout:
             self.phase, self.reason = "failed", "Motion time budget exhausted"
-        elif self.phase == "approach" and self.remaining(state) <= 0.10:
-            self._transition("reach", state)
+        elif self.phase == "approach" and self.remaining(qpos) <= 0.10:
+            self._transition("reach")
         elif self.phase == "reach" and (
             self.phase_elapsed >= self.config.reach_windows * self.window_seconds
         ):
-            self._transition("push", state)
-        elif self.phase == "push" and self.remaining(state) <= 0.10:
+            self._transition("push")
+        elif self.phase == "push" and self.remaining(qpos) <= 0.10:
             self.phase, self.reason = "done", "Reached the root-path goal"
 
         return self.finished
 
     def targets(
-        self, state: RootPathState, frames: int, fps: float
+        self, qpos: np.ndarray, frames: int, fps: float
     ) -> tuple[TimedTargets, ...]:
-        root = state.qpos[:3]
-        w, x, y, z = state.qpos[3:7]
+        root = qpos[:3]
+        w, x, y, z = qpos[3:7]
         yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
         c, s = np.cos(yaw), np.sin(yaw)
         world_to_local = np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
