@@ -463,7 +463,7 @@ class SimRuntime:
             controller = RootPathController(
                 goal, window_seconds=generator.window_frames / generator.fps
             )
-            history = deque([state.qpos.copy() for _ in range(9)], maxlen=9)
+            history = deque([state.copy() for _ in range(9)], maxlen=9)
             if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
                 raise ValueError(
                     "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
@@ -473,7 +473,7 @@ class SimRuntime:
                 nonlocal state
                 with self.simulation.compute_context():
                     state = self._root_path_qpos()
-                history.append(state.qpos.copy())
+                history.append(state.copy())
                 previous = controller.phase
                 interrupt = controller.update(state, self.simulation.step_dt)
                 if controller.phase != previous:
