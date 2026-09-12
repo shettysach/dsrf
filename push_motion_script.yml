@@ -8,11 +8,10 @@ nodes:
       AGENT: script
       SCRIPT_TASK: push_motion
       SCRIPT_PROMPT: walk forward with both arms held forward
-      SCRIPT_START_IMMEDIATELY: "false"
+      SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
-      observation: sim/observation
     outputs:
       - command
 

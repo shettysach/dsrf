@@ -81,7 +81,9 @@ def test_push_motion_dataflow_uses_the_contact_free_task() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"]["SCRIPT_TASK"] == "push_motion"
+    assert nodes["agent"]["env"]["SCRIPT_START_IMMEDIATELY"] == "true"
     assert nodes["sim"]["env"]["TASK"] == "push_motion"
+    assert "observation" not in nodes["agent"].get("inputs", {})
     assert "PUSH_WELD" not in nodes["sim"]["env"]
 
 
