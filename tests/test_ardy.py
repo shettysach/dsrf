@@ -6,10 +6,28 @@ import torch
 from ardy.exports.mujoco import MujocoQposConverter
 from ardy.skeleton import G1Skeleton34
 
+from motion_gen.ardy.adapter import ArdyMotionGenerator
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import qpos_to_ardy_inputs
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
+
+
+def test_scripted_window_only_observes_when_given_live_history() -> None:
+    generator = Mock()
+    generator.fps = 25
+    generator.model.gen_horizon_len = 52
+    generator.generate.return_value = torch.zeros((52, 36))
+    encoder = Mock()
+    encoder.encode.return_value = torch.zeros(4096)
+    adapter = ArdyMotionGenerator(generator, encoder)
+    history = np.zeros((5, 36))
+
+    adapter.generate_window("walk forward", (), history)
+    adapter.generate_window("walk forward", ())
+
+    generator.observe.assert_called_once_with(history)
+    assert encoder.encode.call_count == 1
 
 
 def test_ardy_model_loader_receives_a_device_string(monkeypatch, tmp_path) -> None:

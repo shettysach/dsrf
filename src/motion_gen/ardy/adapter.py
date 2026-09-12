@@ -31,9 +31,13 @@ class ArdyMotionGenerator:
         self._embeddings: dict[str, torch.Tensor] = {}
 
     def generate_window(
-        self, motion: str, samples: tuple[TimedTargets, ...], history: np.ndarray
+        self,
+        motion: str,
+        samples: tuple[TimedTargets, ...],
+        history: np.ndarray | None = None,
     ) -> torch.Tensor:
-        self._generator.observe(history)
+        if history is not None:
+            self._generator.observe(history)
         if motion not in self._embeddings:
             self._embeddings[motion] = self._text_encoder.encode(motion)
         return self._generator.generate(self._embeddings[motion], (), samples=samples)

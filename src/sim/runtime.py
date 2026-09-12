@@ -459,49 +459,79 @@ class SimRuntime:
         windows = 0
         try:
             with self.simulation.compute_context():
-                state = self._root_path_qpos()
+                actual_state = self._root_path_qpos()
             controller = RootPathController(
                 goal, window_seconds=generator.window_frames / generator.fps
             )
-            history = deque([state.copy() for _ in range(9)], maxlen=9)
+            reference_state = actual_state.copy()
+            history = deque([actual_state.copy() for _ in range(9)], maxlen=9)
             if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
                 raise ValueError(
                     "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
                 )
+            active_reference: torch.Tensor | None = None
 
             def after_step() -> bool:
-                nonlocal state
+                nonlocal actual_state
                 with self.simulation.compute_context():
-                    state = self._root_path_qpos()
-                history.append(state.copy())
-                previous = controller.phase
-                interrupt = controller.update(state, self.simulation.step_dt)
-                if controller.phase != previous:
+                    actual_state = self._root_path_qpos()
+                if active_reference is not None:
+                    frame = min(
+                        self.tracker.reference.frame_index, len(active_reference) - 1
+                    )
+                    reference_qpos = active_reference[frame].detach().cpu().numpy()
+                    reason = controller.tracking_failure(actual_state, reference_qpos)
+                    if reason is not None:
+                        controller.fail(reason)
+                        self.node.log(
+                            "error",
+                            f"Root-path stability gate: {reason}",
+                            target="dsrf.sim.root_path",
+                            fields={"event": "root_path_stability_failure"},
+                        )
+                        return True
+                if self._stop_requested:
                     self.node.log(
                         "info",
-                        f"Root-path phase: {previous} -> {controller.phase}",
+                        "Root-path execution stopped",
                         target="dsrf.sim.root_path",
                     )
-                return interrupt or self._stop_requested
+                return self._stop_requested
 
             while not controller.finished and not self._stop_requested:
                 motion = controller.motion_prompt
                 samples = controller.targets(
-                    state, generator.window_frames, generator.fps
+                    reference_state, generator.window_frames, generator.fps
                 )
                 self.demo_vlm_state = DemoVlmState(
                     observation_id=command.observation_id,
                     reasoning=(
                         f"Script: {controller.phase}; window {windows + 1}; "
-                        f"remaining {controller.remaining(state):.2f}m"
+                        f"remaining {controller.remaining(reference_state):.2f}m"
                     ),
                     command=motion,
                 )
                 started = time.perf_counter()
                 qpos, reference = self._generate_scripted_window(
-                    generator, motion, samples, history, load_virtual_force=False
+                    generator,
+                    motion,
+                    samples,
+                    history,
+                    load_virtual_force=False,
+                    synchronize_history=windows == 0,
                 )
+                reason = controller.reference_failure(qpos.detach().cpu().numpy())
+                if reason is not None:
+                    controller.fail(reason)
+                    self.node.log(
+                        "error",
+                        f"Root-path reference rejected: {reason}",
+                        target="dsrf.sim.root_path",
+                        fields={"event": "root_path_reference_rejected"},
+                    )
+                    break
                 windows += 1
+                active_reference = reference
                 self._log_motion_generated(
                     command,
                     qpos,
@@ -510,6 +540,17 @@ class SimRuntime:
                     prompt=motion,
                 )
                 self._execute(after_step=after_step)
+                if controller.finished or self._stop_requested:
+                    continue
+                reference_state = qpos[-1].detach().cpu().numpy()
+                previous = controller.phase
+                controller.update(reference_state, generator.window_frames / generator.fps)
+                if controller.phase != previous:
+                    self.node.log(
+                        "info",
+                        f"Root-path phase: {previous} -> {controller.phase}",
+                        target="dsrf.sim.root_path",
+                    )
 
             success = controller.phase == "done"
             self.node.log(
@@ -542,10 +583,11 @@ class SimRuntime:
         history: deque[np.ndarray],
         *,
         load_virtual_force: bool,
+        synchronize_history: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # Keep an extra observed frame for velocity encoding, then crop the
         # encoded sequence to four frames inside ARDY.observe().
-        observed = np.stack(list(history)[::2])
+        observed = np.stack(list(history)[::2]) if synchronize_history else None
         with self.simulation.compute_context():
             source_qpos = generator.generate_window(motion, samples, observed)
             reference = resample_qpos(source_qpos, source_fps=generator.fps)
