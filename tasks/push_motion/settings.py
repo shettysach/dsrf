@@ -19,8 +19,6 @@ class PushMotionSettings:
     hand_half_width: float = 0.16
     hand_height: float = 0.30
     timeout: float = 90.0
-    max_reference_tilt_degrees: float = 35.0
-    min_root_height: float = 0.55
     approach_prompt: str = "Walking forward"
     reach_prompt: str = (
         "A person reaches out forwards, fully extending arms to push a box"
@@ -41,13 +39,6 @@ class PushMotionSettings:
             push_speed=_float_env("PUSH_MOTION_SPEED", defaults.push_speed),
             reach_windows=_int_env("PUSH_MOTION_REACH_WINDOWS", defaults.reach_windows),
             hand_targets=_bool_env("PUSH_MOTION_HANDS", defaults.hand_targets),
-            max_reference_tilt_degrees=_float_env(
-                "PUSH_MOTION_MAX_REFERENCE_TILT_DEGREES",
-                defaults.max_reference_tilt_degrees,
-            ),
-            min_root_height=_float_env(
-                "PUSH_MOTION_MIN_ROOT_HEIGHT", defaults.min_root_height
-            ),
         )
 
     def __post_init__(self) -> None:
@@ -60,18 +51,11 @@ class PushMotionSettings:
             self.hand_forward,
             self.hand_half_width,
             self.hand_height,
-            self.max_reference_tilt_degrees,
-            self.min_root_height,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Push-motion waypoints must be finite")
         if not 0.0 < self.approach_x < self.goal_x:
             raise ValueError("Push-motion staging point must lie before its goal")
-        if (
-            not 0.0 < self.max_reference_tilt_degrees < 90.0
-            or self.min_root_height <= 0.0
-        ):
-            raise ValueError("Push-motion stability limits are invalid")
         if (
             not all(
                 value > 0.0

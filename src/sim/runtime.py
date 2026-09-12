@@ -470,19 +470,6 @@ class SimRuntime:
                     "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
                 )
             def after_step() -> bool:
-                nonlocal actual_state
-                with self.simulation.compute_context():
-                    actual_state = self._root_path_qpos()
-                reason = controller.tracking_failure(actual_state)
-                if reason is not None:
-                    controller.fail(reason)
-                    self.node.log(
-                        "error",
-                        f"Root-path stability gate: {reason}",
-                        target="dsrf.sim.root_path",
-                        fields={"event": "root_path_stability_failure"},
-                    )
-                    return True
                 if self._stop_requested:
                     self.node.log(
                         "info",
@@ -513,16 +500,6 @@ class SimRuntime:
                     load_virtual_force=False,
                     synchronize_history=windows == 0,
                 )
-                reason = controller.reference_failure(qpos.detach().cpu().numpy())
-                if reason is not None:
-                    controller.fail(reason)
-                    self.node.log(
-                        "error",
-                        f"Root-path reference rejected: {reason}",
-                        target="dsrf.sim.root_path",
-                        fields={"event": "root_path_reference_rejected"},
-                    )
-                    break
                 windows += 1
                 self._log_motion_generated(
                     command,

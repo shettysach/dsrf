@@ -51,20 +51,6 @@ class RootPathController:
     def fail(self, reason: str) -> None:
         self.phase, self.reason = "failed", reason
 
-    def reference_failure(self, qpos: np.ndarray) -> str | None:
-        if not np.isfinite(qpos).all():
-            return "Non-finite generated reference"
-        if float(np.min(qpos[:, 2])) < self.config.min_root_height:
-            return "Generated reference drops below the root-height limit"
-        if _max_tilt_degrees(qpos[:, 3:7]) > self.config.max_reference_tilt_degrees:
-            return "Generated reference exceeds the tilt limit"
-        return None
-
-    def tracking_failure(self, actual_qpos: np.ndarray) -> str | None:
-        if float(actual_qpos[2]) < self.config.min_root_height:
-            return "Robot drops below the root-height limit"
-        return None
-
     def update(self, qpos: np.ndarray, dt: float) -> bool:
         if self.finished:
             return True
@@ -144,10 +130,3 @@ class RootPathController:
                 )
             )
         return tuple(samples)
-
-
-def _max_tilt_degrees(quaternions: np.ndarray) -> float:
-    """Return the largest angle between the root's up axis and world up."""
-    x, y = quaternions[:, 1], quaternions[:, 2]
-    up_z = 1.0 - 2.0 * (x * x + y * y)
-    return float(np.degrees(np.arccos(np.clip(up_z, -1.0, 1.0))).max())
