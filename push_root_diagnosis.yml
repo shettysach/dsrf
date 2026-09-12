@@ -1,4 +1,4 @@
-# One logical, feedback-controlled approach/contact/push. No VLM.
+# Timed 2D root waypoints through SONIC, with no hand or palm constraints.
 nodes:
   - id: agent
     path: uv
@@ -6,13 +6,12 @@ nodes:
     min_log_level: info
     env:
       AGENT: script
-      SCRIPT_TASK: box_push
-      SCRIPT_PROMPT: walk forward
-      SCRIPT_START_IMMEDIATELY: "false"
+      SCRIPT_TASK: push_motion
+      SCRIPT_PROMPT: walk forward with both arms held forward
+      SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
-      observation: sim/observation
     outputs:
       - command
 
@@ -27,10 +26,11 @@ nodes:
       TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/home/sach/Desktop/encoding/model/}"
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
-      TASK: box_push
-      # Advance into and remain in the push phase even when hand contact is missed.
-      PUSH_CONTACT_RETRIES: "0"
-      PUSH_REACQUISITIONS: "0"
+      TASK: push_motion
+      PUSH_MOTION_HANDS: "false"
+      IMAGE_WIDTH: "1280"
+      IMAGE_HEIGHT: "720"
+      JPEG_QUALITY: "85"
       PUBLISH_OBSERVATIONS: "false"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
@@ -41,4 +41,3 @@ nodes:
       command: agent/command
     outputs:
       - error
-      - observation

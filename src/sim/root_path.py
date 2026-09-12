@@ -84,9 +84,9 @@ class RootPathController:
         root_frames = set(range(3, frames, 4)) | {frames - 1}
         hand_frames = (
             _REACH_HAND_FRAMES
-            if self.phase == "reach"
+            if self.phase == "reach" and self.config.hand_targets
             else _PUSH_HAND_FRAMES
-            if self.phase == "push"
+            if self.phase == "push" and self.config.hand_targets
             else frozenset()
         )
         samples = []

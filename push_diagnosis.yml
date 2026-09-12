@@ -8,11 +8,10 @@ nodes:
       AGENT: script
       SCRIPT_TASK: prompt
       SCRIPT_PROMPT: walk forward with both arms held forward
-      SCRIPT_START_IMMEDIATELY: "false"
+      SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
     inputs:
       sim_error: sim/error
-      observation: sim/observation
     outputs:
       - command
 
@@ -31,7 +30,7 @@ nodes:
       IMAGE_WIDTH: "1280"
       IMAGE_HEIGHT: "720"
       JPEG_QUALITY: "85"
-      PUBLISH_OBSERVATIONS: "true"
+      PUBLISH_OBSERVATIONS: "false"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
       DEMO_MAX_COMMANDS: "1"
@@ -41,4 +40,3 @@ nodes:
       command: agent/command
     outputs:
       - error
-      - observation

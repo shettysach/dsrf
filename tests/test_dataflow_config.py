@@ -90,7 +90,17 @@ def test_push_diagnosis_uses_an_unconstrained_prompt() -> None:
     nodes = {node["id"]: node for node in descriptor["nodes"]}
 
     assert nodes["agent"]["env"]["SCRIPT_TASK"] == "prompt"
+    assert nodes["agent"]["env"]["SCRIPT_START_IMMEDIATELY"] == "true"
     assert nodes["sim"]["env"]["TASK"] == "push_motion"
+    assert nodes["sim"]["env"]["PUBLISH_OBSERVATIONS"] == "false"
+
+
+def test_push_root_diagnosis_uses_waypoints_without_hand_targets() -> None:
+    descriptor = yaml.safe_load(Path("push_root_diagnosis.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["SCRIPT_TASK"] == "push_motion"
+    assert nodes["sim"]["env"]["PUSH_MOTION_HANDS"] == "false"
 
 
 def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:

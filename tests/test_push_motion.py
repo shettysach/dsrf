@@ -1,5 +1,6 @@
 import numpy as np
 from tasks import get_task
+from tasks.push_motion.settings import PushMotionSettings
 
 from script.registry import create_task_script
 from sim.root_path import RootPathController
@@ -67,3 +68,19 @@ def test_root_path_uses_sparse_hand_keyframes() -> None:
         39,
         51,
     ]
+
+
+def test_root_path_can_skip_hand_targets_for_diagnosis() -> None:
+    command = create_task_script("push_motion", "walk forward").next_command(0)
+    assert command is not None and command.root_path_goal is not None
+    controller = RootPathController(
+        command.root_path_goal,
+        window_seconds=2.08,
+        config=PushMotionSettings(hand_targets=False),
+    )
+    controller.phase = "push"
+    state = np.array((2.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0), dtype=np.float64)
+
+    targets = controller.targets(state, frames=52, fps=25.0)
+
+    assert all(not target.end_effectors for target in targets)

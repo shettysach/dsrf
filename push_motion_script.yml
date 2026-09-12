@@ -28,10 +28,7 @@ nodes:
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: push_motion
-      IMAGE_WIDTH: "1280"
-      IMAGE_HEIGHT: "720"
-      JPEG_QUALITY: "85"
-      PUBLISH_OBSERVATIONS: "true"
+      PUBLISH_OBSERVATIONS: "false"
       VIEWER: native
       REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
       DEMO_MAX_COMMANDS: "1"

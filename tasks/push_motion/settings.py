@@ -14,6 +14,7 @@ class PushMotionSettings:
     navigation_speed: float = 0.4
     push_speed: float = 0.2
     reach_windows: int = 1  # 2
+    hand_targets: bool = True
     hand_forward: float = 0.4
     hand_half_width: float = 0.16
     hand_height: float = 0.30
@@ -37,6 +38,7 @@ class PushMotionSettings:
             ),
             push_speed=_float_env("PUSH_MOTION_SPEED", defaults.push_speed),
             reach_windows=_int_env("PUSH_MOTION_REACH_WINDOWS", defaults.reach_windows),
+            hand_targets=_bool_env("PUSH_MOTION_HANDS", defaults.hand_targets),
         )
 
     def __post_init__(self) -> None:
@@ -83,3 +85,12 @@ def _float_env(name: str, default: float) -> float:
 def _int_env(name: str, default: int) -> int:
     value = os.environ.get(name)
     return default if value is None or not value.strip() else int(value)
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    if value not in {"true", "false"}:
+        raise ValueError(f"{name} must be 'true' or 'false'")
+    return value == "true"
