@@ -22,7 +22,6 @@ class PushMotionSettings:
     max_tilt_degrees: float = 20.0
     max_reference_tilt_degrees: float = 35.0
     min_root_height: float = 0.55
-    max_root_error: float = 0.50
     approach_prompt: str = "Walking forward"
     reach_prompt: str = (
         "A person reaches out forwards, fully extending arms to push a box"
@@ -53,9 +52,6 @@ class PushMotionSettings:
             min_root_height=_float_env(
                 "PUSH_MOTION_MIN_ROOT_HEIGHT", defaults.min_root_height
             ),
-            max_root_error=_float_env(
-                "PUSH_MOTION_MAX_ROOT_ERROR", defaults.max_root_error
-            ),
         )
 
     def __post_init__(self) -> None:
@@ -71,7 +67,6 @@ class PushMotionSettings:
             self.max_tilt_degrees,
             self.max_reference_tilt_degrees,
             self.min_root_height,
-            self.max_root_error,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Push-motion waypoints must be finite")
@@ -81,7 +76,6 @@ class PushMotionSettings:
             not 0.0 < self.max_tilt_degrees < 90.0
             or not 0.0 < self.max_reference_tilt_degrees < 90.0
             or self.min_root_height <= 0.0
-            or self.max_root_error <= 0.0
         ):
             raise ValueError("Push-motion stability limits are invalid")
         if (

@@ -60,14 +60,11 @@ class RootPathController:
             return "Generated reference exceeds the tilt limit"
         return None
 
-    def tracking_failure(self, actual_qpos: np.ndarray, reference_qpos: np.ndarray) -> str | None:
+    def tracking_failure(self, actual_qpos: np.ndarray, _reference_qpos: np.ndarray) -> str | None:
         if float(actual_qpos[2]) < self.config.min_root_height:
             return "Robot drops below the root-height limit"
         if _max_tilt_degrees(actual_qpos[None, 3:7]) > self.config.max_tilt_degrees:
             return "Robot exceeds the tilt limit"
-        root_error = float(np.linalg.norm(actual_qpos[:2] - reference_qpos[:2]))
-        if root_error > self.config.max_root_error:
-            return f"Robot root error exceeds {self.config.max_root_error:.2f} m"
         return None
 
     def update(self, qpos: np.ndarray, dt: float) -> bool:

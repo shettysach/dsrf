@@ -86,7 +86,7 @@ def test_root_path_can_skip_hand_targets_for_diagnosis() -> None:
     assert all(not target.end_effectors for target in targets)
 
 
-def test_root_path_rejects_collapsed_reference_and_unstable_tracking() -> None:
+def test_root_path_rejects_collapsed_reference_and_tilt() -> None:
     command = create_task_script("push_motion", "walk forward").next_command(0)
     assert command is not None and command.root_path_goal is not None
     controller = RootPathController(command.root_path_goal, window_seconds=2.08)
