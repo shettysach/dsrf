@@ -55,20 +55,16 @@ def test_root_path_uses_sparse_hand_keyframes() -> None:
 
     reach_targets = controller.targets(state, frames=52, fps=25.0)
     assert [target.frame for target in reach_targets if target.end_effectors] == [
-        15,
-        31,
         51,
     ]
+    assert [target.frame for target in reach_targets if target.root_xy is not None] == [51]
 
     controller.phase = "push"
     push_targets = controller.targets(state, frames=52, fps=25.0)
     assert [target.frame for target in push_targets if target.end_effectors] == [
-        9,
-        19,
-        29,
-        39,
         51,
     ]
+    assert [target.frame for target in push_targets if target.root_xy is not None] == [51]
 
 
 def test_root_path_can_skip_hand_targets_for_diagnosis() -> None:

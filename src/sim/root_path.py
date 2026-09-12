@@ -6,8 +6,6 @@ from tasks.push_motion.settings import PushMotionSettings
 from motion_gen.targets import TimedTargets
 from shared.messages import EndEffectorTarget, RootPathGoal
 
-_REACH_HAND_FRAMES = frozenset({15, 31, 51})
-_PUSH_HAND_FRAMES = frozenset({9, 19, 29, 39, 51})
 
 class RootPathController:
     """Own root progress while deliberately supplying no body-pose targets."""
@@ -86,11 +84,9 @@ class RootPathController:
         )
         root_frames = {frames - 1}
         hand_frames = (
-            _REACH_HAND_FRAMES
-            if self.phase == "reach" and self.config.hand_targets
-            else _PUSH_HAND_FRAMES
-            if self.phase == "push" and self.config.hand_targets
-            else frozenset()
+            {frames - 1}
+            if self.phase in {"reach", "push"} and self.config.hand_targets
+            else set()
         )
         samples = []
         for frame in sorted(
@@ -115,7 +111,7 @@ class RootPathController:
                     EndEffectorTarget(
                         point.name,
                         tuple(np.asarray(point.target_xyz) + local_delta),
-                        palm_normal=point.palm_normal,
+                        palm_normal=None,
                     )
                     for point in self.goal.points
                 )
@@ -125,7 +121,9 @@ class RootPathController:
             samples.append(
                 TimedTargets(
                     frame,
-                    (float(local_delta[0]), float(local_delta[1])),
+                    (float(local_delta[0]), float(local_delta[1]))
+                    if frame in root_frames
+                    else None,
                     hands,
                 )
             )

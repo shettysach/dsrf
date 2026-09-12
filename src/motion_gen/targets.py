@@ -9,6 +9,6 @@ from shared.messages import EndEffectorTarget
 class TimedTargets:
     # Zero-based NEW frame index. Positions are relative to the observed root/yaw.
     frame: int
-    root_xy: tuple[float, float]
+    root_xy: tuple[float, float] | None = None
     end_effectors: tuple[EndEffectorTarget, ...] = ()
     root_upright: bool = False

@@ -154,31 +154,39 @@ def build_timed_constraints(
         raise ValueError("Timed target lies outside the generated window")
     root = root_history[-1].to(device)
     heading = root_heading.reshape(()).to(device)
-    local = torch.tensor(
-        [[s.root_xy[1], s.root_xy[0]] for s in samples],
-        dtype=root.dtype,
-        device=device,
-    )
-    root_targets_2d = root[[0, 2]] + _rotate_2d(local, heading)
-    frames = torch.tensor(indices, device=device) + history_frames
-    constraints = [
-        _root_constraint(
-            motion_rep.skeleton,
-            frames,
-            root_targets_2d,
-            heading.expand(len(samples)),
+    root_samples = tuple(sample for sample in samples if sample.root_xy is not None)
+    constraints = []
+    root_targets_2d: dict[int, torch.Tensor] = {}
+    if root_samples:
+        local = torch.tensor(
+            [[sample.root_xy[1], sample.root_xy[0]] for sample in root_samples],
+            dtype=root.dtype,
+            device=device,
         )
-    ]
+        targets = root[[0, 2]] + _rotate_2d(local, heading)
+        frames = torch.tensor(
+            [sample.frame for sample in root_samples], device=device
+        ) + history_frames
+        constraints.append(
+            _root_constraint(
+                motion_rep.skeleton,
+                frames,
+                targets,
+                heading.expand(len(root_samples)),
+            )
+        )
+        root_targets_2d = dict(
+            zip((sample.frame for sample in root_samples), targets, strict=True)
+        )
     if reference_decoded is not None:
-        for sample, frame, root_target_2d in zip(
-            samples, frames, root_targets_2d, strict=True
-        ):
+        for sample in samples:
             if not sample.end_effectors:
                 continue
             positions = reference_decoded["posed_joints"][:, sample.frame].to(device)
             rotations = reference_decoded["global_rot_mats"][:, sample.frame].to(device)
             root_pose = root.clone()
-            root_pose[[0, 2]] = root_target_2d
+            if (root_target_2d := root_targets_2d.get(sample.frame)) is not None:
+                root_pose[[0, 2]] = root_target_2d
             targets = global_end_effector_targets(
                 root, heading, sample.end_effectors, device=device
             )
@@ -202,7 +210,7 @@ def build_timed_constraints(
                     _end_effector_constraint(
                         motion_rep.skeleton,
                         target.name,
-                        frame.reshape(1),
+                        torch.tensor([sample.frame + history_frames], device=device),
                         edited,
                         edited_rotations,
                     )
