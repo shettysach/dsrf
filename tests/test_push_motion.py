@@ -42,6 +42,7 @@ def test_root_path_uses_only_timed_2d_root_targets_during_approach() -> None:
     assert all(
         not target.end_effectors and not target.root_upright for target in targets
     )
+    assert [target.frame for target in targets] == [51]
     assert targets[-1].root_xy == (0.8320000000000001, 0.0)
 
 

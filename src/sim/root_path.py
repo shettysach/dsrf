@@ -100,7 +100,7 @@ class RootPathController:
             if self.phase == "approach"
             else self.config.push_speed
         )
-        root_frames = set(range(3, frames, 4)) | {frames - 1}
+        root_frames = {frames - 1}
         hand_frames = (
             _REACH_HAND_FRAMES
             if self.phase == "reach" and self.config.hand_targets
