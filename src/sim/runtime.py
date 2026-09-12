@@ -58,7 +58,7 @@ class SimRuntime:
         simulation: MjlabEnv,
         generator: MotionGenerator,
         tracker: SonicTracker,
-        renderer: SimRenderer,
+        renderer: SimRenderer | None,
         viewer: SimViewer | None = None,
         recorder: DemoVideoRecorder | None = None,
         stop_on_stand: bool = False,
@@ -641,6 +641,7 @@ class SimRuntime:
                 if self.recorder is not None and getattr(
                     self.recorder, "should_capture", lambda _: True
                 )(frames):
+                    assert self.renderer is not None
                     self.recorder.write_frame(
                         self.renderer.capture_demo_rgb(), self.demo_vlm_state
                     )
@@ -683,6 +684,7 @@ class SimRuntime:
         completed_command: str | None,
         execution_feedback: str | None = None,
     ) -> tuple[float, int]:
+        assert self.renderer is not None
         render_started_at = time.perf_counter()
         if self.recorder is None:
             jpeg, projection = self.renderer.capture_rgbd()

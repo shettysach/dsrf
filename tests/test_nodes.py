@@ -243,6 +243,24 @@ def test_sim_generates_tracks_and_steps_final_action(monkeypatch) -> None:
     assert second.completed_command == "walk forward"
 
 
+def test_sim_runs_without_a_renderer_when_observations_are_disabled(monkeypatch) -> None:
+    node = _Node([_command_event(0, "walk forward"), {"type": "STOP"}])
+    simulation = _Simulation()
+    monkeypatch.setattr(sim_runtime.time, "sleep", lambda delay: None)
+
+    _runtime(
+        node,
+        simulation,
+        _Generator(),
+        _Tracker(),
+        None,
+        publish_observations=False,
+    ).run()
+
+    assert simulation.steps == 2
+    assert not node.outputs
+
+
 def test_sim_records_the_vlm_source_frame_before_motion(monkeypatch) -> None:
     class _Recorder:
         def __init__(self) -> None:

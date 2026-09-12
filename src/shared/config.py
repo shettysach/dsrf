@@ -68,11 +68,11 @@ class SimConfig:
     device: str
     sonic_dir: Path
     task: TaskSpec | None
-    image_width: int
-    image_height: int
-    jpeg_quality: int
     viewer: ViewerMode
     reference_ghost: bool
+    image_width: int = 640
+    image_height: int = 480
+    jpeg_quality: int = 85
     keyboard_socket: Path | None = None
     publish_observations: bool = True
     demo_video_path: Path | None = None

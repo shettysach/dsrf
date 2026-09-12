@@ -54,10 +54,14 @@ def main() -> None:
                 if cfg.viewer == "native"
                 else ViserSimViewer(simulation.mjlab_env, reference)
             )
-        renderer = SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
         recorder = (
             DemoVideoRecorder(cfg.demo_video_path)
             if cfg.demo_video_path is not None
+            else None
+        )
+        renderer = (
+            SimRenderer(simulation, jpeg_quality=cfg.jpeg_quality)
+            if cfg.publish_observations or recorder is not None
             else None
         )
         _log_init(node, cfg)

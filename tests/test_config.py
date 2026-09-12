@@ -103,6 +103,22 @@ def test_sim_config_from_env(monkeypatch) -> None:
     )
 
 
+def test_sim_config_uses_image_defaults_when_not_publishing(monkeypatch) -> None:
+    monkeypatch.setenv("DEVICE", "cpu")
+    monkeypatch.setenv("SONIC_DIR", "/models/sonic")
+    monkeypatch.setenv("TASK", "none")
+    monkeypatch.setenv("VIEWER", "native")
+    monkeypatch.setenv("REFERENCE_GHOST", "false")
+    monkeypatch.setenv("PUBLISH_OBSERVATIONS", "false")
+    monkeypatch.delenv("IMAGE_WIDTH", raising=False)
+    monkeypatch.delenv("IMAGE_HEIGHT", raising=False)
+    monkeypatch.delenv("JPEG_QUALITY", raising=False)
+
+    config = SimConfig.from_env()
+
+    assert (config.image_width, config.image_height, config.jpeg_quality) == (640, 480, 85)
+
+
 def test_sim_config_accepts_viser_viewer(monkeypatch) -> None:
     monkeypatch.setenv("DEVICE", "cpu")
     monkeypatch.setenv("SONIC_DIR", "/models/sonic")
