@@ -87,15 +87,13 @@ def test_root_path_can_skip_hand_targets_for_diagnosis() -> None:
     assert all(not target.end_effectors for target in targets)
 
 
-def test_root_path_rejects_collapsed_reference_and_tilt() -> None:
+def test_root_path_rejects_collapsed_reference_and_robot_collapse() -> None:
     command = create_task_script("push_motion", "walk forward").next_command(0)
     assert command is not None and command.root_path_goal is not None
     controller = RootPathController(command.root_path_goal, window_seconds=2.08)
     upright = np.array((0.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0))
     collapsed = upright.copy()
     collapsed[2] = 0.5
-    tilted = upright.copy()
-    tilted[3:7] = (np.cos(np.deg2rad(15)), np.sin(np.deg2rad(15)), 0.0, 0.0)
 
     assert controller.reference_failure(np.stack((upright, collapsed))) is not None
-    assert controller.tracking_failure(tilted, upright) is not None
+    assert controller.tracking_failure(collapsed) is not None

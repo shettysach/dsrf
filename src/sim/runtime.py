@@ -469,27 +469,20 @@ class SimRuntime:
                 raise ValueError(
                     "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
                 )
-            active_reference: torch.Tensor | None = None
-
             def after_step() -> bool:
                 nonlocal actual_state
                 with self.simulation.compute_context():
                     actual_state = self._root_path_qpos()
-                if active_reference is not None:
-                    frame = min(
-                        self.tracker.reference.frame_index, len(active_reference) - 1
+                reason = controller.tracking_failure(actual_state)
+                if reason is not None:
+                    controller.fail(reason)
+                    self.node.log(
+                        "error",
+                        f"Root-path stability gate: {reason}",
+                        target="dsrf.sim.root_path",
+                        fields={"event": "root_path_stability_failure"},
                     )
-                    reference_qpos = active_reference[frame].detach().cpu().numpy()
-                    reason = controller.tracking_failure(actual_state, reference_qpos)
-                    if reason is not None:
-                        controller.fail(reason)
-                        self.node.log(
-                            "error",
-                            f"Root-path stability gate: {reason}",
-                            target="dsrf.sim.root_path",
-                            fields={"event": "root_path_stability_failure"},
-                        )
-                        return True
+                    return True
                 if self._stop_requested:
                     self.node.log(
                         "info",
@@ -531,7 +524,6 @@ class SimRuntime:
                     )
                     break
                 windows += 1
-                active_reference = reference
                 self._log_motion_generated(
                     command,
                     qpos,
