@@ -1,0 +1,44 @@
+# Baseline: one unconstrained ARDY motion through the normal SONIC tracker.
+nodes:
+  - id: agent
+    path: uv
+    args: run dsrf-agent
+    min_log_level: info
+    env:
+      AGENT: script
+      SCRIPT_TASK: prompt
+      SCRIPT_PROMPT: walk forward with both arms held forward
+      SCRIPT_START_IMMEDIATELY: "false"
+      MOTION_GENERATOR: ardy
+    inputs:
+      sim_error: sim/error
+      observation: sim/observation
+    outputs:
+      - command
+
+  - id: sim
+    path: uv
+    args: run --extra cu128 --extra ardy dsrf-sim
+    min_log_level: info
+    env:
+      DEVICE: cuda
+      MOTION_GENERATOR: ardy
+      CHECKPOINTS_DIR: "${CHECKPOINTS_DIR:-/tmp/checkpoints}"
+      TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/home/sach/Desktop/encoding/model/}"
+      TEXT_ENCODER_DEVICE: cuda
+      SONIC_DIR: /tmp/GEAR-SONIC
+      TASK: push_motion
+      IMAGE_WIDTH: "1280"
+      IMAGE_HEIGHT: "720"
+      JPEG_QUALITY: "85"
+      PUBLISH_OBSERVATIONS: "true"
+      VIEWER: native
+      REFERENCE_GHOST: "${REFERENCE_GHOST:-true}"
+      DEMO_MAX_COMMANDS: "1"
+      DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-}"
+      ARDY_SEED: "${ARDY_SEED:-0}"
+    inputs:
+      command: agent/command
+    outputs:
+      - error
+      - observation

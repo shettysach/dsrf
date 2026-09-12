@@ -85,6 +85,14 @@ def test_push_motion_dataflow_uses_the_contact_free_task() -> None:
     assert "PUSH_WELD" not in nodes["sim"]["env"]
 
 
+def test_push_diagnosis_uses_an_unconstrained_prompt() -> None:
+    descriptor = yaml.safe_load(Path("push_diagnosis.yml").read_text())
+    nodes = {node["id"]: node for node in descriptor["nodes"]}
+
+    assert nodes["agent"]["env"]["SCRIPT_TASK"] == "prompt"
+    assert nodes["sim"]["env"]["TASK"] == "push_motion"
+
+
 def test_sokoban_dataflow_uses_kinematic_planner_without_scouting() -> None:
     descriptor = yaml.safe_load(Path("sokoban.yml").read_text())
     nodes = {node["id"]: node for node in descriptor["nodes"]}
