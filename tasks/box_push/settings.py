@@ -14,13 +14,13 @@ class BoxPushSettings:
     # Scene geometry.
     box_x: float = 3.0
     goal_x: float = 6.0
-    half_size: tuple[float, float, float] = (0.5, 0.5, 0.65)
+    half_size: tuple[float, float, float] = (0.5, 0.5, 0.5)
     goal_half_size: float = 0.65
 
     # Box-relative hand targets. ``hand_target_world_z`` is intentionally
     # world-space so it is easy to tune against the visible box height.
     hand_half_width: float = 0.22
-    hand_target_world_z: float = 1.05
+    hand_target_world_z: float = 0.5
 
     # Per-phase ARDY priors and temporal pacing.
     approach_prompt: str = "walk forward"
