@@ -82,7 +82,7 @@ class Ardy:
             embedding,
             device=self.device,
         )
-        has_native_hands = bool(end_effectors)
+        has_native_hands = bool(end_effectors or any(s.end_effectors for s in samples))
         has_spatial_constraints = bool(target_xys or end_effectors or samples)
         history_frames = (
             0 if self.motion_history is None else self.motion_history.shape[1]

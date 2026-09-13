@@ -72,6 +72,8 @@ def test_root_path_uses_sparse_hand_keyframes() -> None:
 
     reach = reach_targets[-1]
     push = push_targets[-1]
+    assert all(target.palm_normal == (1.0, 0.0, 0.0) for target in reach.end_effectors)
+    assert all(target.palm_normal == (1.0, 0.0, 0.0) for target in push.end_effectors)
     root_delta = np.array((*push.root_xy, 0.0))
     for reached, pushed in zip(reach.end_effectors, push.end_effectors, strict=True):
         np.testing.assert_allclose(

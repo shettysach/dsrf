@@ -150,7 +150,7 @@ class RootPathController:
                     EndEffectorTarget(
                         point.name,
                         tuple(np.asarray(point.target_xyz) + local_delta),
-                        palm_normal=None,
+                        palm_normal=point.palm_normal,
                     )
                     for point in self.goal.points
                 )

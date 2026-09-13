@@ -252,7 +252,7 @@ def test_ee_generation_uses_reference_pass_and_commits_only_final_motion(
     assert qpos.shape == (52, 36)
 
 
-def test_timed_hand_generation_uses_one_conditioned_pass(monkeypatch) -> None:
+def test_timed_hand_generation_uses_reference_and_palm_pass(monkeypatch) -> None:
     import motion_gen.ardy.generator as ardy_generator
 
     model = Mock()
@@ -260,20 +260,27 @@ def test_timed_hand_generation_uses_one_conditioned_pass(monkeypatch) -> None:
     model.num_frames_per_token = 4
     model.diffusion.num_base_steps = 10
     motion = torch.ones((1, 52, 3))
-    model.autoregressive_step.return_value = motion
-    model.motion_rep.inverse.return_value = {
+    model.autoregressive_step.side_effect = [motion, motion]
+    reference_decoded = {
+        "posed_joints": torch.zeros((1, 52, 34, 3)),
+        "global_rot_mats": torch.eye(3).expand(1, 52, 34, 3, 3),
+    }
+    final_decoded = {
         "root_positions": torch.zeros((1, 52, 3)),
         "global_root_heading": torch.tensor([[[1.0, 0.0]] * 52]),
     }
+    model.motion_rep.inverse.side_effect = [reference_decoded, final_decoded]
     converter = Mock()
     converter.dict_to_qpos.return_value = torch.zeros((1, 52, 36))
     mask = torch.ones((1, 52, 3))
     observed = torch.full((1, 52, 3), 2.0)
-    monkeypatch.setattr(
-        ardy_generator,
-        "build_timed_constraints",
-        lambda *args, **kwargs: (mask, observed),
-    )
+    received_references = []
+
+    def timed_constraints(*args, **kwargs):
+        received_references.append(args[4] if len(args) > 4 else None)
+        return mask, observed
+
+    monkeypatch.setattr(ardy_generator, "build_timed_constraints", timed_constraints)
     generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
     generator.device = torch.device("cpu")
     generator.model = model
@@ -288,15 +295,18 @@ def test_timed_hand_generation_uses_one_conditioned_pass(monkeypatch) -> None:
         (),
         samples=(
             TimedTargets(
-                51, (0.2, 0.0), (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),)
+                51,
+                (0.2, 0.0),
+                (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2), (1.0, 0.0, 0.0)),),
             ),
         ),
     )
 
-    assert model.autoregressive_step.call_count == 1
-    call = model.autoregressive_step.call_args
-    assert call.kwargs["motion_mask"] is mask
-    assert call.kwargs["observed_motion"] is observed
+    assert model.autoregressive_step.call_count == 2
+    assert received_references == [None, reference_decoded]
+    for call in model.autoregressive_step.call_args_list:
+        assert call.kwargs["motion_mask"] is mask
+        assert call.kwargs["observed_motion"] is observed
 
 
 def test_future_conditioning_keeps_52_frame_output(monkeypatch) -> None:

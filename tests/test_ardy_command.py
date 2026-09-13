@@ -280,14 +280,18 @@ def test_oriented_hand_positions_form_one_rigid_pose() -> None:
     )
 
 
-def test_timed_hands_constrain_only_endpoints_and_keep_explicit_root() -> None:
+def test_timed_hands_use_palm_aware_native_constraints() -> None:
     motion_rep, received = _conditions()
+    reference = {
+        name: value.expand(1, 52, *value.shape[2:]).clone()
+        for name, value in _reference(motion_rep).items()
+    }
     sample = TimedTargets(
         51,
         (0.4, 0.0),
         (
-            EndEffectorTarget("left_hand", (0.4, 0.0, 0.2)),
-            EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),
+            EndEffectorTarget("left_hand", (0.4, 0.0, 0.2), (1.0, 0.0, 0.0)),
+            EndEffectorTarget("right_hand", (0.4, 0.0, 0.2), (1.0, 0.0, 0.0)),
         ),
     )
 
@@ -296,6 +300,7 @@ def test_timed_hands_constrain_only_endpoints_and_keep_explicit_root() -> None:
         torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]]),
         torch.tensor(0.0),
         (sample,),
+        reference,
         generated_frames=52,
         history_frames=4,
         device=torch.device("cpu"),
@@ -306,15 +311,41 @@ def test_timed_hands_constrain_only_endpoints_and_keep_explicit_root() -> None:
     assert [
         index.tolist() for index in received["index"]["global_joints_positions"]
     ] == [
-        [[55, 0]],
-        [[55, 4]],
-        [[55, 6]],
+        [[55, 3], [55, 4], [55, 0]],
+        [[55, 5], [55, 6], [55, 0]],
     ]
-    assert "global_joints_rots" not in received["index"]
-    assert "root_y_pos" not in received["index"]
+    assert [index.tolist() for index in received["index"]["global_joints_rots"]] == [
+        [[55, 3], [55, 0]],
+        [[55, 5], [55, 0]],
+    ]
+    assert [index.tolist() for index in received["index"]["root_y_pos"]] == [[55], [55]]
+    assert not torch.equal(received["data"]["global_joints_rots"][0][0], torch.eye(3))
     assert [index.tolist() for index in received["index"]["global_root_heading"]] == [
-        [55]
+        [55],
+        [55],
+        [55],
     ]
+
+
+def test_timed_reference_pass_only_constrains_root() -> None:
+    motion_rep, received = _conditions()
+    build_timed_constraints(
+        motion_rep,
+        torch.tensor([[0.0, 0.8, 0.0], [0.0, 0.8, 0.0]]),
+        torch.tensor(0.0),
+        (
+            TimedTargets(
+                51,
+                (0.0, 0.0),
+                (EndEffectorTarget("right_hand", (0.4, 0.0, 0.3), (1.0, 0.0, 0.0)),),
+            ),
+        ),
+        generated_frames=52,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+    assert "global_joints_positions" not in received["index"]
+    assert "global_joints_rots" not in received["index"]
 
 
 def test_future_root_target_extends_mask_but_not_generation_horizon() -> None:
@@ -337,6 +368,14 @@ def test_future_root_target_extends_mask_but_not_generation_horizon() -> None:
 def test_timed_hand_compiles_with_ardy_motion_representation() -> None:
     motion_rep = ArdyMotionRep(G1Skeleton34(), 25)
     motion_rep.stats = SimpleNamespace(normalize=lambda value: value)
+    neutral = motion_rep.skeleton.neutral_joints.float().clone()
+    neutral[:, 1] += 0.8
+    reference = {
+        "posed_joints": neutral[None, None].expand(1, 52, -1, -1).clone(),
+        "global_rot_mats": torch.eye(3)
+        .expand(1, 52, motion_rep.skeleton.nbjoints, 3, 3)
+        .clone(),
+    }
     mask, observed = build_timed_constraints(
         motion_rep,
         torch.tensor([[0.0, 0.8, 0.0], [0.0, 0.8, 0.0]]),
@@ -344,11 +383,12 @@ def test_timed_hand_compiles_with_ardy_motion_representation() -> None:
         (
             TimedTargets(
                 51,
-                (0.4, 0.0),
-                (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
+                (0.0, 0.0),
+                (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2), (1.0, 0.0, 0.0)),),
             ),
             TimedTargets(124, (2.0, 0.0)),
         ),
+        reference,
         generated_frames=52,
         history_frames=4,
         visible_frames=128,
