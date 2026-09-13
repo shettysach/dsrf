@@ -38,8 +38,8 @@ and `PUSH_MOTION_SPEED` tune the physical path and pacing.
 `PUSH_MOTION_VF_MAGNITUDE` tune the assistance (defaults: 0.05 m, 0.12 m, 15 N).
 
 The script walks to x=2 m, reaches, then walks with both hands forward to the
-root goal at x=6 m. The box starts at x=2.98 m, with its near face 8 cm past
-the nominal reach target (x=2.40 m), and its green goal is centered at x=6.98 m.
+root goal at x=6 m. The box starts at x=2.90 m, with its near face at
+the nominal reach target (x=2.40 m), and its green goal is centered at x=6.90 m.
 Per-window root and hand keyframes maintain the pace;
 phase deadlines remain at absolute script-frame times and enter ARDY's
 10-second conditioning horizon when visible. Every window is replanned from
