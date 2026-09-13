@@ -1,6 +1,7 @@
 from typing import Any, cast
 from unittest.mock import Mock
 
+import mujoco
 import numpy as np
 import pytest
 import torch
@@ -50,6 +51,8 @@ def test_box_push_box_has_a_wide_stable_footprint() -> None:
 
     assert settings.half_size == pytest.approx((0.50, 0.50, 0.65))
     assert box.init_state.pos == pytest.approx((3.0, 0.0, 0.65))
+    model = box.spec_fn().compile()
+    assert model.jnt_type[model.joint("box_free").id] == mujoco.mjtJoint.mjJNT_FREE
 
 
 def test_box_push_box_starts_entirely_before_the_goal() -> None:

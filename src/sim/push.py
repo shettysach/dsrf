@@ -1,4 +1,4 @@
-"""Small feedback controller for the scripted planar push, independent of ARDY."""
+"""Small feedback controller for the scripted box push, independent of ARDY."""
 
 from dataclasses import dataclass
 

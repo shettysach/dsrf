@@ -14,7 +14,7 @@ def test_push_motion_box_starts_at_palm_reach_and_has_a_goal() -> None:
 
     assert task.virtual_force_objects == ("box",)
     assert box.init_state.pos == (settings.box_start_x, 0.0, 0.65)
-    assert settings.box_start_x - settings.box_half_size[0] == pytest.approx(2.43)
+    assert settings.box_start_x - settings.box_half_size[0] == pytest.approx(2.48)
     assert settings.box_goal_x - settings.box_start_x == pytest.approx(4.0)
     model = box.spec_fn().compile()
     assert model.body_mass[model.body("box").id] == settings.box_mass
@@ -138,7 +138,7 @@ def test_root_goal_requires_box_at_goal_and_measured_bilateral_reach() -> None:
     controller.phase = "push"
     controller.update(state, 2.08, hands, np.array((6.0, 0.0, 0.65)))
     assert controller.phase == "push"
-    controller.update(state, 2.08, hands, np.array((6.93, 0.0, 0.65)))
+    controller.update(state, 2.08, hands, np.array((6.98, 0.0, 0.65)))
     assert controller.phase == "done"
 
     controller = RootPathController(command.root_path_goal, window_seconds=2.08)
@@ -147,6 +147,6 @@ def test_root_goal_requires_box_at_goal_and_measured_bilateral_reach() -> None:
         state,
         2.08,
         {"left_hand": hands["left_hand"], "right_hand": np.array((6.1, 0.0, 1.0))},
-        np.array((6.93, 0.0, 0.65)),
+        np.array((6.98, 0.0, 0.65)),
     )
     assert controller.phase == "push"

@@ -2,7 +2,7 @@
 
 This repository's runnable dataflow is `push_motion_script.yml`. A script sends
 one root-path goal to ARDY; the simulator generates 52 frames at 25 FPS per
-window and tracks them with SONIC. A planar box is placed near the palms at
+window and tracks them with SONIC. A free-moving box is placed near the palms at
 the reach pose. During push, coarse palm proximity gates horizontal virtual
 force on the box; no physical contact requirement or G1 force is added.
 There is no VLM in this flow. Other task implementations remain in
@@ -38,8 +38,8 @@ and `PUSH_MOTION_SPEED` tune the physical path and pacing.
 `PUSH_MOTION_VF_MAGNITUDE` tune the assistance (defaults: 0.05 m, 0.12 m, 15 N).
 
 The script walks to x=2 m, reaches, then walks with both hands forward to the
-root goal at x=6 m. The box starts at x=2.93 m, with its near face 3 cm past
-the nominal reach target, and its green goal is centered at x=6.93 m.
+root goal at x=6 m. The box starts at x=2.98 m, with its near face 8 cm past
+the nominal reach target (x=2.40 m), and its green goal is centered at x=6.98 m.
 Per-window root and hand keyframes maintain the pace;
 phase deadlines remain at absolute script-frame times and enter ARDY's
 10-second conditioning horizon when visible. Every window is replanned from

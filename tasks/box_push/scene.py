@@ -13,8 +13,6 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 
-# A lightweight planar cube keeps this scripted contact benchmark aligned with
-# the Sokoban object model: it translates on the floor but cannot tip or roll.
 _BOX_RGBA = (0.65, 0.42, 0.2, 1.0)
 
 
@@ -45,18 +43,7 @@ def _make_box_spec(*, box_mass: float | None = None) -> "MjSpec":
     settings = BoxPushSettings()
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
     body = spec.worldbody.add_body(name="box")
-    body.add_joint(
-        name="box_x",
-        type=mujoco.mjtJoint.mjJNT_SLIDE,  # ty: ignore[unresolved-attribute]
-        axis=(1.0, 0.0, 0.0),
-        damping=settings.box_slide_damping,
-    )
-    body.add_joint(
-        name="box_y",
-        type=mujoco.mjtJoint.mjJNT_SLIDE,  # ty: ignore[unresolved-attribute]
-        axis=(0.0, 1.0, 0.0),
-        damping=settings.box_slide_damping,
-    )
+    body.add_freejoint(name="box_free")
     body.add_geom(
         name="box_collision",
         type=mujoco.mjtGeom.mjGEOM_BOX,  # ty: ignore[unresolved-attribute]
