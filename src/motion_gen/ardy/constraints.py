@@ -154,9 +154,13 @@ def build_timed_constraints(
         raise ValueError("Timed target lies outside the generated window")
     root = root_history[-1].to(device)
     heading = root_heading.reshape(()).to(device)
-    root_samples = tuple(sample for sample in samples if sample.root_xy is not None)
+    root_samples = tuple(
+        sample
+        for sample in samples
+        if sample.root_xy is not None
+        and (reference_decoded is None or not sample.end_effectors)
+    )
     constraints = []
-    root_targets_2d: dict[int, torch.Tensor] = {}
     if root_samples:
         local = torch.tensor(
             [[sample.root_xy[1], sample.root_xy[0]] for sample in root_samples],
@@ -175,25 +179,20 @@ def build_timed_constraints(
                 heading.expand(len(root_samples)),
             )
         )
-        root_targets_2d = dict(
-            zip((sample.frame for sample in root_samples), targets, strict=True)
-        )
     if reference_decoded is not None:
         for sample in samples:
             if not sample.end_effectors:
                 continue
             positions = reference_decoded["posed_joints"][:, sample.frame].to(device)
             rotations = reference_decoded["global_rot_mats"][:, sample.frame].to(device)
-            root_pose = root.clone()
-            if (root_target_2d := root_targets_2d.get(sample.frame)) is not None:
-                root_pose[[0, 2]] = root_target_2d
+            reference_root = positions[0, motion_rep.skeleton.root_idx].clone()
             targets = global_end_effector_targets(
                 root, heading, sample.end_effectors, device=device
             )
             _validate_end_effector_reach(
                 sample.end_effectors,
                 targets,
-                root_pose,
+                reference_root,
             )
             for target, xyz in zip(sample.end_effectors, targets, strict=True):
                 edited, edited_rotations = _edit_end_effector_pose(
@@ -203,8 +202,6 @@ def build_timed_constraints(
                     target,
                     xyz,
                     heading,
-                    root_position=root_pose if sample.root_upright else None,
-                    upright_root=sample.root_upright,
                 )
                 constraints.append(
                     _end_effector_constraint(

@@ -280,12 +280,12 @@ def test_oriented_hand_positions_form_one_rigid_pose() -> None:
     )
 
 
-def test_timed_root_upright_target_replaces_speculative_root_pose() -> None:
+def test_timed_hand_keeps_reference_pelvis_without_second_root_constraint() -> None:
     motion_rep, received = _conditions()
-    reference = _reference(motion_rep, root=(1.0, 0.6, 2.0))
+    reference = _reference(motion_rep, root=(1.2, 0.6, 2.3))
     sample = TimedTargets(
         0,
-        (0.0, 0.0),
+        (0.4, 0.0),
         (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
         root_upright=True,
     )
@@ -302,16 +302,62 @@ def test_timed_root_upright_target_replaces_speculative_root_pose() -> None:
     )
 
     root = motion_rep.skeleton.root_idx
+    assert not any(
+        isinstance(constraint, Root2DConstraintSet)
+        for constraint in received["constraints"]
+    )
+    assert isinstance(received["constraints"][0], RightHandConstraintSet)
+    torch.testing.assert_close(received["data"]["root_2d"][0], torch.tensor([[1.2, 2.3]]))
+    torch.testing.assert_close(received["data"]["root_y_pos"][0], torch.tensor([0.6]))
     assert received["index"]["global_joints_rots"][0].tolist() == [[4, 5], [4, root]]
     torch.testing.assert_close(
         received["data"]["global_joints_rots"][0][1], torch.eye(3)
     )
-    # The root position included by ARDY's native hand constraint stays at the
-    # observed standing height, rather than the crouched reference height.
     torch.testing.assert_close(
-        received["data"]["global_joints_positions"][0][-1, 1],
-        torch.tensor(0.8),
+        received["data"]["global_joints_positions"][0][-1],
+        reference["posed_joints"][0, 0, root],
     )
+
+
+def test_timed_first_pass_keeps_root_constraint_for_hand_frame() -> None:
+    motion_rep, received = _conditions()
+    sample = TimedTargets(
+        0,
+        (0.4, 0.0),
+        (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
+    )
+
+    build_timed_constraints(
+        motion_rep,
+        torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]]),
+        torch.tensor(0.0),
+        (sample,),
+        generated_frames=52,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+    assert len(received["constraints"]) == 1
+    assert isinstance(received["constraints"][0], Root2DConstraintSet)
+
+
+def test_timed_second_pass_keeps_root_only_constraint() -> None:
+    motion_rep, received = _conditions()
+    sample = TimedTargets(0, (0.4, 0.0), ())
+
+    build_timed_constraints(
+        motion_rep,
+        torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]]),
+        torch.tensor(0.0),
+        (sample,),
+        _reference(motion_rep),
+        generated_frames=52,
+        history_frames=4,
+        device=torch.device("cpu"),
+    )
+
+    assert len(received["constraints"]) == 1
+    assert isinstance(received["constraints"][0], Root2DConstraintSet)
 
 
 def test_waypoint_and_native_ee_share_final_frame() -> None:
