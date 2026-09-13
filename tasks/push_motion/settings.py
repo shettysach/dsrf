@@ -12,7 +12,7 @@ class PushMotionSettings:
     approach_x: float = 2.0
     goal_x: float = 6.0
     navigation_speed: float = 0.4
-    push_speed: float = 0.2
+    push_speed: float = 0.4
     reach_windows: int = 1  # 2
     hand_targets: bool = True
     hand_forward: float = 0.4
