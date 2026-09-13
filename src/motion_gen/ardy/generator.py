@@ -82,13 +82,19 @@ class Ardy:
             embedding,
             device=self.device,
         )
-        has_hands = bool(end_effectors or any(s.end_effectors for s in samples))
+        has_native_hands = bool(end_effectors)
         has_spatial_constraints = bool(target_xys or end_effectors or samples)
         history_frames = (
             0 if self.motion_history is None else self.motion_history.shape[1]
         )
         generated_frames = int(self.model.gen_horizon_len)
         num_frames = history_frames + generated_frames
+        if samples:
+            patch = int(getattr(self.model, "num_frames_per_token", 4))
+            requested = history_frames + max(sample.frame for sample in samples) + 1
+            num_frames = max(num_frames, ((requested + patch - 1) // patch) * patch)
+            if num_frames > (self.fps * 10 // patch) * patch:
+                raise ValueError("Timed target exceeds ARDY's 10-second context")
         root_motion_mask = root_observed_motion = None
         if samples:
             root_motion_mask, root_observed_motion = build_timed_constraints(
@@ -98,6 +104,7 @@ class Ardy:
                 samples,
                 generated_frames=generated_frames,
                 history_frames=history_frames,
+                visible_frames=num_frames - history_frames,
                 device=self.device,
             )
         if target_xys:
@@ -156,7 +163,7 @@ class Ardy:
                     **autoregressive_kwargs,
                 )
 
-            if has_hands:
+            if has_native_hands:
                 reference_motion = generate_window(
                     root_motion_mask, root_observed_motion
                 )
@@ -174,6 +181,7 @@ class Ardy:
                         reference_decoded,
                         generated_frames=generated_frames,
                         history_frames=history_frames,
+                        visible_frames=num_frames - history_frames,
                         device=self.device,
                     )
                 else:
@@ -191,9 +199,10 @@ class Ardy:
                 motion = generate_window(motion_mask, observed_motion)
             else:
                 motion = generate_window(root_motion_mask, root_observed_motion)
-            if motion.shape[1] != num_frames:
+            expected_frames = history_frames + generated_frames
+            if motion.shape[1] != expected_frames:
                 raise ValueError(
-                    f"ARDY returned {motion.shape[1]} total frames; expected {num_frames}"
+                    f"ARDY returned {motion.shape[1]} total frames; expected {expected_frames}"
                 )
             generated_motion = motion[:, history_frames:]
             if generated_motion.shape[1] != generated_frames:

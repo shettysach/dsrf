@@ -125,6 +125,31 @@ class _DeviceAwareRightFootConstraint(
     pass
 
 
+class _EndEffectorPositionConstraint:
+    """Constrain one endpoint position without imposing a reference pose."""
+
+    def __init__(
+        self,
+        skeleton,
+        name: str,
+        frame_indices: torch.Tensor,
+        positions: torch.Tensor,
+    ) -> None:
+        self.frame_indices = frame_indices
+        self.joint_index = torch.tensor(
+            [skeleton.bone_index[_JOINT_NAMES[name]]], device=frame_indices.device
+        )
+        self.positions = positions
+
+    def update_constraints(
+        self, data_dict: dict[str, list[Any]], index_dict: dict[str, list[Any]]
+    ) -> None:
+        data_dict["global_joints_positions"].append(self.positions)
+        index_dict["global_joints_positions"].append(
+            _constraint_pairs(self.frame_indices, self.joint_index)
+        )
+
+
 def _constraint_pairs(first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
     return torch.stack(
         (
@@ -144,33 +169,34 @@ def build_timed_constraints(
     *,
     generated_frames: int,
     history_frames: int,
+    visible_frames: int | None = None,
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Condition each sample at its own timestamp, never retime the task goal."""
     indices = [sample.frame for sample in samples]
     if not indices or indices != sorted(set(indices)):
         raise ValueError("Timed targets require unique, increasing frame indices")
-    if indices[0] < 0 or indices[-1] >= generated_frames:
-        raise ValueError("Timed target lies outside the generated window")
+    if indices[0] < 0 or indices[-1] >= (visible_frames or generated_frames):
+        raise ValueError("Timed target lies outside the visible ARDY window")
     root = root_history[-1].to(device)
     heading = root_heading.reshape(()).to(device)
     root_samples = tuple(
-        sample
+        (sample.frame, sample.root_xy)
         for sample in samples
         if sample.root_xy is not None
-        and (reference_decoded is None or not sample.end_effectors)
     )
     constraints = []
     if root_samples:
         local = torch.tensor(
-            [[sample.root_xy[1], sample.root_xy[0]] for sample in root_samples],
+            [[xy[1], xy[0]] for _, xy in root_samples],
             dtype=root.dtype,
             device=device,
         )
         targets = root[[0, 2]] + _rotate_2d(local, heading)
-        frames = torch.tensor(
-            [sample.frame for sample in root_samples], device=device
-        ) + history_frames
+        frames = (
+            torch.tensor([frame for frame, _ in root_samples], device=device)
+            + history_frames
+        )
         constraints.append(
             _root_constraint(
                 motion_rep.skeleton,
@@ -179,41 +205,25 @@ def build_timed_constraints(
                 heading.expand(len(root_samples)),
             )
         )
-    if reference_decoded is not None:
-        for sample in samples:
-            if not sample.end_effectors:
-                continue
-            positions = reference_decoded["posed_joints"][:, sample.frame].to(device)
-            rotations = reference_decoded["global_rot_mats"][:, sample.frame].to(device)
-            reference_root = positions[0, motion_rep.skeleton.root_idx].clone()
-            targets = global_end_effector_targets(
-                root, heading, sample.end_effectors, device=device
-            )
-            _validate_end_effector_reach(
-                sample.end_effectors,
-                targets,
-                reference_root,
-            )
-            for target, xyz in zip(sample.end_effectors, targets, strict=True):
-                edited, edited_rotations = _edit_end_effector_pose(
-                    positions,
-                    rotations,
-                    motion_rep.skeleton,
-                    target,
-                    xyz,
-                    heading,
+    for sample in samples:
+        if not sample.end_effectors:
+            continue
+        targets = global_end_effector_targets(
+            root, heading, sample.end_effectors, device=device
+        )
+        _validate_end_effector_reach(sample.end_effectors, targets, root)
+        frame = torch.tensor([sample.frame + history_frames], device=device)
+        for target, xyz in zip(sample.end_effectors, targets, strict=True):
+            constraints.append(
+                _EndEffectorPositionConstraint(
+                    motion_rep.skeleton, target.name, frame, xyz.unsqueeze(0)
                 )
-                constraints.append(
-                    _end_effector_constraint(
-                        motion_rep.skeleton,
-                        target.name,
-                        torch.tensor([sample.frame + history_frames], device=device),
-                        edited,
-                        edited_rotations,
-                    )
-                )
+            )
     observed, mask = motion_rep.create_conditions_from_constraints(
-        constraints, history_frames + generated_frames, False, str(device)
+        constraints,
+        history_frames + (visible_frames or generated_frames),
+        False,
+        str(device),
     )
     return mask.unsqueeze(0), (motion_rep.normalize(observed) * mask).unsqueeze(0)
 
@@ -387,7 +397,7 @@ def _edit_end_effector_pose(
     root_position: torch.Tensor | None = None,
     upright_root: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Build an FK-consistent hand chain around the requested endpoint."""
+    """Rigidly relocate selected global hand joints around the endpoint."""
     edited_rotations = rotations.clone()
     root_index = skeleton.root_idx
     if upright_root:

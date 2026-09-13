@@ -63,6 +63,7 @@ class SokobanMotionEvents:
             messages.append("No wall collision and no box push detected.")
         return " ".join(messages)
 
+
 class MjlabEnv:
     def __init__(
         self,
@@ -187,6 +188,14 @@ class MjlabEnv:
             hand_geom_ids=self._hand_geom_ids,
             object_geom_ids={name: self._object_geom_ids[name] for name in requested},
         )
+
+    def hand_positions(self) -> dict[str, np.ndarray]:
+        """Measured world positions of the two hand collision geometries."""
+        positions = self._env.sim.data.geom_xpos
+        return {
+            name: positions[0, gid].detach().cpu().numpy().copy()
+            for name, gid in self._hand_geom_ids.items()
+        }
 
     def push_state(self, body: str):
         """Snapshot physical state for the scripted single-box controller."""

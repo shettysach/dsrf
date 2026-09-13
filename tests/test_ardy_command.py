@@ -280,51 +280,15 @@ def test_oriented_hand_positions_form_one_rigid_pose() -> None:
     )
 
 
-def test_timed_hand_keeps_reference_pelvis_without_second_root_constraint() -> None:
-    motion_rep, received = _conditions()
-    reference = _reference(motion_rep, root=(1.2, 0.6, 2.3))
-    sample = TimedTargets(
-        0,
-        (0.4, 0.0),
-        (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
-        root_upright=True,
-    )
-
-    build_timed_constraints(
-        motion_rep,
-        torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]]),
-        torch.tensor(0.0),
-        (sample,),
-        reference,
-        generated_frames=52,
-        history_frames=4,
-        device=torch.device("cpu"),
-    )
-
-    root = motion_rep.skeleton.root_idx
-    assert not any(
-        isinstance(constraint, Root2DConstraintSet)
-        for constraint in received["constraints"]
-    )
-    assert isinstance(received["constraints"][0], RightHandConstraintSet)
-    torch.testing.assert_close(received["data"]["root_2d"][0], torch.tensor([[1.2, 2.3]]))
-    torch.testing.assert_close(received["data"]["root_y_pos"][0], torch.tensor([0.6]))
-    assert received["index"]["global_joints_rots"][0].tolist() == [[4, 5], [4, root]]
-    torch.testing.assert_close(
-        received["data"]["global_joints_rots"][0][1], torch.eye(3)
-    )
-    torch.testing.assert_close(
-        received["data"]["global_joints_positions"][0][-1],
-        reference["posed_joints"][0, 0, root],
-    )
-
-
-def test_timed_first_pass_keeps_root_constraint_for_hand_frame() -> None:
+def test_timed_hands_constrain_only_endpoints_and_keep_explicit_root() -> None:
     motion_rep, received = _conditions()
     sample = TimedTargets(
-        0,
+        51,
         (0.4, 0.0),
-        (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
+        (
+            EndEffectorTarget("left_hand", (0.4, 0.0, 0.2)),
+            EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),
+        ),
     )
 
     build_timed_constraints(
@@ -337,27 +301,36 @@ def test_timed_first_pass_keeps_root_constraint_for_hand_frame() -> None:
         device=torch.device("cpu"),
     )
 
-    assert len(received["constraints"]) == 1
     assert isinstance(received["constraints"][0], Root2DConstraintSet)
+    assert received["index"]["root_2d"][0].tolist() == [55]
+    assert [
+        index.tolist() for index in received["index"]["global_joints_positions"]
+    ] == [
+        [[55, 4]],
+        [[55, 6]],
+    ]
+    assert "global_joints_rots" not in received["index"]
+    assert "root_y_pos" not in received["index"]
+    assert [index.tolist() for index in received["index"]["global_root_heading"]] == [
+        [55]
+    ]
 
 
-def test_timed_second_pass_keeps_root_only_constraint() -> None:
+def test_future_root_target_extends_mask_but_not_generation_horizon() -> None:
     motion_rep, received = _conditions()
-    sample = TimedTargets(0, (0.4, 0.0), ())
-
-    build_timed_constraints(
+    mask, observed = build_timed_constraints(
         motion_rep,
         torch.tensor([[1.0, 0.8, 2.0], [1.0, 0.8, 2.0]]),
         torch.tensor(0.0),
-        (sample,),
-        _reference(motion_rep),
+        (TimedTargets(51, (0.4, 0.0)), TimedTargets(124, (2.0, 0.0))),
         generated_frames=52,
         history_frames=4,
+        visible_frames=128,
         device=torch.device("cpu"),
     )
-
-    assert len(received["constraints"]) == 1
-    assert isinstance(received["constraints"][0], Root2DConstraintSet)
+    assert received["length"] == 132
+    assert received["index"]["root_2d"][0].tolist() == [55, 128]
+    assert mask.shape == observed.shape == (1, 132, 64)
 
 
 def test_waypoint_and_native_ee_share_final_frame() -> None:

@@ -57,14 +57,26 @@ def test_root_path_uses_sparse_hand_keyframes() -> None:
     assert [target.frame for target in reach_targets if target.end_effectors] == [
         51,
     ]
-    assert [target.frame for target in reach_targets if target.root_xy is not None] == [51]
+    assert [target.frame for target in reach_targets if target.root_xy is not None] == [
+        51
+    ]
 
     controller.phase = "push"
     push_targets = controller.targets(state, frames=52, fps=25.0)
     assert [target.frame for target in push_targets if target.end_effectors] == [
         51,
     ]
-    assert [target.frame for target in push_targets if target.root_xy is not None] == [51]
+    assert [target.frame for target in push_targets if target.root_xy is not None] == [
+        51
+    ]
+
+    reach = reach_targets[-1]
+    push = push_targets[-1]
+    root_delta = np.array((*push.root_xy, 0.0))
+    for reached, pushed in zip(reach.end_effectors, push.end_effectors, strict=True):
+        np.testing.assert_allclose(
+            np.asarray(pushed.target_xyz) - np.asarray(reached.target_xyz), root_delta
+        )
 
 
 def test_root_path_can_skip_hand_targets_for_diagnosis() -> None:
@@ -81,3 +93,48 @@ def test_root_path_can_skip_hand_targets_for_diagnosis() -> None:
     targets = controller.targets(state, frames=52, fps=25.0)
 
     assert all(not target.end_effectors for target in targets)
+
+
+def test_root_goal_keeps_its_absolute_deadline_across_measured_windows() -> None:
+    command = create_task_script("push_motion", "walk forward").next_command(0)
+    assert command is not None and command.root_path_goal is not None
+    controller = RootPathController(command.root_path_goal, window_seconds=2.08)
+    state = np.array((0.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0))
+
+    first = controller.targets(state, 52, 25.0, visible_frames=244)
+    assert [sample.frame for sample in first] == [51, 124]
+    assert first[-1].root_xy == (2.0, 0.0)
+    controller.update(state, 2.08)  # The robot did not follow the generated path.
+    second = controller.targets(state, 52, 25.0, visible_frames=244)
+    assert [sample.frame for sample in second] == [51, 72]
+    assert controller.phase == "approach"
+    controller.update(state, 2.08)
+    third = controller.targets(state, 52, 25.0, visible_frames=244)
+    assert [sample.frame for sample in third] == [20, 51]
+    assert third[0].root_xy == third[1].root_xy == (2.0, 0.0)
+    controller.update(state, 2.08)
+    controller.targets(state, 52, 25.0, visible_frames=244)
+    assert controller.deadline == 280  # Explicitly replan only after missing frame 124.
+
+
+def test_root_goal_requires_measured_bilateral_reach_and_height() -> None:
+    command = create_task_script("push_motion", "walk forward").next_command(0)
+    assert command is not None and command.root_path_goal is not None
+    state = np.array((6.0, 0.0, 0.76, 1.0, 0.0, 0.0, 0.0))
+    hands = {
+        "left_hand": np.array((6.3, 0.2, 1.0)),
+        "right_hand": np.array((6.3, -0.2, 1.0)),
+    }
+    controller = RootPathController(command.root_path_goal, window_seconds=2.08)
+    controller.phase = "push"
+    controller.update(state, 2.08, hands)
+    assert controller.phase == "done"
+
+    controller = RootPathController(command.root_path_goal, window_seconds=2.08)
+    controller.phase = "push"
+    controller.update(
+        state,
+        2.08,
+        {"left_hand": hands["left_hand"], "right_hand": np.array((6.1, 0.0, 1.0))},
+    )
+    assert controller.phase == "push"

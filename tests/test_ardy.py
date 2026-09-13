@@ -9,6 +9,7 @@ from ardy.skeleton import G1Skeleton34
 from motion_gen.ardy.adapter import ArdyMotionGenerator
 from motion_gen.ardy.encoder import prepare_conditioning
 from motion_gen.ardy.history import qpos_to_ardy_inputs
+from motion_gen.targets import TimedTargets
 from shared.g1 import standing_qpos
 from shared.messages import EndEffectorTarget
 
@@ -17,6 +18,7 @@ def test_scripted_window_only_observes_when_given_live_history() -> None:
     generator = Mock()
     generator.fps = 25
     generator.model.gen_horizon_len = 52
+    generator.model.num_frames_per_token = 4
     generator.generate.return_value = torch.zeros((52, 36))
     encoder = Mock()
     encoder.encode.return_value = torch.zeros(4096)
@@ -247,6 +249,91 @@ def test_ee_generation_uses_reference_pass_and_commits_only_final_motion(
     assert received_reference["decoded"] is reference_decoded
     assert seeds == [123, 123]
     torch.testing.assert_close(generator.motion_history, final_motion[:, -4:])
+    assert qpos.shape == (52, 36)
+
+
+def test_timed_hand_generation_uses_one_conditioned_pass(monkeypatch) -> None:
+    import motion_gen.ardy.generator as ardy_generator
+
+    model = Mock()
+    model.gen_horizon_len = 52
+    model.num_frames_per_token = 4
+    model.diffusion.num_base_steps = 10
+    motion = torch.ones((1, 52, 3))
+    model.autoregressive_step.return_value = motion
+    model.motion_rep.inverse.return_value = {
+        "root_positions": torch.zeros((1, 52, 3)),
+        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 52]),
+    }
+    converter = Mock()
+    converter.dict_to_qpos.return_value = torch.zeros((1, 52, 36))
+    mask = torch.ones((1, 52, 3))
+    observed = torch.full((1, 52, 3), 2.0)
+    monkeypatch.setattr(
+        ardy_generator,
+        "build_timed_constraints",
+        lambda *args, **kwargs: (mask, observed),
+    )
+    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
+    generator.device = torch.device("cpu")
+    generator.model = model
+    generator.converter = converter
+    generator.history_crop_frames = 4
+    generator.motion_history = None
+    generator.root_history = torch.zeros((2, 3))
+    generator.root_heading = torch.tensor(0.0)
+
+    generator.generate(
+        torch.arange(4096, dtype=torch.float32),
+        (),
+        samples=(
+            TimedTargets(
+                51, (0.2, 0.0), (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),)
+            ),
+        ),
+    )
+
+    assert model.autoregressive_step.call_count == 1
+    call = model.autoregressive_step.call_args
+    assert call.kwargs["motion_mask"] is mask
+    assert call.kwargs["observed_motion"] is observed
+
+
+def test_future_conditioning_keeps_52_frame_output(monkeypatch) -> None:
+    import motion_gen.ardy.generator as ardy_generator
+
+    model = Mock()
+    model.gen_horizon_len = 52
+    model.num_frames_per_token = 4
+    model.diffusion.num_base_steps = 10
+    model.autoregressive_step.return_value = torch.ones((1, 52, 3))
+    model.motion_rep.inverse.return_value = {
+        "root_positions": torch.zeros((1, 52, 3)),
+        "global_root_heading": torch.tensor([[[1.0, 0.0]] * 52]),
+    }
+    converter = Mock()
+    converter.dict_to_qpos.return_value = torch.zeros((1, 52, 36))
+    monkeypatch.setattr(
+        ardy_generator,
+        "build_timed_constraints",
+        lambda *args, **kwargs: (torch.zeros((1, 128, 3)), torch.zeros((1, 128, 3))),
+    )
+    generator = ardy_generator.Ardy.__new__(ardy_generator.Ardy)
+    generator.device = torch.device("cpu")
+    generator.model = model
+    generator.converter = converter
+    generator.history_crop_frames = 4
+    generator.motion_history = None
+    generator.root_history = torch.zeros((2, 3))
+    generator.root_heading = torch.tensor(0.0)
+
+    qpos = generator.generate(
+        torch.arange(4096, dtype=torch.float32),
+        (),
+        samples=(TimedTargets(124, (2.0, 0.0)),),
+    )
+
+    assert model.autoregressive_step.call_args.kwargs["num_frames"] == 128
     assert qpos.shape == (52, 36)
 
 

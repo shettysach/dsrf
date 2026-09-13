@@ -1,4 +1,4 @@
-# One plain text-to-motion generation. No VLM, box, or spatial constraints.
+# One contact-free, feedback-controlled ARDY motion script.
 nodes:
   - id: agent
     path: uv
@@ -10,6 +10,8 @@ nodes:
       SCRIPT_PROMPT: walk forward with both arms held forward
       SCRIPT_START_IMMEDIATELY: "true"
       MOTION_GENERATOR: ardy
+      PUSH_MOTION_APPROACH_X: "${PUSH_MOTION_APPROACH_X:-2.0}"
+      PUSH_MOTION_GOAL_X: "${PUSH_MOTION_GOAL_X:-6.0}"
     inputs:
       sim_error: sim/error
     outputs:
@@ -23,7 +25,7 @@ nodes:
       DEVICE: cuda
       MOTION_GENERATOR: ardy
       CHECKPOINTS_DIR: "${CHECKPOINTS_DIR:-/tmp/checkpoints}"
-      TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/home/sach/Desktop/encoding/model/}"
+      TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/tmp/model}"
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: push_motion
@@ -33,8 +35,11 @@ nodes:
       DEMO_MAX_COMMANDS: "1"
       DEMO_VIDEO_PATH: "${DEMO_VIDEO_PATH:-}"
       ARDY_SEED: "${ARDY_SEED:-0}"
+      PUSH_MOTION_HANDS: "${PUSH_MOTION_HANDS:-true}"
+      PUSH_MOTION_NAVIGATION_SPEED: "${PUSH_MOTION_NAVIGATION_SPEED:-0.4}"
+      PUSH_MOTION_SPEED: "${PUSH_MOTION_SPEED:-0.2}"
+      PUSH_MOTION_REACH_WINDOWS: "${PUSH_MOTION_REACH_WINDOWS:-1}"
     inputs:
       command: agent/command
     outputs:
       - error
-      - observation

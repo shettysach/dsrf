@@ -28,6 +28,10 @@ class ArdyMotionGenerator:
         self.window_frames = int(
             getattr(getattr(generator, "model", None), "gen_horizon_len", 52)
         )
+        patch = int(
+            getattr(getattr(generator, "model", None), "num_frames_per_token", 4)
+        )
+        self.visible_frames = (int(self.fps * 10) // patch) * patch - patch
         self._embeddings: dict[str, torch.Tensor] = {}
 
     def generate_window(

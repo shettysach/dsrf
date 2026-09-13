@@ -446,7 +446,7 @@ class SimRuntime:
             self._stop_requested = True
 
     def _execute_root_path(self, command: AgentCommand) -> None:
-        """Run the old multi-window script shape with root targets only."""
+        """Run the contact-free script with future goals and measured feedback."""
         from motion_gen.ardy.adapter import ArdyMotionGenerator
 
         goal = command.root_path_goal
@@ -463,13 +463,15 @@ class SimRuntime:
             controller = RootPathController(
                 goal, window_seconds=generator.window_frames / generator.fps
             )
-            reference_state = actual_state.copy()
             history = deque([actual_state.copy() for _ in range(9)], maxlen=9)
             if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
                 raise ValueError(
                     "Scripted history sampling requires 50 Hz sim / 25 Hz ARDY"
                 )
+
             def after_step() -> bool:
+                with self.simulation.compute_context():
+                    history.append(self._root_path_qpos())
                 if self._stop_requested:
                     self.node.log(
                         "info",
@@ -481,13 +483,16 @@ class SimRuntime:
             while not controller.finished and not self._stop_requested:
                 motion = controller.motion_prompt
                 samples = controller.targets(
-                    reference_state, generator.window_frames, generator.fps
+                    actual_state,
+                    generator.window_frames,
+                    generator.fps,
+                    generator.visible_frames,
                 )
                 self.demo_vlm_state = DemoVlmState(
                     observation_id=command.observation_id,
                     reasoning=(
                         f"Script: {controller.phase}; window {windows + 1}; "
-                        f"remaining {controller.remaining(reference_state):.2f}m"
+                        f"remaining {controller.remaining(actual_state):.2f}m"
                     ),
                     command=motion,
                 )
@@ -498,22 +503,37 @@ class SimRuntime:
                     samples,
                     history,
                     load_virtual_force=False,
-                    synchronize_history=windows == 0,
+                    synchronize_history=True,
                 )
+                generation_ms = (time.perf_counter() - started) * 1000
                 windows += 1
                 self._log_motion_generated(
                     command,
                     qpos,
                     reference,
-                    plan_ms=(time.perf_counter() - started) * 1000,
+                    plan_ms=generation_ms,
                     prompt=motion,
                 )
-                self._execute(after_step=after_step)
-                if controller.finished or self._stop_requested:
+                stats = self._execute(after_step=after_step)
+                with self.simulation.compute_context():
+                    actual_state = self._root_path_qpos()
+                    hands = self.simulation.hand_positions()
+                generated_end = qpos[-1].detach().cpu().numpy()
+                self.node.log(
+                    "info",
+                    f"root_path_window phase={controller.phase} goal_frame={controller.deadline} "
+                    f"generated_xy={generated_end[:2].tolist()} "
+                    f"measured_xy={actual_state[:2].tolist()} "
+                    f"hands={{{', '.join(f'{name}: {pos.tolist()}' for name, pos in hands.items())}}} "
+                    f"generation_ms={generation_ms:.1f}",
+                    target="dsrf.sim.root_path",
+                )
+                if self._stop_requested:
                     continue
-                reference_state = qpos[-1].detach().cpu().numpy()
                 previous = controller.phase
-                controller.update(reference_state, generator.window_frames / generator.fps)
+                controller.update(
+                    actual_state, stats.frames * self.simulation.step_dt, hands
+                )
                 if controller.phase != previous:
                     self.node.log(
                         "info",
