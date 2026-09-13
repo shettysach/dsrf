@@ -25,7 +25,7 @@ nodes:
       DEVICE: cuda
       MOTION_GENERATOR: ardy
       CHECKPOINTS_DIR: "${CHECKPOINTS_DIR:-/tmp/checkpoints}"
-      TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/tmp/model}"
+      TEXT_ENCODER_MODEL: "${TEXT_ENCODER_MODEL:-/home/sach/Desktop/encoding/model/}"
       TEXT_ENCODER_DEVICE: cuda
       SONIC_DIR: /tmp/GEAR-SONIC
       TASK: push_motion
