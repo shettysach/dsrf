@@ -19,7 +19,7 @@ class PushMotionSettings:
     hand_targets: bool = True
     hand_forward: float = 0.4
     hand_half_width: float = 0.16
-    hand_height: float = -0.26  # Box mid-height at the nominal 0.76 m root height.
+    hand_height: float = -0.11  # 0.65 m high at the nominal 0.76 m root height.
     box_face_gap: float = 0.0
     box_mass: float = 5.0
     vf_enable_distance: float = 0.05

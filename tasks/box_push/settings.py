@@ -20,7 +20,7 @@ class BoxPushSettings:
     # Box-relative hand targets. ``hand_target_world_z`` is intentionally
     # world-space so it is easy to tune against the visible box height.
     hand_half_width: float = 0.22
-    hand_target_world_z: float = 0.5
+    hand_target_world_z: float = 0.65
 
     # Per-phase ARDY priors and temporal pacing.
     approach_prompt: str = "walk forward"
