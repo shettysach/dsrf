@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 
 
-def test_only_contact_free_script_launcher_remains() -> None:
+def test_only_push_motion_script_launcher_remains() -> None:
     assert [path.name for path in Path(".").glob("*.yml")] == ["push_motion_script.yml"]
     nodes = {
         node["id"]: node

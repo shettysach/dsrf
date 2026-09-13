@@ -1,9 +1,11 @@
-# DSRF contact-free push motion
+# DSRF palm-assisted box push
 
 This repository's runnable dataflow is `push_motion_script.yml`. A script sends
 one root-path goal to ARDY; the simulator generates 52 frames at 25 FPS per
-window and tracks them with SONIC. There is no VLM, box, contact requirement,
-or virtual-force assistance in this flow. Other task implementations remain in
+window and tracks them with SONIC. A planar box is placed near the palms at
+the reach pose. During push, coarse palm proximity gates horizontal virtual
+force on the box; no physical contact requirement or G1 force is added.
+There is no VLM in this flow. Other task implementations remain in
 the source tree but have no maintained launchers.
 
 ## Setup
@@ -29,15 +31,20 @@ dora run push_motion_script.yml
 ```
 
 `DEMO_VIDEO_PATH=/tmp/push_motion.mp4` records a video. Set `PUSH_MOTION_HANDS=false`
-to diagnose root motion alone; the default constrains both hand positions.
+to disable hand keyframes for diagnosis; the default constrains both hand positions.
 `PUSH_MOTION_APPROACH_X`, `PUSH_MOTION_GOAL_X`, `PUSH_MOTION_NAVIGATION_SPEED`,
 and `PUSH_MOTION_SPEED` tune the physical path and pacing.
+`PUSH_MOTION_VF_ENABLE_DISTANCE`, `PUSH_MOTION_VF_DISABLE_DISTANCE`, and
+`PUSH_MOTION_VF_MAGNITUDE` tune the assistance (defaults: 0.05 m, 0.12 m, 15 N).
 
 The script walks to x=2 m, reaches, then walks with both hands forward to the
-green line at x=6 m. Per-window root and hand keyframes maintain the pace;
+root goal at x=6 m. The box starts at x=2.93 m, with its near face 3 cm past
+the nominal reach target, and its green goal is centered at x=6.93 m.
+Per-window root and hand keyframes maintain the pace;
 phase deadlines remain at absolute script-frame times and enter ARDY's
 10-second conditioning horizon when visible. Every window is replanned from
 measured robot state. Success requires the measured root within 0.10 m of the
-goal, height at least 0.55 m, and both measured hands at least 0.20 m ahead
-of the root, before the 90-second simulation timeout. These thresholds and
+goal, box center at the box goal, height at least 0.55 m, and both measured
+hands at least 0.20 m ahead of the root, before the 90-second simulation
+timeout. These thresholds and
 pace defaults require validation on the target GPU and tracker.

@@ -14,6 +14,7 @@ import torch
 import yaml
 from dora import Node
 from tasks.box_push.settings import BoxPushSettings
+from tasks.push_motion.settings import PushMotionSettings
 
 from motion_gen.generator import MotionGenerator
 from motion_gen.resample import resample_qpos
@@ -40,7 +41,7 @@ from sim.renderer import SimRenderer
 from sim.root_path import RootPathController
 from sim.video import DemoVideoRecorder, DemoVlmState
 from sim.viewer import SimViewer
-from sim.virtual_force import VirtualForce, VirtualForceResult
+from sim.virtual_force import ProximityPushForce, VirtualForce, VirtualForceResult
 from tracker.sonic import SonicTracker
 
 
@@ -446,7 +447,7 @@ class SimRuntime:
             self._stop_requested = True
 
     def _execute_root_path(self, command: AgentCommand) -> None:
-        """Run the contact-free script with future goals and measured feedback."""
+        """Run the scripted box push with measured root and box feedback."""
         from motion_gen.ardy.adapter import ArdyMotionGenerator
 
         goal = command.root_path_goal
@@ -456,12 +457,23 @@ class SimRuntime:
             self._stop_requested = True
             return
         generator = self.generator
+        settings = PushMotionSettings.from_env()
+        push_force = ProximityPushForce(
+            half_size=settings.box_half_size,
+            goal_x=settings.box_goal_x,
+            magnitude=settings.vf_magnitude,
+            enable_distance=settings.vf_enable_distance,
+            disable_distance=settings.vf_disable_distance,
+            device=self.simulation.device,
+        )
         windows = 0
         try:
             with self.simulation.compute_context():
                 actual_state = self._root_path_qpos()
             controller = RootPathController(
-                goal, window_seconds=generator.window_frames / generator.fps
+                goal,
+                window_seconds=generator.window_frames / generator.fps,
+                config=settings,
             )
             history = deque([actual_state.copy() for _ in range(9)], maxlen=9)
             if not np.isclose(self.simulation.step_dt, 0.02) or generator.fps != 25:
@@ -479,6 +491,24 @@ class SimRuntime:
                         target="dsrf.sim.root_path",
                     )
                 return self._stop_requested
+
+            def proximity_force_step() -> VirtualForceResult:
+                box_state = self.simulation.push_state("box")
+                was_active = push_force.active
+                result = push_force.compute(
+                    controller.phase, box_state.body_position, box_state.hands
+                )
+                if push_force.active != was_active:
+                    self.node.log(
+                        "info",
+                        f"vf_active={push_force.active} phase={controller.phase} "
+                        f"palm_box_distance={push_force.last_distance:.3f}m "
+                        f"force={push_force.last_force.tolist()} "
+                        f"box_position={box_state.body_position.tolist()} "
+                        f"box_velocity={box_state.body_velocity.tolist()}",
+                        target="dsrf.sim.virtual_force",
+                    )
+                return result
 
             while not controller.finished and not self._stop_requested:
                 motion = controller.motion_prompt
@@ -514,17 +544,24 @@ class SimRuntime:
                     plan_ms=generation_ms,
                     prompt=motion,
                 )
-                stats = self._execute(after_step=after_step)
+                stats = self._execute(
+                    after_step=after_step, virtual_force_step=proximity_force_step
+                )
                 with self.simulation.compute_context():
                     actual_state = self._root_path_qpos()
-                    hands = self.simulation.hand_positions()
+                    box_state = self.simulation.push_state("box")
+                    hands = box_state.hands
                 generated_end = qpos[-1].detach().cpu().numpy()
                 self.node.log(
                     "info",
                     f"root_path_window phase={controller.phase} goal_frame={controller.deadline} "
                     f"generated_xy={generated_end[:2].tolist()} "
                     f"measured_xy={actual_state[:2].tolist()} "
-                    f"hands={{{', '.join(f'{name}: {pos.tolist()}' for name, pos in hands.items())}}} "
+                    f"palm_box_distance={push_force.last_distance:.3f}m "
+                    f"vf_active={push_force.active} "
+                    f"force={push_force.last_force.tolist()} "
+                    f"box_position={box_state.body_position.tolist()} "
+                    f"box_velocity={box_state.body_velocity.tolist()} "
                     f"generation_ms={generation_ms:.1f}",
                     target="dsrf.sim.root_path",
                 )
@@ -532,7 +569,10 @@ class SimRuntime:
                     continue
                 previous = controller.phase
                 controller.update(
-                    actual_state, stats.frames * self.simulation.step_dt, hands
+                    actual_state,
+                    stats.frames * self.simulation.step_dt,
+                    hands,
+                    box_state.body_position,
                 )
                 if controller.phase != previous:
                     self.node.log(
@@ -557,6 +597,8 @@ class SimRuntime:
         except ValueError as exc:
             self._report_error(str(exc), source="execution")
         finally:
+            with self.simulation.compute_context():
+                self.simulation.clear_virtual_forces()
             self._stop_requested = True
 
     def _root_path_qpos(self) -> np.ndarray:
@@ -588,7 +630,10 @@ class SimRuntime:
         return source_qpos, reference
 
     def _execute(
-        self, *, after_step: Callable[[], bool] | None = None
+        self,
+        *,
+        after_step: Callable[[], bool] | None = None,
+        virtual_force_step: Callable[[], VirtualForceResult] | None = None,
     ) -> ExecutionStats:
         started_at = time.perf_counter()
         next_step = time.perf_counter()
@@ -606,11 +651,13 @@ class SimRuntime:
                         self.simulation.hand_object_contacts(
                             self.virtual_force.object_names
                         )
-                        if self.virtual_force is not None
+                        if self.virtual_force is not None and virtual_force_step is None
                         else set()
                     )
                     force_result = (
-                        self.virtual_force.compute(
+                        virtual_force_step()
+                        if virtual_force_step is not None
+                        else self.virtual_force.compute(
                             self.tracker.reference.frame_index,
                             contacts,
                         )

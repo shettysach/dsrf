@@ -1,7 +1,43 @@
+import numpy as np
 import pytest
 import torch
 
-from sim.virtual_force import VirtualForce, _derive_hand_motion, _HandMotion
+from sim.virtual_force import (
+    ProximityPushForce,
+    VirtualForce,
+    _derive_hand_motion,
+    _HandMotion,
+)
+
+
+def test_proximity_push_force_gates_by_phase_distance_and_box_goal() -> None:
+    assistance = ProximityPushForce(
+        half_size=(0.5, 0.5, 0.65),
+        goal_x=6.93,
+        magnitude=15.0,
+        enable_distance=0.05,
+        disable_distance=0.12,
+        device="cpu",
+    )
+    box = np.array((2.93, 0.0, 0.65))
+
+    def step(phase: str, palm_x: float, box_x: float = 2.93) -> torch.Tensor:
+        box[0] = box_x
+        result = assistance.compute(
+            phase, box, {"left_hand": np.array((palm_x, 0.16, 1.06))}
+        )
+        return result.forces["box"]
+
+    torch.testing.assert_close(step("reach", 2.41), torch.zeros(3))
+    torch.testing.assert_close(step("push", 2.41), torch.tensor((15.0, 0.0, 0.0)))
+    torch.testing.assert_close(step("push", 2.52), torch.tensor((15.0, 0.0, 0.0)))
+    torch.testing.assert_close(step("push", 6.41, 6.93), torch.zeros(3))
+    torch.testing.assert_close(step("push", 2.52), torch.zeros(3))
+    torch.testing.assert_close(step("push", 2.41), torch.tensor((15.0, 0.0, 0.0)))
+    torch.testing.assert_close(step("push", 2.57), torch.zeros(3))
+    torch.testing.assert_close(step("push", 2.41), torch.tensor((15.0, 0.0, 0.0)))
+    torch.testing.assert_close(step("approach", 2.41), torch.zeros(3))
+    assert not assistance.active
 
 
 def _virtual_force(*, magnitude: float = 40.0, maximum: float = 50.0) -> VirtualForce:

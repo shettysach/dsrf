@@ -297,6 +297,10 @@ class MjlabEnv:
         self._camera_capture.close()
         self._env.close()
 
+    def clear_virtual_forces(self) -> None:
+        """Remove any assistance without advancing the episode."""
+        self._write_external_forces({})
+
     def _write_external_forces(self, forces: Mapping[str, torch.Tensor]) -> None:
         unknown = set(forces) - self._virtual_force_body_ids.keys()
         if unknown:

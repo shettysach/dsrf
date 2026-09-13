@@ -1,4 +1,4 @@
-# One contact-free, feedback-controlled ARDY motion script.
+# One feedback-controlled ARDY script with a palm-assisted box push.
 nodes:
   - id: agent
     path: uv
@@ -37,7 +37,7 @@ nodes:
       ARDY_SEED: "${ARDY_SEED:-0}"
       PUSH_MOTION_HANDS: "${PUSH_MOTION_HANDS:-true}"
       PUSH_MOTION_NAVIGATION_SPEED: "${PUSH_MOTION_NAVIGATION_SPEED:-0.4}"
-      PUSH_MOTION_SPEED: "${PUSH_MOTION_SPEED:-0.2}"
+      PUSH_MOTION_SPEED: "${PUSH_MOTION_SPEED:-0.4}"
       PUSH_MOTION_REACH_WINDOWS: "${PUSH_MOTION_REACH_WINDOWS:-1}"
     inputs:
       command: agent/command

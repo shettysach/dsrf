@@ -1,4 +1,4 @@
-"""Contact-gated virtual assistance from reference hand motion."""
+"""Object-only virtual assistance from contact or coarse palm proximity."""
 
 from __future__ import annotations
 
@@ -37,6 +37,70 @@ class VirtualForceResult:
     forces: dict[str, torch.Tensor]
     started_contacts: tuple[ContactPair, ...]
     ended_contacts: tuple[ContactPair, ...]
+
+
+class ProximityPushForce:
+    """Assist the scripted +X box push while a palm stays near its rear face."""
+
+    def __init__(
+        self,
+        *,
+        half_size: tuple[float, float, float],
+        goal_x: float,
+        magnitude: float,
+        enable_distance: float,
+        disable_distance: float,
+        device: torch.device | str,
+    ) -> None:
+        if not 0.0 < enable_distance < disable_distance:
+            raise ValueError("Push-force distances must satisfy 0 < enable < disable")
+        self.half_size = np.asarray(half_size)
+        self.goal_x = goal_x
+        self.magnitude = magnitude
+        self.enable_distance = enable_distance
+        self.disable_distance = disable_distance
+        self.device = torch.device(device)
+        self.active = False
+        self.last_distance = float("inf")
+        self.last_force = torch.zeros(3, dtype=torch.float32, device=self.device)
+
+    def compute(
+        self,
+        phase: str,
+        box_position: np.ndarray,
+        hands: dict[str, np.ndarray],
+    ) -> VirtualForceResult:
+        box = np.asarray(box_position)
+        half_x, half_y, half_z = self.half_size
+        front_x = box[0] - half_x
+        self.last_distance = min(
+            (
+                float(
+                    np.linalg.norm(
+                        (
+                            hand[0] - front_x,
+                            max(abs(hand[1] - box[1]) - half_y, 0.0),
+                            max(abs(hand[2] - box[2]) - half_z, 0.0),
+                        )
+                    )
+                )
+                for hand in hands.values()
+            ),
+            default=float("inf"),
+        )
+        if phase != "push" or box[0] >= self.goal_x - 0.10:
+            self.active = False
+        elif self.active:
+            self.active = self.last_distance <= self.disable_distance
+        else:
+            self.active = self.last_distance < self.enable_distance
+
+        self.last_force = torch.tensor(
+            (self.magnitude if self.active else 0.0, 0.0, 0.0),
+            dtype=torch.float32,
+            device=self.device,
+        )
+        return VirtualForceResult({"box": self.last_force}, (), ())
 
 
 @dataclass(frozen=True)

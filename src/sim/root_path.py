@@ -1,4 +1,4 @@
-"""Measured-state, timed root path for the contact-free ARDY script."""
+"""Measured-state, timed root path for the scripted box push."""
 
 import math
 
@@ -56,7 +56,11 @@ class RootPathController:
         self.phase, self.reason = "failed", reason
 
     def update(
-        self, qpos: np.ndarray, dt: float, hands: dict[str, np.ndarray] | None = None
+        self,
+        qpos: np.ndarray,
+        dt: float,
+        hands: dict[str, np.ndarray] | None = None,
+        box_position: np.ndarray | None = None,
     ) -> bool:
         if self.finished:
             return True
@@ -76,8 +80,13 @@ class RootPathController:
         elif self.phase == "push" and self.remaining(qpos) <= 0.10:
             if qpos[2] < 0.55:
                 self.fail("Root fell below 0.55 m at the goal")
-            elif self._hands_forward(qpos, hands):
-                self.phase, self.reason = "done", "Reached the measured root-path goal"
+            elif (
+                self._hands_forward(qpos, hands)
+                and box_position is not None
+                and box_position[0] >= self.config.box_goal_x - 0.10
+                and abs(box_position[1]) <= 0.15
+            ):
+                self.phase, self.reason = "done", "Box reached the goal with palms forward"
 
         return self.finished
 

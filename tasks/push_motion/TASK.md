@@ -1,12 +1,15 @@
-# Task: Contact-free Push Motion
+# Task: Palm-assisted Box Push
 
-There is no box to touch or move. Run the following scripted sequence:
+Run the following scripted sequence:
 
 1. Walk forward to the staging waypoint.
-2. Stand and extend both arms straight forward.
-3. Walk forward with both arms held forward to the goal waypoint.
+2. Stand and extend both palms toward the near face of the box.
+3. Walk forward with both arms held forward, moving the box to the green goal.
 
 ARDY receives timed 2D root-position targets plus sparse bilateral hand
 keyframes. The hand keyframes constrain endpoint positions and forward-facing
-palm orientation through wrist/hand pose constraints. There are no torso,
-upright-root, contact, or other pose constraints.
+palm orientation through wrist/hand pose constraints. A planar box starts 3 cm
+beyond the nominal palm reach. During push only, a horizontal virtual force
+assists the box while a measured palm stays within 5 cm of its near face; it
+remains active until the gap exceeds 12 cm. The force stops at the box goal or
+when the phase ends. No artificial force is applied to G1.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 import mujoco
@@ -26,19 +27,21 @@ def make_box_push_spec_fn() -> SceneSpecFn:
     return add_box_push
 
 
-def make_box_push_entity_cfg() -> EntityCfg:
+def make_box_push_entity_cfg(
+    *, box_x: float | None = None, box_mass: float | None = None
+) -> EntityCfg:
     """Create the MJLab-managed dynamic box entity."""
     settings = BoxPushSettings.from_env()
 
     return EntityCfg(
-        spec_fn=_make_box_spec,
+        spec_fn=partial(_make_box_spec, box_mass=box_mass),
         init_state=EntityCfg.InitialStateCfg(
-            pos=(settings.box_x, 0.0, settings.half_size[2])
+            pos=(settings.box_x if box_x is None else box_x, 0.0, settings.half_size[2])
         ),
     )
 
 
-def _make_box_spec() -> "MjSpec":
+def _make_box_spec(*, box_mass: float | None = None) -> "MjSpec":
     settings = BoxPushSettings()
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
     body = spec.worldbody.add_body(name="box")
@@ -61,6 +64,7 @@ def _make_box_spec() -> "MjSpec":
         rgba=_BOX_RGBA,
         contype=1,
         conaffinity=1,
+        **({"mass": box_mass} if box_mass is not None else {}),
     )
     return spec
 
