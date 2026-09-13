@@ -306,6 +306,7 @@ def test_timed_hands_constrain_only_endpoints_and_keep_explicit_root() -> None:
     assert [
         index.tolist() for index in received["index"]["global_joints_positions"]
     ] == [
+        [[55, 0]],
         [[55, 4]],
         [[55, 6]],
     ]
@@ -331,6 +332,29 @@ def test_future_root_target_extends_mask_but_not_generation_horizon() -> None:
     assert received["length"] == 132
     assert received["index"]["root_2d"][0].tolist() == [55, 128]
     assert mask.shape == observed.shape == (1, 132, 64)
+
+
+def test_timed_hand_compiles_with_ardy_motion_representation() -> None:
+    motion_rep = ArdyMotionRep(G1Skeleton34(), 25)
+    motion_rep.stats = SimpleNamespace(normalize=lambda value: value)
+    mask, observed = build_timed_constraints(
+        motion_rep,
+        torch.tensor([[0.0, 0.8, 0.0], [0.0, 0.8, 0.0]]),
+        torch.tensor(0.0),
+        (
+            TimedTargets(
+                51,
+                (0.4, 0.0),
+                (EndEffectorTarget("right_hand", (0.4, 0.0, 0.2)),),
+            ),
+            TimedTargets(124, (2.0, 0.0)),
+        ),
+        generated_frames=52,
+        history_frames=4,
+        visible_frames=128,
+        device=torch.device("cpu"),
+    )
+    assert mask.shape == observed.shape == (1, 132, motion_rep.motion_rep_dim)
 
 
 def test_waypoint_and_native_ee_share_final_frame() -> None:
