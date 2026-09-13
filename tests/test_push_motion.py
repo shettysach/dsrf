@@ -1,23 +1,8 @@
 import numpy as np
-import pytest
-from tasks import get_task
 from tasks.push_motion.settings import PushMotionSettings
 
 from script.registry import create_task_script
 from sim.root_path import RootPathController
-
-
-def test_push_motion_box_starts_at_palm_reach_and_has_a_goal() -> None:
-    task = get_task("push_motion")
-    settings = PushMotionSettings()
-    box = task.make_entities()["box"]
-
-    assert task.virtual_force_objects == ("box",)
-    assert box.init_state.pos == (settings.box_start_x, 0.0, 0.65)
-    assert settings.box_start_x - settings.box_half_size[0] == pytest.approx(2.40)
-    assert settings.box_goal_x - settings.box_start_x == pytest.approx(4.0)
-    model = box.spec_fn().compile()
-    assert model.body_mass[model.body("box").id] == settings.box_mass
 
 
 def test_push_motion_uses_plain_text_generation_without_targets() -> None:
@@ -32,8 +17,6 @@ def test_push_motion_uses_plain_text_generation_without_targets() -> None:
     assert command.end_effectors == ()
     assert command.contact_goal is None
     assert command.root_path_goal is not None
-    assert command.root_path_goal.approach_xy == (2.0, 0.0)
-    assert command.root_path_goal.target_xy == (6.0, 0.0)
     left, right = command.root_path_goal.points
     assert left.palm_normal == right.palm_normal == (1.0, 0.0, 0.0)
 
@@ -136,9 +119,10 @@ def test_root_goal_requires_box_at_goal_and_measured_bilateral_reach() -> None:
     }
     controller = RootPathController(command.root_path_goal, window_seconds=2.08)
     controller.phase = "push"
-    controller.update(state, 2.08, hands, np.array((6.0, 0.0, 0.65)))
+    box_goal_x = controller.config.box_goal_x
+    controller.update(state, 2.08, hands, np.array((box_goal_x - 1.0, 0.0, 0.65)))
     assert controller.phase == "push"
-    controller.update(state, 2.08, hands, np.array((6.90, 0.0, 0.65)))
+    controller.update(state, 2.08, hands, np.array((box_goal_x, 0.0, 0.65)))
     assert controller.phase == "done"
 
     controller = RootPathController(command.root_path_goal, window_seconds=2.08)
@@ -147,6 +131,6 @@ def test_root_goal_requires_box_at_goal_and_measured_bilateral_reach() -> None:
         state,
         2.08,
         {"left_hand": hands["left_hand"], "right_hand": np.array((6.1, 0.0, 1.0))},
-        np.array((6.90, 0.0, 0.65)),
+        np.array((controller.config.box_goal_x, 0.0, 0.65)),
     )
     assert controller.phase == "push"

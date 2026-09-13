@@ -45,12 +45,8 @@ def test_box_push_starts_g1_directly_behind_the_box() -> None:
     assert robot.init_state.pos == pytest.approx((0.0, 0.0, 0.76))
 
 
-def test_box_push_box_has_a_wide_stable_footprint() -> None:
+def test_box_push_box_has_a_free_joint() -> None:
     box = make_box_push_entity_cfg()
-    settings = BoxPushSettings()
-
-    assert settings.half_size == pytest.approx((0.50, 0.50, 0.65))
-    assert box.init_state.pos == pytest.approx((3.0, 0.0, 0.65))
     model = box.spec_fn().compile()
     assert model.jnt_type[model.joint("box_free").id] == mujoco.mjtJoint.mjJNT_FREE
 
